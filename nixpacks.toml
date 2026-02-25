@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["dotnet-sdk_10"]
+
+[phases.build]
+cmds = [
+  "dotnet restore Kumburgaz.Web.csproj",
+  "dotnet publish Kumburgaz.Web.csproj -c Release -o out"
+]
+
+[start]
+cmd = "dotnet out/Kumburgaz.Web.dll"

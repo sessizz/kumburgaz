@@ -14,10 +14,10 @@ public class BillingGroupFormViewModel
     public int DuesTypeId { get; set; }
 
     [Required]
-    [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$")]
+    [RegularExpression(@"^\d{4}-\d{4}$")]
     public string EffectiveStartPeriod { get; set; } = string.Empty;
 
-    [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$")]
+    [RegularExpression(@"^\d{4}-\d{4}$")]
     public string? EffectiveEndPeriod { get; set; }
 
     public bool Active { get; set; } = true;
@@ -37,7 +37,7 @@ public class DuesGenerationPreviewItem
 
 public class DuesDebtReportQuery
 {
-    [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$")]
+    [RegularExpression(@"^\d{4}-\d{4}$")]
     public string? Period { get; set; }
     public int? BlockId { get; set; }
     public int? BillingGroupId { get; set; }

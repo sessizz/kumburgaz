@@ -77,11 +77,11 @@ public class BillingGroup
     public int DuesTypeId { get; set; }
     public DuesType? DuesType { get; set; }
 
-    [Required, MaxLength(7)]
-    public string EffectiveStartPeriod { get; set; } = string.Empty; // YYYY-MM
+    [Required, MaxLength(9)]
+    public string EffectiveStartPeriod { get; set; } = string.Empty; // YYYY-YYYY
 
-    [MaxLength(7)]
-    public string? EffectiveEndPeriod { get; set; } // YYYY-MM
+    [MaxLength(9)]
+    public string? EffectiveEndPeriod { get; set; } // YYYY-YYYY
 
     public bool Active { get; set; } = true;
 
@@ -98,10 +98,10 @@ public class BillingGroupUnit
     public int UnitId { get; set; }
     public Unit? Unit { get; set; }
 
-    [Required, MaxLength(7)]
+    [Required, MaxLength(9)]
     public string StartPeriod { get; set; } = string.Empty;
 
-    [MaxLength(7)]
+    [MaxLength(9)]
     public string? EndPeriod { get; set; }
 }
 
@@ -111,8 +111,8 @@ public class DuesInstallment
     public int BillingGroupId { get; set; }
     public BillingGroup? BillingGroup { get; set; }
 
-    [Required, MaxLength(7)]
-    public string Period { get; set; } = string.Empty; // YYYY-MM
+    [Required, MaxLength(9)]
+    public string Period { get; set; } = string.Empty; // YYYY-YYYY
 
     public DateTime DueDate { get; set; }
     public decimal Amount { get; set; }

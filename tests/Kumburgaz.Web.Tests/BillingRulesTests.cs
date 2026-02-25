@@ -14,10 +14,10 @@ public class BillingRulesTests
         SeedCoreData(db);
 
         var service = new DuesGenerationService(db);
-        await service.GenerateForPeriodAsync("2026-03", new DateTime(2026, 3, 10));
+        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 31));
 
         var mergedGroupInstallment = await db.DuesInstallments
-            .SingleAsync(x => x.BillingGroupId == 1 && x.Period == "2026-03");
+            .SingleAsync(x => x.BillingGroupId == 1 && x.Period == "2025-2026");
         Assert.Equal(12000m, mergedGroupInstallment.Amount);
     }
 
@@ -30,12 +30,12 @@ public class BillingRulesTests
         db.DuesInstallments.AddRange(
             new DuesInstallment
             {
-                Id = 1, BillingGroupId = 1, Period = "2026-01", DueDate = new DateTime(2026, 1, 10),
+                Id = 1, BillingGroupId = 1, Period = "2024-2025", DueDate = new DateTime(2024, 7, 31),
                 Amount = 12000m, RemainingAmount = 12000m
             },
             new DuesInstallment
             {
-                Id = 2, BillingGroupId = 1, Period = "2026-02", DueDate = new DateTime(2026, 2, 10),
+                Id = 2, BillingGroupId = 1, Period = "2025-2026", DueDate = new DateTime(2025, 7, 31),
                 Amount = 12000m, RemainingAmount = 12000m
             }
         );
@@ -87,12 +87,12 @@ public class BillingRulesTests
             Id = 1,
             Name = "A1-A2 Birlesik",
             DuesTypeId = 2,
-            EffectiveStartPeriod = "2026-01",
+            EffectiveStartPeriod = "2025-2026",
             Active = true
         });
         db.BillingGroupUnits.AddRange(
-            new BillingGroupUnit { Id = 1, BillingGroupId = 1, UnitId = 1, StartPeriod = "2026-01" },
-            new BillingGroupUnit { Id = 2, BillingGroupId = 1, UnitId = 2, StartPeriod = "2026-01" }
+            new BillingGroupUnit { Id = 1, BillingGroupId = 1, UnitId = 1, StartPeriod = "2025-2026" },
+            new BillingGroupUnit { Id = 2, BillingGroupId = 1, UnitId = 2, StartPeriod = "2025-2026" }
         );
         db.SaveChanges();
     }

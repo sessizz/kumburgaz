@@ -4,20 +4,29 @@ public static class PeriodHelper
 {
     public static bool IsValid(string period)
     {
-        if (period.Length != 7 || period[4] != '-')
+        if (period.Length != 9 || period[4] != '-')
         {
             return false;
         }
 
-        return int.TryParse(period[..4], out _) &&
-               int.TryParse(period[5..], out var month) &&
-               month is >= 1 and <= 12;
+        if (!int.TryParse(period[..4], out var startYear) ||
+            !int.TryParse(period[5..], out var endYear))
+        {
+            return false;
+        }
+
+        return endYear == startYear + 1;
     }
 
     public static int ToKey(string period)
     {
-        var year = int.Parse(period[..4]);
-        var month = int.Parse(period[5..]);
-        return year * 100 + month;
+        var startYear = int.Parse(period[..4]);
+        return startYear;
+    }
+
+    public static string CurrentFiscalPeriod(DateTime date)
+    {
+        var startYear = date.Month >= 7 ? date.Year : date.Year - 1;
+        return $"{startYear}-{startYear + 1}";
     }
 }

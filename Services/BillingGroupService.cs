@@ -32,7 +32,7 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
         if (!PeriodHelper.IsValid(model.EffectiveStartPeriod) ||
             (!string.IsNullOrWhiteSpace(model.EffectiveEndPeriod) && !PeriodHelper.IsValid(model.EffectiveEndPeriod)))
         {
-            throw new InvalidOperationException("Donem formati YYYY-MM olmalidir.");
+            throw new InvalidOperationException("Donem formati YYYY-YYYY olmali ve ikinci yil ilk yilin bir sonrasi olmali.");
         }
 
         if (model.SelectedUnitIds.Count == 0)

@@ -69,7 +69,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
     {
         if (!PeriodHelper.IsValid(period))
         {
-            throw new InvalidOperationException("Donem formati YYYY-MM olmalidir.");
+            throw new InvalidOperationException("Donem formati YYYY-YYYY olmali ve ikinci yil ilk yilin bir sonrasi olmali.");
         }
     }
 }

@@ -16,12 +16,12 @@
 
 <div class="row">
     <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Donemi (YYYY-MM)</label>
+        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Donemi (YYYY-YYYY)</label>
         <input asp-for="EffectiveStartPeriod" class="form-control" />
         <span asp-validation-for="EffectiveStartPeriod" class="text-danger"></span>
     </div>
     <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Donemi (opsiyonel)</label>
+        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Donemi (YYYY-YYYY, opsiyonel)</label>
         <input asp-for="EffectiveEndPeriod" class="form-control" />
         <span asp-validation-for="EffectiveEndPeriod" class="text-danger"></span>
     </div>

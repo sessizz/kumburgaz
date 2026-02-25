@@ -10,10 +10,11 @@ public class DuesGenerationController(IDuesGenerationService duesGenerationServi
     [HttpGet]
     public async Task<IActionResult> Index(string? period)
     {
-        period ??= $"{DateTime.Today:yyyy-MM}";
+        period ??= PeriodHelper.CurrentFiscalPeriod(DateTime.Today);
         var preview = await duesGenerationService.PreviewAsync(period);
         ViewBag.Period = period;
-        ViewBag.DueDate = DateTime.Today;
+        var startYear = int.Parse(period[..4]);
+        ViewBag.DueDate = new DateTime(startYear, 7, 31);
         return View(preview);
     }
 

@@ -22,7 +22,7 @@ public class BillingGroupsController(
     {
         return View(await BuildFormAsync(new BillingGroupFormViewModel
         {
-            EffectiveStartPeriod = $"{DateTime.Today:yyyy-MM}",
+            EffectiveStartPeriod = PeriodHelper.CurrentFiscalPeriod(DateTime.Today),
             Active = true
         }));
     }

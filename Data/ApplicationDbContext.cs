@@ -91,7 +91,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 Id = 1,
                 Name = "A1-A2 Birlesik",
                 DuesTypeId = 2,
-                EffectiveStartPeriod = "2026-01",
+                EffectiveStartPeriod = "2025-2026",
                 Active = true
             },
             new BillingGroup
@@ -99,15 +99,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 Id = 2,
                 Name = "A3 Tek",
                 DuesTypeId = 1,
-                EffectiveStartPeriod = "2026-01",
+                EffectiveStartPeriod = "2025-2026",
                 Active = true
             }
         );
 
         builder.Entity<BillingGroupUnit>().HasData(
-            new BillingGroupUnit { Id = 1, BillingGroupId = 1, UnitId = 1, StartPeriod = "2026-01" },
-            new BillingGroupUnit { Id = 2, BillingGroupId = 1, UnitId = 2, StartPeriod = "2026-01" },
-            new BillingGroupUnit { Id = 3, BillingGroupId = 2, UnitId = 3, StartPeriod = "2026-01" }
+            new BillingGroupUnit { Id = 1, BillingGroupId = 1, UnitId = 1, StartPeriod = "2025-2026" },
+            new BillingGroupUnit { Id = 2, BillingGroupId = 1, UnitId = 2, StartPeriod = "2025-2026" },
+            new BillingGroupUnit { Id = 3, BillingGroupId = 2, UnitId = 3, StartPeriod = "2025-2026" }
         );
 
         builder.Entity<IncomeExpenseCategory>().HasData(

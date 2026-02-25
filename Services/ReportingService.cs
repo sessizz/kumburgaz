@@ -12,7 +12,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
 {
     public async Task<List<DuesDebtReportRow>> GetDuesDebtReportAsync(DuesDebtReportQuery query)
     {
-        var rows = await db.DuesInstallments
+        var installments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
             .ThenInclude(x => x!.DuesType)
@@ -26,6 +26,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .Where(x => query.BlockId == null || x.BillingGroup!.Units.Any(u => u.Unit!.BlockId == query.BlockId))
             .OrderBy(x => x.Period)
             .ThenBy(x => x.BillingGroup!.Name)
+            .ToListAsync();
+
+        var rows = installments
             .Select(x => new DuesDebtReportRow
             {
                 BillingGroupId = x.BillingGroupId,
@@ -38,7 +41,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     .Select(u => $"{u.Unit!.Block!.Name}-{u.Unit.UnitNo}")
                     .OrderBy(v => v))
             })
-            .ToListAsync();
+            .ToList();
 
         return rows;
     }

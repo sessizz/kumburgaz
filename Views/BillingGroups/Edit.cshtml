@@ -1,0 +1,17 @@
+@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+@{
+    ViewData["Title"] = "Aidatlandirma Grubu Duzenle";
+}
+
+<h2>Aidatlandirma Grubu Duzenle</h2>
+
+<form asp-action="Edit" method="post" class="mt-3">
+    <input asp-for="Id" type="hidden" />
+    <partial name="_Form" model="Model" />
+    <button class="btn btn-primary" type="submit">Guncelle</button>
+    <a class="btn btn-outline-secondary" asp-action="Index">Vazgec</a>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

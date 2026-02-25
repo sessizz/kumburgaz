@@ -1,0 +1,35 @@
+@model List<Kumburgaz.Web.Models.LedgerTransaction>
+@{
+    ViewData["Title"] = "Gelir Gider";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Gelir Gider Islem Listesi</h2>
+    <a class="btn btn-primary" asp-action="Create">Yeni Islem</a>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead>
+    <tr>
+        <th>Tarih</th>
+        <th>Tur</th>
+        <th>Kategori</th>
+        <th>Tutar</th>
+        <th>Kanal</th>
+        <th>Aciklama</th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var row in Model)
+    {
+        <tr>
+            <td>@row.Date.ToString("dd.MM.yyyy")</td>
+            <td>@row.IncomeExpenseCategory?.Type</td>
+            <td>@row.IncomeExpenseCategory?.Name</td>
+            <td>@row.Amount.ToString("N2")</td>
+            <td>@row.PaymentChannel</td>
+            <td>@row.Description</td>
+        </tr>
+    }
+    </tbody>
+</table>

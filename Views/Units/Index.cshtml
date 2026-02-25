@@ -1,0 +1,33 @@
+@model List<Kumburgaz.Web.Models.Unit>
+@{
+    ViewData["Title"] = "Daireler";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Daireler</h2>
+    <a class="btn btn-primary" asp-action="Create">Yeni Daire</a>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Blok</th>
+            <th>Daire No</th>
+            <th>Malik</th>
+            <th>Durum</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@item.Block?.Name</td>
+            <td>@item.UnitNo</td>
+            <td>@item.OwnerName</td>
+            <td>@(item.Active ? "Aktif" : "Pasif")</td>
+            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a></td>
+        </tr>
+    }
+    </tbody>
+</table>

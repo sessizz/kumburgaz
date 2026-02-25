@@ -1,0 +1,57 @@
+@model List<Kumburgaz.Web.Models.DuesGenerationPreviewItem>
+@{
+    ViewData["Title"] = "Donem Borc Uretimi";
+}
+
+<h2>Donem Borc Uretimi</h2>
+
+@if (TempData["Success"] is string success)
+{
+    <div class="alert alert-success">@success</div>
+}
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3">
+        <label class="form-label">Donem (YYYY-MM)</label>
+        <input class="form-control" name="period" value="@ViewBag.Period" />
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-outline-primary w-100" type="submit">Onizleme</button>
+    </div>
+</form>
+
+<form asp-action="Generate" method="post" class="mb-3">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="period" value="@ViewBag.Period" />
+    <div class="row g-2">
+        <div class="col-md-3">
+            <label class="form-label">Vade Tarihi</label>
+            <input class="form-control" type="date" name="dueDate" value="@(((DateTime)ViewBag.DueDate).ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100" type="submit">Borclari Olustur</button>
+        </div>
+    </div>
+</form>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Grup</th>
+            <th>Aidat Tipi</th>
+            <th>Daireler</th>
+            <th>Tutar</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var row in Model)
+    {
+        <tr>
+            <td>@row.BillingGroupName</td>
+            <td>@row.DuesTypeName</td>
+            <td>@row.UnitsText</td>
+            <td>@row.Amount.ToString("N2") TL</td>
+        </tr>
+    }
+    </tbody>
+</table>

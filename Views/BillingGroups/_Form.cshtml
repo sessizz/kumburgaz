@@ -1,0 +1,39 @@
+@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+<div class="mb-3">
+    <label asp-for="Name" class="form-label"></label>
+    <input asp-for="Name" class="form-control" />
+    <span asp-validation-for="Name" class="text-danger"></span>
+</div>
+
+<div class="mb-3">
+    <label asp-for="DuesTypeId" class="form-label">Aidat Tipi</label>
+    <select asp-for="DuesTypeId" asp-items="Model.DuesTypeOptions" class="form-select"></select>
+    <span asp-validation-for="DuesTypeId" class="text-danger"></span>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Donemi (YYYY-MM)</label>
+        <input asp-for="EffectiveStartPeriod" class="form-control" />
+        <span asp-validation-for="EffectiveStartPeriod" class="text-danger"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Donemi (opsiyonel)</label>
+        <input asp-for="EffectiveEndPeriod" class="form-control" />
+        <span asp-validation-for="EffectiveEndPeriod" class="text-danger"></span>
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Daireler</label>
+    <select asp-for="SelectedUnitIds" asp-items="Model.UnitOptions" class="form-select" multiple size="8"></select>
+    <div class="form-text">A1 + A2 gibi birlesim icin iki daireyi ayni gruba secin.</div>
+</div>
+
+<div class="form-check mb-3">
+    <input asp-for="Active" class="form-check-input" />
+    <label asp-for="Active" class="form-check-label"></label>
+</div>

@@ -1,0 +1,38 @@
+@model List<Kumburgaz.Web.Models.BillingGroup>
+@{
+    ViewData["Title"] = "Aidatlandirma Gruplari";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Aidatlandirma Gruplari</h2>
+    <a class="btn btn-primary" asp-action="Create">Yeni Grup</a>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Grup</th>
+            <th>Aidat Tipi</th>
+            <th>Gecerlilik</th>
+            <th>Daireler</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@item.Name</td>
+            <td>@item.DuesType?.Name (@item.DuesType?.Amount.ToString("N2") TL)</td>
+            <td>@item.EffectiveStartPeriod - @(item.EffectiveEndPeriod ?? "Devam")</td>
+            <td>@string.Join(", ", item.Units.Select(u => $"{u.Unit?.Block?.Name}-{u.Unit?.UnitNo}"))</td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a>
+                <form asp-action="Delete" asp-route-id="@item.Id" method="post">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Pasif Yap</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

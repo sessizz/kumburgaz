@@ -23,10 +23,12 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat tutari sifirdan buyuk olmalidir.");
         }
 
+        var utcDate = DateTimeHelper.EnsureUtc(model.Date);
+
         var collection = new Collection
         {
             BillingGroupId = model.BillingGroupId,
-            Date = model.Date,
+            Date = utcDate,
             Amount = model.Amount,
             PaymentChannel = model.PaymentChannel,
             ReferenceNo = model.ReferenceNo,

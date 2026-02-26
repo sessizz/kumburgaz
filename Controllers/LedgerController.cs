@@ -1,5 +1,6 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
+using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -36,7 +37,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
         db.LedgerTransactions.Add(new LedgerTransaction
         {
-            Date = model.Date,
+            Date = DateTimeHelper.EnsureUtc(model.Date),
             IncomeExpenseCategoryId = model.IncomeExpenseCategoryId,
             Amount = model.Amount,
             PaymentChannel = model.PaymentChannel,

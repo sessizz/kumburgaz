@@ -41,6 +41,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
 
     public async Task GenerateForPeriodAsync(string period, DateTime dueDate)
     {
+        dueDate = DateTimeHelper.EnsureUtc(dueDate);
         var preview = await PreviewAsync(period);
 
         foreach (var item in preview)

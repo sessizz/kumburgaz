@@ -92,7 +92,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 Name = "A1-A2 Birlesik",
                 DuesTypeId = 2,
                 EffectiveStartPeriod = "2025-2026",
-                Active = true
+                Active = true,
+                IsMerged = true
             },
             new BillingGroup
             {
@@ -100,7 +101,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 Name = "A3 Tek",
                 DuesTypeId = 1,
                 EffectiveStartPeriod = "2025-2026",
-                Active = true
+                Active = true,
+                IsMerged = false
             }
         );
 

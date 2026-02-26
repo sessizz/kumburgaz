@@ -22,8 +22,13 @@ public static class BillingGroupDisplayHelper
             return group.Name;
         }
 
-        return units.Count == 1
-            ? units[0]
-            : $"{string.Join(" + ", units)} (Birlesik)";
+        if (units.Count == 1)
+        {
+            return units[0];
+        }
+
+        return group.IsMerged
+            ? $"{string.Join(" + ", units)} (Birlesik)"
+            : string.Join(", ", units);
     }
 }

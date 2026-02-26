@@ -84,6 +84,7 @@ public class BillingGroup
     public string? EffectiveEndPeriod { get; set; } // YYYY-YYYY
 
     public bool Active { get; set; } = true;
+    public bool IsMerged { get; set; }
 
     public ICollection<BillingGroupUnit> Units { get; set; } = new List<BillingGroupUnit>();
     public ICollection<DuesInstallment> Installments { get; set; } = new List<DuesInstallment>();

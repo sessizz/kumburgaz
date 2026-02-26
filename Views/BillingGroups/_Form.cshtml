@@ -30,7 +30,13 @@
 <div class="mb-3">
     <label class="form-label">Daireler</label>
     <select asp-for="SelectedUnitIds" asp-items="Model.UnitOptions" class="form-select" multiple size="8"></select>
-    <div class="form-text">A1 + A2 gibi birlesim icin iki daireyi ayni gruba secin.</div>
+    <div class="form-text">Birden fazla daire secilebilir.</div>
+</div>
+
+<div class="form-check mb-3">
+    <input asp-for="MergeUnits" class="form-check-input" />
+    <label asp-for="MergeUnits" class="form-check-label">Birlesik aidat (tek daire gibi hesapla)</label>
+    <div class="form-text">Isaretli degilse secilen her daire icin ayri aidat grubu olusturulur.</div>
 </div>
 
 <div class="form-check mb-3">

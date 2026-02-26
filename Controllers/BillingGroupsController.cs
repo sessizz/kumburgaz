@@ -64,6 +64,7 @@ public class BillingGroupsController(
             EffectiveStartPeriod = group.EffectiveStartPeriod,
             EffectiveEndPeriod = group.EffectiveEndPeriod,
             Active = group.Active,
+            MergeUnits = group.IsMerged,
             SelectedUnitIds = group.Units.Select(x => x.UnitId).ToList()
         };
 

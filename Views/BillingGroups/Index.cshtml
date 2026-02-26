@@ -15,6 +15,7 @@
             <th>Aidat Tipi</th>
             <th>Gecerlilik</th>
             <th>Daireler</th>
+            <th>Birlestik</th>
             <th></th>
         </tr>
     </thead>
@@ -26,6 +27,7 @@
             <td>@item.DuesType?.Name (@item.DuesType?.Amount.ToString("N2") TL)</td>
             <td>@item.EffectiveStartPeriod - @(item.EffectiveEndPeriod ?? "Devam")</td>
             <td>@string.Join(", ", item.Units.Select(u => $"{u.Unit?.Block?.Name}-{u.Unit?.UnitNo}"))</td>
+            <td>@(item.IsMerged ? "Evet" : "Hayir")</td>
             <td class="d-flex gap-1">
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a>
                 <form asp-action="Delete" asp-route-id="@item.Id" method="post">

@@ -21,6 +21,7 @@ public class BillingGroupFormViewModel
     public string? EffectiveEndPeriod { get; set; }
 
     public bool Active { get; set; } = true;
+    public bool MergeUnits { get; set; }
     public List<int> SelectedUnitIds { get; set; } = [];
     public List<SelectListItem> DuesTypeOptions { get; set; } = [];
     public List<SelectListItem> UnitOptions { get; set; } = [];

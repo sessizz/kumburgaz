@@ -41,16 +41,20 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
 
     public async Task GenerateForPeriodAsync(string period, DateTime dueDate)
     {
+        ValidatePeriod(period);
         dueDate = DateTimeHelper.EnsureUtc(dueDate);
         var periodKey = PeriodHelper.ToKey(period);
-        var groups = await db.BillingGroups
+        var allActiveGroups = await db.BillingGroups
             .AsNoTracking()
             .Include(x => x.DuesType)
             .Include(x => x.Units)
             .Where(x => x.Active)
-            .Where(x => PeriodHelper.ToKey(x.EffectiveStartPeriod) <= periodKey &&
-                        (x.EffectiveEndPeriod == null || PeriodHelper.ToKey(x.EffectiveEndPeriod) >= periodKey))
             .ToListAsync();
+
+        var groups = allActiveGroups
+            .Where(x => PeriodHelper.ToKey(x.EffectiveStartPeriod) <= periodKey &&
+                        (x.EffectiveEndPeriod is null || PeriodHelper.ToKey(x.EffectiveEndPeriod) >= periodKey))
+            .ToList();
 
         await NormalizeLegacyNonMergedInstallmentsAsync(period);
 

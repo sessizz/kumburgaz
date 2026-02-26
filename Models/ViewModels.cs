@@ -47,6 +47,7 @@ public class DuesDebtReportQuery
 public class DuesDebtReportRow
 {
     public int BillingGroupId { get; set; }
+    public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
     public string Period { get; set; } = string.Empty;
@@ -61,9 +62,6 @@ public class CollectionCreateViewModel
     public int BillingGroupId { get; set; }
 
     [Required]
-    public int UnitId { get; set; }
-
-    [Required]
     [DataType(DataType.Date)]
     public DateTime Date { get; set; } = DateTime.Today;
 
@@ -76,7 +74,6 @@ public class CollectionCreateViewModel
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
-    public List<SelectListItem> UnitOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel

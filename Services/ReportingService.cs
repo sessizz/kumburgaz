@@ -32,6 +32,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .Select(x => new DuesDebtReportRow
             {
                 BillingGroupId = x.BillingGroupId,
+                UnitDisplay = BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
                 BillingGroupName = x.BillingGroup!.Name,
                 DuesTypeName = x.BillingGroup.DuesType!.Name,
                 Period = x.Period,
@@ -41,6 +42,8 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     .Select(u => $"{u.Unit!.Block!.Name}-{u.Unit.UnitNo}")
                     .OrderBy(v => v))
             })
+            .OrderBy(x => x.UnitDisplay)
+            .ThenBy(x => x.Period)
             .ToList();
 
         return rows;
@@ -51,9 +54,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Aidat Borc");
         ws.Cell(1, 1).Value = "Donem";
-        ws.Cell(1, 2).Value = "Grup";
+        ws.Cell(1, 2).Value = "Daire/Birlesik";
         ws.Cell(1, 3).Value = "Aidat Tipi";
-        ws.Cell(1, 4).Value = "Daireler";
+        ws.Cell(1, 4).Value = "Aidat Grubu";
         ws.Cell(1, 5).Value = "Tutar";
         ws.Cell(1, 6).Value = "Kalan";
 
@@ -61,9 +64,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         foreach (var row in rows)
         {
             ws.Cell(rowIndex, 1).Value = row.Period;
-            ws.Cell(rowIndex, 2).Value = row.BillingGroupName;
+            ws.Cell(rowIndex, 2).Value = row.UnitDisplay;
             ws.Cell(rowIndex, 3).Value = row.DuesTypeName;
-            ws.Cell(rowIndex, 4).Value = row.UnitsText;
+            ws.Cell(rowIndex, 4).Value = row.BillingGroupName;
             ws.Cell(rowIndex, 5).Value = row.Amount;
             ws.Cell(rowIndex, 6).Value = row.RemainingAmount;
             rowIndex++;
@@ -100,9 +103,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     table.Header(header =>
                     {
                         header.Cell().Text("Donem");
-                        header.Cell().Text("Grup");
+                        header.Cell().Text("Daire/Birlesik");
                         header.Cell().Text("Tip");
-                        header.Cell().Text("Daireler");
+                        header.Cell().Text("Aidat Grubu");
                         header.Cell().Text("Tutar");
                         header.Cell().Text("Kalan");
                     });
@@ -110,9 +113,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     foreach (var row in rows)
                     {
                         table.Cell().Text(row.Period);
-                        table.Cell().Text(row.BillingGroupName);
+                        table.Cell().Text(row.UnitDisplay);
                         table.Cell().Text(row.DuesTypeName);
-                        table.Cell().Text(row.UnitsText);
+                        table.Cell().Text(row.BillingGroupName);
                         table.Cell().Text(row.Amount.ToString("N2"));
                         table.Cell().Text(row.RemainingAmount.ToString("N2"));
                     }

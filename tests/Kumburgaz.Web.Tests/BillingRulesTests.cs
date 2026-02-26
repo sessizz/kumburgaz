@@ -45,7 +45,6 @@ public class BillingRulesTests
         await service.CreateAsync(new CollectionCreateViewModel
         {
             BillingGroupId = 1,
-            UnitId = 1,
             Date = new DateTime(2026, 2, 15),
             Amount = 15000m,
             PaymentChannel = PaymentChannel.Bank

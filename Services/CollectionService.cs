@@ -11,6 +11,9 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         return db.Collections
             .AsNoTracking()
             .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
             .ThenInclude(x => x!.Block)
             .OrderByDescending(x => x.Date)
@@ -27,13 +30,11 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
 
     public async Task CreateAsync(CollectionCreateViewModel model)
     {
-        await ValidateSelectionAsync(model.UnitId, model.BillingGroupId);
         await SaveCollectionAndReallocateAsync(null, model);
     }
 
     public async Task UpdateAsync(int id, CollectionCreateViewModel model)
     {
-        await ValidateSelectionAsync(model.UnitId, model.BillingGroupId);
         await SaveCollectionAndReallocateAsync(id, model);
     }
 
@@ -44,6 +45,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat tutari sifirdan buyuk olmalidir.");
         }
 
+        var representativeUnitId = await ResolveRepresentativeUnitIdAsync(model.BillingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
         var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase);
@@ -75,7 +77,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             db.CollectionAllocations.RemoveRange(collection.Allocations);
 
             collection.BillingGroupId = model.BillingGroupId;
-            collection.UnitId = model.UnitId;
+            collection.UnitId = representativeUnitId;
             collection.Date = utcDate;
             collection.Amount = model.Amount;
             collection.PaymentChannel = model.PaymentChannel;
@@ -87,7 +89,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             collection = new Collection
             {
                 BillingGroupId = model.BillingGroupId,
-                UnitId = model.UnitId,
+                UnitId = representativeUnitId,
                 Date = utcDate,
                 Amount = model.Amount,
                 PaymentChannel = model.PaymentChannel,
@@ -138,14 +140,20 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         }
     }
 
-    private async Task ValidateSelectionAsync(int unitId, int billingGroupId)
+    private async Task<int> ResolveRepresentativeUnitIdAsync(int billingGroupId)
     {
-        var inGroup = await db.BillingGroupUnits
-            .AnyAsync(x => x.UnitId == unitId && x.BillingGroupId == billingGroupId);
+        var unitId = await db.BillingGroupUnits
+            .Where(x => x.BillingGroupId == billingGroupId)
+            .OrderBy(x => x.Unit!.Block!.Name)
+            .ThenBy(x => x.Unit!.UnitNo)
+            .Select(x => x.UnitId)
+            .FirstOrDefaultAsync();
 
-        if (!inGroup)
+        if (unitId == 0)
         {
-            throw new InvalidOperationException("Secilen daire, secilen aidatlandirma grubuna ait degil.");
+            throw new InvalidOperationException("Secilen aidatlandirma grubunda daire kaydi bulunamadi.");
         }
+
+        return unitId;
     }
 }

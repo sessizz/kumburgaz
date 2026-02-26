@@ -1,4 +1,5 @@
 @model List<Kumburgaz.Web.Models.Collection>
+@using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Tahsilatlar";
 }
@@ -26,7 +27,7 @@
     {
         <tr>
             <td>@item.Date.ToString("dd.MM.yyyy")</td>
-            <td>@($"{item.Unit?.Block?.Name}-{item.Unit?.UnitNo}")</td>
+            <td>@BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup)</td>
             <td>@item.BillingGroup?.Name</td>
             <td>@item.Amount.ToString("N2")</td>
             <td>@item.PaymentChannel</td>

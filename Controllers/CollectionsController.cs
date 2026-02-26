@@ -59,7 +59,6 @@ public class CollectionsController(
         var model = new CollectionCreateViewModel
         {
             BillingGroupId = entity.BillingGroupId,
-            UnitId = entity.UnitId,
             Date = entity.Date,
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
@@ -99,17 +98,14 @@ public class CollectionsController(
         model.BillingGroupOptions = await db.BillingGroups
             .AsNoTracking()
             .Where(x => x.Active)
+            .Include(x => x.DuesType)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
-            .ToListAsync();
-
-        model.UnitOptions = await db.Units
-            .AsNoTracking()
-            .Where(x => x.Active)
-            .Include(x => x.Block)
-            .OrderBy(x => x.Block!.Name)
-            .ThenBy(x => x.UnitNo)
-            .Select(x => new SelectListItem($"{x.Block!.Name}-{x.UnitNo}", x.Id.ToString()))
+            .Select(x => new SelectListItem(
+                $"{BillingGroupDisplayHelper.UnitDisplay(x)} / {x.DuesType!.Name}",
+                x.Id.ToString()))
             .ToListAsync();
 
         return model;

@@ -93,6 +93,14 @@ public class CollectionsController(
         }
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        await collectionService.DeleteAsync(id);
+        return RedirectToAction(nameof(Index));
+    }
+
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {
         model.BillingGroupOptions = await db.BillingGroups

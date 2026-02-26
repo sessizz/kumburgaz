@@ -66,6 +66,36 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
         await db.SaveChangesAsync();
     }
 
+    public async Task DeleteForPeriodAsync(string period)
+    {
+        ValidatePeriod(period);
+
+        var installmentIds = await db.DuesInstallments
+            .Where(x => x.Period == period)
+            .Select(x => x.Id)
+            .ToListAsync();
+
+        if (installmentIds.Count == 0)
+        {
+            return;
+        }
+
+        var hasAllocation = await db.CollectionAllocations
+            .AnyAsync(x => installmentIds.Contains(x.DuesInstallmentId));
+
+        if (hasAllocation)
+        {
+            throw new InvalidOperationException("Bu donemde tahsilat uygulanmis borclar var. Once ilgili tahsilatlari silin veya duzenleyin.");
+        }
+
+        var installments = await db.DuesInstallments
+            .Where(x => x.Period == period)
+            .ToListAsync();
+
+        db.DuesInstallments.RemoveRange(installments);
+        await db.SaveChangesAsync();
+    }
+
     private static void ValidatePeriod(string period)
     {
         if (!PeriodHelper.IsValid(period))

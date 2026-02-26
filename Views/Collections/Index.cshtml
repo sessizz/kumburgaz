@@ -33,7 +33,14 @@
             <td>@item.PaymentChannel</td>
             <td>@item.ReferenceNo</td>
             <td>@item.Note</td>
-            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a></td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a>
+                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                      onsubmit="return confirm('Bu tahsilat kaydi silinsin mi?');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
+                </form>
+            </td>
         </tr>
     }
     </tbody>

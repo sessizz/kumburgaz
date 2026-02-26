@@ -26,4 +26,21 @@ public class DuesGenerationController(IDuesGenerationService duesGenerationServi
         TempData["Success"] = "Donem borclari olusturuldu.";
         return RedirectToAction(nameof(Index), new { period });
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(string period)
+    {
+        try
+        {
+            await duesGenerationService.DeleteForPeriodAsync(period);
+            TempData["Success"] = "Donem borclari silindi.";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index), new { period });
+    }
 }

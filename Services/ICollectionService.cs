@@ -8,4 +8,5 @@ public interface ICollectionService
     Task<Collection?> GetByIdAsync(int id);
     Task CreateAsync(CollectionCreateViewModel model);
     Task UpdateAsync(int id, CollectionCreateViewModel model);
+    Task DeleteAsync(int id);
 }

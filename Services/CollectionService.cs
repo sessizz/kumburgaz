@@ -38,6 +38,44 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         await SaveCollectionAndReallocateAsync(id, model);
     }
 
+    public async Task DeleteAsync(int id)
+    {
+        var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase);
+        await using var tx = useTransaction ? await db.Database.BeginTransactionAsync() : null;
+
+        var collection = await db.Collections
+            .Include(x => x.Allocations)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (collection is null)
+        {
+            return;
+        }
+
+        var installmentIds = collection.Allocations.Select(x => x.DuesInstallmentId).ToList();
+        var installments = await db.DuesInstallments
+            .Where(x => installmentIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id);
+
+        foreach (var allocation in collection.Allocations)
+        {
+            var installment = installments[allocation.DuesInstallmentId];
+            installment.RemainingAmount += allocation.AppliedAmount;
+            installment.Status = installment.RemainingAmount >= installment.Amount
+                ? InstallmentStatus.Open
+                : InstallmentStatus.PartiallyPaid;
+        }
+
+        db.CollectionAllocations.RemoveRange(collection.Allocations);
+        db.Collections.Remove(collection);
+        await db.SaveChangesAsync();
+
+        if (tx is not null)
+        {
+            await tx.CommitAsync();
+        }
+    }
+
     private async Task SaveCollectionAndReallocateAsync(int? collectionId, CollectionCreateViewModel model)
     {
         if (model.Amount <= 0)

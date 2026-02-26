@@ -61,6 +61,9 @@ public class CollectionCreateViewModel
     public int BillingGroupId { get; set; }
 
     [Required]
+    public int UnitId { get; set; }
+
+    [Required]
     [DataType(DataType.Date)]
     public DateTime Date { get; set; } = DateTime.Today;
 
@@ -73,6 +76,7 @@ public class CollectionCreateViewModel
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
+    public List<SelectListItem> UnitOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel

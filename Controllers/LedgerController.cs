@@ -48,6 +48,53 @@ public class LedgerController(ApplicationDbContext db) : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    public async Task<IActionResult> Edit(int id)
+    {
+        var entity = await db.LedgerTransactions.FindAsync(id);
+        if (entity is null)
+        {
+            return NotFound();
+        }
+
+        var model = new LedgerTransactionCreateViewModel
+        {
+            Date = entity.Date,
+            IncomeExpenseCategoryId = entity.IncomeExpenseCategoryId,
+            Amount = entity.Amount,
+            PaymentChannel = entity.PaymentChannel,
+            Description = entity.Description
+        };
+
+        ViewBag.TransactionId = id;
+        return View(await BuildAsync(model));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, LedgerTransactionCreateViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            ViewBag.TransactionId = id;
+            return View(await BuildAsync(model));
+        }
+
+        var entity = await db.LedgerTransactions.FindAsync(id);
+        if (entity is null)
+        {
+            return NotFound();
+        }
+
+        entity.Date = DateTimeHelper.EnsureUtc(model.Date);
+        entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
+        entity.Amount = model.Amount;
+        entity.PaymentChannel = model.PaymentChannel;
+        entity.Description = model.Description;
+
+        await db.SaveChangesAsync();
+        return RedirectToAction(nameof(Index));
+    }
+
     private async Task<LedgerTransactionCreateViewModel> BuildAsync(LedgerTransactionCreateViewModel model)
     {
         model.CategoryOptions = await db.IncomeExpenseCategories
@@ -55,7 +102,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
             .Where(x => x.Active)
             .OrderBy(x => x.Type)
             .ThenBy(x => x.Name)
-            .Select(x => new SelectListItem($"{x.Type} - {x.Name}", x.Id.ToString()))
+            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString()))
             .ToListAsync();
 
         return model;

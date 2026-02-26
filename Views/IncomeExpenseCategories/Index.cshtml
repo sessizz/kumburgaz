@@ -1,0 +1,37 @@
+@model List<Kumburgaz.Web.Models.IncomeExpenseCategory>
+@using Kumburgaz.Web.Services
+@{
+    ViewData["Title"] = "Gelir Gider Turleri";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Gelir Gider Turleri</h2>
+    <a class="btn btn-primary" asp-action="Create">Yeni Tur</a>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead>
+    <tr>
+        <th>Tur</th>
+        <th>Ad</th>
+        <th>Durum</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@CategoryTypeHelper.Display(item.Type)</td>
+            <td>@item.Name</td>
+            <td>@(item.Active ? "Aktif" : "Pasif")</td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a>
+                <form asp-action="Toggle" asp-route-id="@item.Id" method="post">
+                    <button class="btn btn-sm btn-outline-warning" type="submit">Durum Degistir</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

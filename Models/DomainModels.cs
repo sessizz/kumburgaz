@@ -127,6 +127,8 @@ public class Collection
     public int Id { get; set; }
     public int BillingGroupId { get; set; }
     public BillingGroup? BillingGroup { get; set; }
+    public int UnitId { get; set; }
+    public Unit? Unit { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
     public PaymentChannel PaymentChannel { get; set; }

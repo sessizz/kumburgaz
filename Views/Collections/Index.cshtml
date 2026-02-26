@@ -12,11 +12,13 @@
     <thead>
         <tr>
             <th>Tarih</th>
+            <th>Daire</th>
             <th>Grup</th>
             <th>Tutar</th>
             <th>Kanal</th>
             <th>Ref</th>
             <th>Not</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
@@ -24,11 +26,13 @@
     {
         <tr>
             <td>@item.Date.ToString("dd.MM.yyyy")</td>
+            <td>@($"{item.Unit?.Block?.Name}-{item.Unit?.UnitNo}")</td>
             <td>@item.BillingGroup?.Name</td>
             <td>@item.Amount.ToString("N2")</td>
             <td>@item.PaymentChannel</td>
             <td>@item.ReferenceNo</td>
             <td>@item.Note</td>
+            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a></td>
         </tr>
     }
     </tbody>

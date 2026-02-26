@@ -48,6 +48,52 @@ public class CollectionsController(
         }
     }
 
+    public async Task<IActionResult> Edit(int id)
+    {
+        var entity = await collectionService.GetByIdAsync(id);
+        if (entity is null)
+        {
+            return NotFound();
+        }
+
+        var model = new CollectionCreateViewModel
+        {
+            BillingGroupId = entity.BillingGroupId,
+            UnitId = entity.UnitId,
+            Date = entity.Date,
+            Amount = entity.Amount,
+            PaymentChannel = entity.PaymentChannel,
+            ReferenceNo = entity.ReferenceNo,
+            Note = entity.Note
+        };
+
+        ViewBag.CollectionId = id;
+        return View(await BuildFormAsync(model));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, CollectionCreateViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            ViewBag.CollectionId = id;
+            return View(await BuildFormAsync(model));
+        }
+
+        try
+        {
+            await collectionService.UpdateAsync(id, model);
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ViewBag.CollectionId = id;
+            return View(await BuildFormAsync(model));
+        }
+    }
+
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {
         model.BillingGroupOptions = await db.BillingGroups
@@ -55,6 +101,15 @@ public class CollectionsController(
             .Where(x => x.Active)
             .OrderBy(x => x.Name)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .ToListAsync();
+
+        model.UnitOptions = await db.Units
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .Include(x => x.Block)
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .Select(x => new SelectListItem($"{x.Block!.Name}-{x.UnitNo}", x.Id.ToString()))
             .ToListAsync();
 
         return model;

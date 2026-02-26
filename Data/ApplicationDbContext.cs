@@ -111,9 +111,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         );
 
         builder.Entity<IncomeExpenseCategory>().HasData(
-            new IncomeExpenseCategory { Id = 1, Name = "Aidat Tahsilati", Type = "Income", Active = true },
-            new IncomeExpenseCategory { Id = 2, Name = "Gorevli Maasi", Type = "Expense", Active = true },
-            new IncomeExpenseCategory { Id = 3, Name = "Bakim Onarim", Type = "Expense", Active = true }
+            new IncomeExpenseCategory { Id = 1, Name = "Aidat Tahsilati", Type = "Gelir", Active = true },
+            new IncomeExpenseCategory { Id = 2, Name = "Gorevli Maasi", Type = "Gider", Active = true },
+            new IncomeExpenseCategory { Id = 3, Name = "Bakim Onarim", Type = "Gider", Active = true }
         );
     }
 }

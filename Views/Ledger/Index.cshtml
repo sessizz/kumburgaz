@@ -1,4 +1,5 @@
 @model List<Kumburgaz.Web.Models.LedgerTransaction>
+@using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Gelir Gider";
 }
@@ -17,6 +18,7 @@
         <th>Tutar</th>
         <th>Kanal</th>
         <th>Aciklama</th>
+        <th></th>
     </tr>
     </thead>
     <tbody>
@@ -24,11 +26,12 @@
     {
         <tr>
             <td>@row.Date.ToString("dd.MM.yyyy")</td>
-            <td>@row.IncomeExpenseCategory?.Type</td>
+            <td>@CategoryTypeHelper.Display(row.IncomeExpenseCategory?.Type)</td>
             <td>@row.IncomeExpenseCategory?.Name</td>
             <td>@row.Amount.ToString("N2")</td>
             <td>@row.PaymentChannel</td>
             <td>@row.Description</td>
+            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@row.Id">Duzenle</a></td>
         </tr>
     }
     </tbody>

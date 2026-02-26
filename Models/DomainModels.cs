@@ -111,6 +111,8 @@ public class DuesInstallment
     public int Id { get; set; }
     public int BillingGroupId { get; set; }
     public BillingGroup? BillingGroup { get; set; }
+    public int? UnitId { get; set; }
+    public Unit? Unit { get; set; }
 
     [Required, MaxLength(9)]
     public string Period { get; set; } = string.Empty; // YYYY-YYYY

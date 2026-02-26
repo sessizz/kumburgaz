@@ -42,28 +42,109 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
     public async Task GenerateForPeriodAsync(string period, DateTime dueDate)
     {
         dueDate = DateTimeHelper.EnsureUtc(dueDate);
-        var preview = await PreviewAsync(period);
+        var periodKey = PeriodHelper.ToKey(period);
+        var groups = await db.BillingGroups
+            .AsNoTracking()
+            .Include(x => x.DuesType)
+            .Include(x => x.Units)
+            .Where(x => x.Active)
+            .Where(x => PeriodHelper.ToKey(x.EffectiveStartPeriod) <= periodKey &&
+                        (x.EffectiveEndPeriod == null || PeriodHelper.ToKey(x.EffectiveEndPeriod) >= periodKey))
+            .ToListAsync();
 
-        foreach (var item in preview)
+        await NormalizeLegacyNonMergedInstallmentsAsync(period);
+
+        foreach (var group in groups)
         {
-            var exists = await db.DuesInstallments.AnyAsync(x => x.BillingGroupId == item.BillingGroupId && x.Period == period);
-            if (exists)
+            var amount = group.DuesType?.Amount ?? 0m;
+            if (group.IsMerged)
             {
+                var exists = await db.DuesInstallments.AnyAsync(x =>
+                    x.BillingGroupId == group.Id && x.Period == period && x.UnitId == null);
+                if (exists)
+                {
+                    continue;
+                }
+
+                db.DuesInstallments.Add(new DuesInstallment
+                {
+                    BillingGroupId = group.Id,
+                    UnitId = null,
+                    Period = period,
+                    DueDate = dueDate,
+                    Amount = amount,
+                    RemainingAmount = amount,
+                    Status = InstallmentStatus.Open
+                });
                 continue;
             }
 
-            db.DuesInstallments.Add(new DuesInstallment
+            var unitIds = group.Units.Select(u => u.UnitId).Distinct().ToList();
+            foreach (var unitId in unitIds)
             {
-                BillingGroupId = item.BillingGroupId,
-                Period = period,
-                DueDate = dueDate,
-                Amount = item.Amount,
-                RemainingAmount = item.Amount,
-                Status = InstallmentStatus.Open
-            });
+                var exists = await db.DuesInstallments.AnyAsync(x =>
+                    x.BillingGroupId == group.Id && x.Period == period && x.UnitId == unitId);
+                if (exists)
+                {
+                    continue;
+                }
+
+                db.DuesInstallments.Add(new DuesInstallment
+                {
+                    BillingGroupId = group.Id,
+                    UnitId = unitId,
+                    Period = period,
+                    DueDate = dueDate,
+                    Amount = amount,
+                    RemainingAmount = amount,
+                    Status = InstallmentStatus.Open
+                });
+            }
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private async Task NormalizeLegacyNonMergedInstallmentsAsync(string period)
+    {
+        var legacyInstallments = await db.DuesInstallments
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .Include(x => x.Allocations)
+            .Where(x => x.Period == period && x.UnitId == null && !x.BillingGroup!.IsMerged)
+            .ToListAsync();
+
+        foreach (var installment in legacyInstallments)
+        {
+            var unitIds = installment.BillingGroup!.Units.Select(x => x.UnitId).Distinct().ToList();
+            if (unitIds.Count <= 1)
+            {
+                installment.UnitId = unitIds.FirstOrDefault();
+                continue;
+            }
+
+            if (installment.Allocations.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Donem {period} icin {installment.BillingGroup.Name} grubunda tahsilat uygulanmis eski tekil borc bulundu. " +
+                    "Bu kaydi once manuel temizleyin.");
+            }
+
+            installment.UnitId = unitIds[0];
+            for (var i = 1; i < unitIds.Count; i++)
+            {
+                db.DuesInstallments.Add(new DuesInstallment
+                {
+                    BillingGroupId = installment.BillingGroupId,
+                    UnitId = unitIds[i],
+                    Period = installment.Period,
+                    DueDate = installment.DueDate,
+                    Amount = installment.Amount,
+                    RemainingAmount = installment.RemainingAmount,
+                    Status = installment.Status
+                });
+            }
+        }
     }
 
     public async Task DeleteForPeriodAsync(string period)

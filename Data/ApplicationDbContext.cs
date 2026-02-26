@@ -39,7 +39,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .IsUnique();
 
         builder.Entity<DuesInstallment>()
-            .HasIndex(x => new { x.BillingGroupId, x.Period })
+            .HasIndex(x => new { x.BillingGroupId, x.Period, x.UnitId })
             .IsUnique();
 
         builder.Entity<DuesInstallment>()

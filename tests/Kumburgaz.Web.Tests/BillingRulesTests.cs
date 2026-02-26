@@ -88,7 +88,8 @@ public class BillingRulesTests
             Name = "A1-A2 Birlesik",
             DuesTypeId = 2,
             EffectiveStartPeriod = "2025-2026",
-            Active = true
+            Active = true,
+            IsMerged = true
         });
         db.BillingGroupUnits.AddRange(
             new BillingGroupUnit { Id = 1, BillingGroupId = 1, UnitId = 1, StartPeriod = "2025-2026" },

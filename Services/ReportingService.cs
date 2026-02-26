@@ -20,6 +20,8 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ThenInclude(x => x!.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
             .Where(x => query.Period == null || x.Period == query.Period)
             .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
             .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
@@ -32,7 +34,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .Select(x => new DuesDebtReportRow
             {
                 BillingGroupId = x.BillingGroupId,
-                UnitDisplay = BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
+                UnitDisplay = x.UnitId.HasValue
+                    ? $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}"
+                    : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
                 BillingGroupName = x.BillingGroup!.Name,
                 DuesTypeName = x.BillingGroup.DuesType!.Name,
                 Period = x.Period,

@@ -10,7 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class LedgerController(ApplicationDbContext db) : Controller
+public class LedgerController(
+    ApplicationDbContext db,
+    ICollectionService collectionService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -19,6 +21,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
+
+        ViewBag.Collections = await collectionService.GetAllAsync();
         return View(rows);
     }
 

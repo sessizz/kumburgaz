@@ -16,7 +16,7 @@ public class CollectionsController(
 {
     public async Task<IActionResult> Index()
     {
-        return View(await collectionService.GetAllAsync());
+        return RedirectToAction("Index", "Ledger");
     }
 
     public async Task<IActionResult> ExportCsv()

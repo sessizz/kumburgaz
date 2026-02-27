@@ -1,7 +1,9 @@
-﻿@model List<Kumburgaz.Web.Models.LedgerTransaction>
+@model List<Kumburgaz.Web.Models.LedgerTransaction>
+@using Kumburgaz.Web.Models
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Gelir Gider";
+    var collections = ViewBag.Collections as List<Collection> ?? [];
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -68,6 +70,51 @@
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@row.Id">Düzenle</a>
                 <form asp-action="Delete" asp-route-id="@row.Id" method="post"
                       onsubmit="return confirm('Bu işlem silinsin mi?');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
+                </form>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<div class="d-flex justify-content-between align-items-center mt-5 mb-3">
+    <h3 class="mb-0">Aidat Tahsilatları (Gelir)</h3>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-controller="Collections" asp-action="ExportCsv">CSV Dışa Aktar</a>
+        <a class="btn btn-primary" asp-controller="Collections" asp-action="Create">Yeni Tahsilat</a>
+    </div>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Tarih</th>
+            <th>Daire</th>
+            <th>Grup</th>
+            <th>Tutar</th>
+            <th>Kanal</th>
+            <th>Ref</th>
+            <th>Not</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in collections)
+    {
+        <tr>
+            <td>@item.Date.ToString("dd.MM.yyyy")</td>
+            <td>@BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup)</td>
+            <td>@item.BillingGroup?.Name</td>
+            <td>@item.Amount.ToString("N2")</td>
+            <td>@item.PaymentChannel</td>
+            <td>@item.ReferenceNo</td>
+            <td>@item.Note</td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-controller="Collections" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
+                <form asp-controller="Collections" asp-action="Delete" asp-route-id="@item.Id" method="post"
+                      onsubmit="return confirm('Bu tahsilat kaydı silinsin mi?');">
                     @Html.AntiForgeryToken()
                     <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
                 </form>

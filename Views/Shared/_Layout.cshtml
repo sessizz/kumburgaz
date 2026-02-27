@@ -1,3 +1,11 @@
+@{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+
+    string NavClass(string controller) =>
+        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase)
+            ? "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium"
+            : "flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700";
+}
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -24,6 +32,7 @@
             },
         };
     </script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Kumburgaz.Web.styles.css" asp-append-version="true" />
     <style>
@@ -51,31 +60,31 @@
         </div>
 
         <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Home" asp-action="Index">
+            <a class="@NavClass("Home")" asp-controller="Home" asp-action="Index">
                 <span class="material-symbols-outlined">dashboard</span><span>Gösterge Paneli</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Units" asp-action="Index">
+            <a class="@NavClass("Units")" asp-controller="Units" asp-action="Index">
                 <span class="material-symbols-outlined">group</span><span>Daireler</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Collections" asp-action="Index">
+            <a class="@NavClass("Collections")" asp-controller="Collections" asp-action="Index">
                 <span class="material-symbols-outlined">payments</span><span>Tahsilatlar</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Ledger" asp-action="Index">
+            <a class="@NavClass("Ledger")" asp-controller="Ledger" asp-action="Index">
                 <span class="material-symbols-outlined">receipt_long</span><span>Gelir Gider</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="DuesTypes" asp-action="Index">
+            <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
                 <span class="material-symbols-outlined">category</span><span>Aidat Tipleri</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="BillingGroups" asp-action="Index">
+            <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
                 <span class="material-symbols-outlined">view_list</span><span>Aidat Grupları</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="DuesGeneration" asp-action="Index">
+            <a class="@NavClass("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
                 <span class="material-symbols-outlined">event_repeat</span><span>Dönem Üretimi</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="IncomeExpenseCategories" asp-action="Index">
+            <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
                 <span class="material-symbols-outlined">settings</span><span>Kategori Ayarları</span>
             </a>
-            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Reports" asp-action="DuesDebt">
+            <a class="@NavClass("Reports")" asp-controller="Reports" asp-action="DuesDebt">
                 <span class="material-symbols-outlined">description</span><span>Raporlar</span>
             </a>
         </nav>

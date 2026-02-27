@@ -1,69 +1,105 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
-    <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0ea5e9",
+                        secondary: "#14b8a6",
+                        "background-light": "#f8fafc",
+                    },
+                    fontFamily: {
+                        display: ["Manrope", "sans-serif"],
+                    },
+                },
+            },
+        };
+    </script>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Kumburgaz.Web.styles.css" asp-append-version="true" />
+    <style>
+        body { font-family: "Manrope", sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Kumburgaz Yönetim</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Panel</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="DuesTypes" asp-action="Index">Aidat Tipleri</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Units" asp-action="Index">Daireler</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="BillingGroups" asp-action="Index">Aidat Grupları</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="DuesGeneration" asp-action="Index">Dönem Üretimi</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Collections" asp-action="Index">Tahsilatlar</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Ledger" asp-action="Index">Gelir Gider</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="IncomeExpenseCategories" asp-action="Index">Gelir Gider Türleri</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Reports" asp-action="DuesDebt">Raporlar</a>
-                        </li>
-                    </ul>
-                    <partial name="_LoginPartial" />
+<body class="bg-background-light text-slate-900 min-h-screen md:flex">
+    <aside class="hidden md:flex md:w-64 bg-white border-r border-slate-200 flex-col h-screen fixed left-0 top-0 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary/10 p-2 rounded-lg">
+                    <span class="material-symbols-outlined text-primary">apartment</span>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold leading-tight">Kumburgaz Site</h1>
+                    <p class="text-xs text-slate-500">Yönetim Portalı</p>
                 </div>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - Kumburgaz Yönetim
         </div>
-    </footer>
+
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Home" asp-action="Index">
+                <span class="material-symbols-outlined">dashboard</span><span>Gösterge Paneli</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Units" asp-action="Index">
+                <span class="material-symbols-outlined">group</span><span>Daireler</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Collections" asp-action="Index">
+                <span class="material-symbols-outlined">payments</span><span>Tahsilatlar</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Ledger" asp-action="Index">
+                <span class="material-symbols-outlined">receipt_long</span><span>Gelir Gider</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="DuesTypes" asp-action="Index">
+                <span class="material-symbols-outlined">category</span><span>Aidat Tipleri</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="BillingGroups" asp-action="Index">
+                <span class="material-symbols-outlined">view_list</span><span>Aidat Grupları</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="DuesGeneration" asp-action="Index">
+                <span class="material-symbols-outlined">event_repeat</span><span>Dönem Üretimi</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="IncomeExpenseCategories" asp-action="Index">
+                <span class="material-symbols-outlined">settings</span><span>Kategori Ayarları</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700" asp-controller="Reports" asp-action="DuesDebt">
+                <span class="material-symbols-outlined">description</span><span>Raporlar</span>
+            </a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 md:ml-64 min-h-screen flex flex-col">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-10">
+            <h2 class="text-lg md:text-xl font-bold text-slate-900">@ViewData["Title"]</h2>
+            <div class="flex items-center gap-3">
+                <partial name="_LoginPartial" />
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-8">
+            <div class="max-w-7xl mx-auto">
+                @RenderBody()
+            </div>
+        </div>
+
+        <footer class="text-center text-slate-400 text-xs pb-4">
+            © 2026 Kumburgaz Yönetim
+        </footer>
+    </main>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

@@ -1,14 +1,14 @@
-@model List<Kumburgaz.Web.Models.LedgerTransaction>
+﻿@model List<Kumburgaz.Web.Models.LedgerTransaction>
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Gelir Gider";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Gelir Gider Islem Listesi</h2>
+    <h2 class="mb-0">Gelir Gider İşlem Listesi</h2>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" asp-action="ExportCsv">CSV Disa Aktar</a>
-        <a class="btn btn-primary" asp-action="Create">Yeni Islem</a>
+        <a class="btn btn-outline-secondary" asp-action="ExportCsv">CSV Dışa Aktar</a>
+        <a class="btn btn-primary" asp-action="Create">Yeni İşlem</a>
     </div>
 </div>
 
@@ -20,11 +20,19 @@
 {
     <div class="alert alert-danger">@errorMessage</div>
 }
+@if (TempData["ActionSuccess"] is string actionSuccess)
+{
+    <div class="alert alert-success">@actionSuccess</div>
+}
+@if (TempData["ActionError"] is string actionError)
+{
+    <div class="alert alert-danger">@actionError</div>
+}
 
 <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="card card-body mb-3">
     <div class="row g-2 align-items-end">
         <div class="col-md-7">
-            <label class="form-label mb-1">Gelir-Gider CSV Yukle</label>
+            <label class="form-label mb-1">Gelir-Gider CSV Yükle</label>
             <input type="file" name="file" accept=".csv,text/csv" class="form-control" />
             <div class="form-text">Kolonlar: IncomeExpenseCategoryId, Date, Amount, PaymentChannel, Description</div>
         </div>
@@ -38,11 +46,11 @@
     <thead>
     <tr>
         <th>Tarih</th>
-        <th>Tur</th>
+        <th>Tür</th>
         <th>Kategori</th>
         <th>Tutar</th>
         <th>Kanal</th>
-        <th>Aciklama</th>
+        <th>Açıklama</th>
         <th></th>
     </tr>
     </thead>
@@ -56,7 +64,14 @@
             <td>@row.Amount.ToString("N2")</td>
             <td>@row.PaymentChannel</td>
             <td>@row.Description</td>
-            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@row.Id">Duzenle</a></td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@row.Id">Düzenle</a>
+                <form asp-action="Delete" asp-route-id="@row.Id" method="post"
+                      onsubmit="return confirm('Bu işlem silinsin mi?');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
+                </form>
+            </td>
         </tr>
     }
     </tbody>

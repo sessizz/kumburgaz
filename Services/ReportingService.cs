@@ -50,15 +50,75 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ThenBy(x => x.Period)
             .ToList();
 
-        return rows;
+        var billingGroupIds = rows.Select(x => x.BillingGroupId).Distinct().ToList();
+        if (billingGroupIds.Count > 0)
+        {
+            var creditByGroup = await db.Collections
+                .AsNoTracking()
+                .Where(x => billingGroupIds.Contains(x.BillingGroupId))
+                .Select(x => new
+                {
+                    x.BillingGroupId,
+                    Credit = x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault()
+                })
+                .GroupBy(x => x.BillingGroupId)
+                .Select(x => new { BillingGroupId = x.Key, Credit = x.Sum(v => v.Credit) })
+                .ToDictionaryAsync(x => x.BillingGroupId, x => x.Credit);
+
+            foreach (var groupedRows in rows.GroupBy(x => x.BillingGroupId))
+            {
+                if (!creditByGroup.TryGetValue(groupedRows.Key, out var credit) || credit <= 0)
+                {
+                    continue;
+                }
+
+                var orderedRows = groupedRows
+                    .OrderBy(x => x.Period)
+                    .ThenBy(x => x.Amount)
+                    .ToList();
+
+                foreach (var row in orderedRows)
+                {
+                    if (credit <= 0)
+                    {
+                        break;
+                    }
+
+                    var reduction = Math.Min(row.RemainingAmount, credit);
+                    row.RemainingAmount -= reduction;
+                    credit -= reduction;
+                }
+
+                if (credit > 0)
+                {
+                    var anchor = orderedRows.Last();
+                    rows.Add(new DuesDebtReportRow
+                    {
+                        BillingGroupId = anchor.BillingGroupId,
+                        UnitDisplay = anchor.UnitDisplay,
+                        BillingGroupName = anchor.BillingGroupName,
+                        DuesTypeName = "Fazla Ödeme",
+                        Period = anchor.Period,
+                        Amount = 0,
+                        RemainingAmount = -credit,
+                        UnitsText = anchor.UnitsText
+                    });
+                }
+            }
+        }
+
+        return rows
+            .OrderBy(x => x.UnitDisplay)
+            .ThenBy(x => x.Period)
+            .ToList();
     }
 
     public byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows)
     {
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("Aidat Borc");
-        ws.Cell(1, 1).Value = "Donem";
-        ws.Cell(1, 2).Value = "Daire/Birlesik";
+        var ws = wb.Worksheets.Add("Aidat Borç");
+        ws.Cell(1, 1).Value = "Dönem";
+        ws.Cell(1, 2).Value = "Daire/Birleşik";
         ws.Cell(1, 3).Value = "Aidat Tipi";
         ws.Cell(1, 4).Value = "Aidat Grubu";
         ws.Cell(1, 5).Value = "Tutar";
@@ -91,7 +151,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             container.Page(page =>
             {
                 page.Margin(20);
-                page.Header().Text("Aidat Borc Raporu").FontSize(18).Bold();
+                page.Header().Text("Aidat Borç Raporu").FontSize(18).Bold();
                 page.Content().Table(table =>
                 {
                     table.ColumnsDefinition(c =>
@@ -106,8 +166,8 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
 
                     table.Header(header =>
                     {
-                        header.Cell().Text("Donem");
-                        header.Cell().Text("Daire/Birlesik");
+                        header.Cell().Text("Dönem");
+                        header.Cell().Text("Daire/Birleşik");
                         header.Cell().Text("Tip");
                         header.Cell().Text("Aidat Grubu");
                         header.Cell().Text("Tutar");

@@ -1,4 +1,4 @@
-@model List<Kumburgaz.Web.Models.BillingGroup>
+﻿@model List<Kumburgaz.Web.Models.BillingGroup>
 @{
     ViewData["Title"] = "Aidatlandirma Gruplari";
 }
@@ -29,7 +29,7 @@
             <td>@string.Join(", ", item.Units.Select(u => $"{u.Unit?.Block?.Name}-{u.Unit?.UnitNo}"))</td>
             <td>@(item.IsMerged ? "Evet" : "Hayir")</td>
             <td class="d-flex gap-1">
-                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a>
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
                 <form asp-action="Delete" asp-route-id="@item.Id" method="post">
                     <button class="btn btn-sm btn-outline-danger" type="submit">Pasif Yap</button>
                 </form>

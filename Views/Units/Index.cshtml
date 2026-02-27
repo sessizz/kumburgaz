@@ -1,4 +1,4 @@
-@model List<Kumburgaz.Web.Models.Unit>
+﻿@model List<Kumburgaz.Web.Models.Unit>
 @{
     ViewData["Title"] = "Daireler";
 }
@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">Daireler</h2>
     <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" asp-action="ExportCsv">CSV Disa Aktar</a>
+        <a class="btn btn-outline-secondary" asp-action="ExportCsv">CSV Dışa Aktar</a>
         <a class="btn btn-primary" asp-action="Create">Yeni Daire</a>
     </div>
 </div>
@@ -19,11 +19,19 @@
 {
     <div class="alert alert-danger">@errorMessage</div>
 }
+@if (TempData["ActionSuccess"] is string actionSuccess)
+{
+    <div class="alert alert-success">@actionSuccess</div>
+}
+@if (TempData["ActionError"] is string actionError)
+{
+    <div class="alert alert-danger">@actionError</div>
+}
 
 <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="card card-body mb-3">
     <div class="row g-2 align-items-end">
         <div class="col-md-7">
-            <label class="form-label mb-1">Daire CSV Yukle</label>
+            <label class="form-label mb-1">Daire CSV Yükle</label>
             <input type="file" name="file" accept=".csv,text/csv" class="form-control" />
             <div class="form-text">Kolonlar: BlockId veya Block, UnitNo, OwnerName, Active</div>
         </div>
@@ -51,7 +59,14 @@
             <td>@item.UnitNo</td>
             <td>@item.OwnerName</td>
             <td>@(item.Active ? "Aktif" : "Pasif")</td>
-            <td><a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Duzenle</a></td>
+            <td class="d-flex gap-1">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
+                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                      onsubmit="return confirm('Bu daire silinsin mi?');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
+                </form>
+            </td>
         </tr>
     }
     </tbody>

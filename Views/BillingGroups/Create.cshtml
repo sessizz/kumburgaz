@@ -1,4 +1,4 @@
-@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+﻿@model Kumburgaz.Web.Models.BillingGroupFormViewModel
 @{
     ViewData["Title"] = "Yeni Aidatlandirma Grubu";
 }
@@ -8,7 +8,7 @@
 <form asp-action="Create" method="post" class="mt-3">
     <partial name="_Form" model="Model" />
     <button class="btn btn-primary" type="submit">Kaydet</button>
-    <a class="btn btn-outline-secondary" asp-action="Index">Vazgec</a>
+    <a class="btn btn-outline-secondary" asp-action="Index">Vazgeç</a>
 </form>
 
 @section Scripts {

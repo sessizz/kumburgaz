@@ -1,4 +1,4 @@
-@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+﻿@model Kumburgaz.Web.Models.BillingGroupFormViewModel
 
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
@@ -16,12 +16,12 @@
 
 <div class="row">
     <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Donemi (YYYY-YYYY)</label>
+        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Dönemi (YYYY-YYYY)</label>
         <input asp-for="EffectiveStartPeriod" class="form-control" />
         <span asp-validation-for="EffectiveStartPeriod" class="text-danger"></span>
     </div>
     <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Donemi (YYYY-YYYY, opsiyonel)</label>
+        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Dönemi (YYYY-YYYY, opsiyonel)</label>
         <input asp-for="EffectiveEndPeriod" class="form-control" />
         <span asp-validation-for="EffectiveEndPeriod" class="text-danger"></span>
     </div>
@@ -35,7 +35,7 @@
 
 <div class="form-check mb-3">
     <input asp-for="MergeUnits" class="form-check-input" />
-    <label asp-for="MergeUnits" class="form-check-label">Birlesik aidat (tek daire gibi hesapla)</label>
+    <label asp-for="MergeUnits" class="form-check-label">Birleşik aidat (tek daire gibi hesapla)</label>
     <div class="form-text">Isaretli degilse secilen her daire icin ayri aidat grubu olusturulur.</div>
 </div>
 

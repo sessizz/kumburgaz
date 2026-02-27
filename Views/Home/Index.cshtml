@@ -1,4 +1,4 @@
-@{
+﻿@{
     ViewData["Title"] = "Panel";
 }
 
@@ -8,7 +8,7 @@
     <div class="col-md-3">
         <div class="card">
             <div class="card-body">
-                <div class="text-muted">Toplam Borc</div>
+                <div class="text-muted">Toplam Borç</div>
                 <div class="h4 mb-0">@(((decimal)ViewBag.TotalDebt).ToString("N2")) TL</div>
             </div>
         </div>
@@ -16,7 +16,7 @@
     <div class="col-md-3">
         <div class="card">
             <div class="card-body">
-                <div class="text-muted">Uretilen Aidat</div>
+                <div class="text-muted">Üretilen Aidat</div>
                 <div class="h4 mb-0">@(((decimal)ViewBag.TotalGenerated).ToString("N2")) TL</div>
             </div>
         </div>
@@ -39,11 +39,11 @@
     </div>
 </div>
 
-<h4>Hizli Islemler</h4>
+<h4>Hizli İşlemler</h4>
 <div class="d-flex gap-2 flex-wrap">
     <a asp-controller="DuesTypes" asp-action="Index" class="btn btn-outline-primary">Aidat Tipleri</a>
     <a asp-controller="BillingGroups" asp-action="Index" class="btn btn-outline-primary">Aidat Gruplari</a>
-    <a asp-controller="DuesGeneration" asp-action="Index" class="btn btn-outline-primary">Donem Borc Uretimi</a>
+    <a asp-controller="DuesGeneration" asp-action="Index" class="btn btn-outline-primary">Dönem Borç Üretimi</a>
     <a asp-controller="Collections" asp-action="Create" class="btn btn-outline-primary">Tahsilat Gir</a>
-    <a asp-controller="Reports" asp-action="DuesDebt" class="btn btn-outline-primary">Aidat Borc Raporu</a>
+    <a asp-controller="Reports" asp-action="DuesDebt" class="btn btn-outline-primary">Aidat Borç Raporu</a>
 </div>

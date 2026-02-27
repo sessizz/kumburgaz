@@ -126,18 +126,35 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await db.LedgerTransactions.FindAsync(id);
+        if (entity is null)
+        {
+            TempData["ActionError"] = "Kayıt bulunamadı.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        db.LedgerTransactions.Remove(entity);
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = "İşlem silindi.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ImportCsv(IFormFile? file)
     {
         if (file is null || file.Length == 0)
         {
-            TempData["ImportError"] = "CSV dosyasi seciniz.";
+            TempData["ImportError"] = "CSV dosyası seciniz.";
             return RedirectToAction(nameof(Index));
         }
 
         var rows = await CsvImportHelper.ReadRowsAsync(file);
         if (rows.Count < 2)
         {
-            TempData["ImportError"] = "CSV baslik ve en az bir veri satiri icermelidir.";
+            TempData["ImportError"] = "CSV baslik ve en az bir veri satırı icermelidir.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -160,25 +177,25 @@ public class LedgerController(ApplicationDbContext db) : Controller
             var categoryIdText = ReadValue(row, headers, "incomeexpensecategoryid");
             if (!int.TryParse(categoryIdText, out var categoryId) || !categorySet.Contains(categoryId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: gecerli IncomeExpenseCategoryId bulunamadi.";
+                TempData["ImportError"] = $"Satir {lineNo}: geçerli IncomeExpenseCategoryId bulunamadı.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParseDate(ReadValue(row, headers, "date"), out var date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Date alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Date alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParseAmount(ReadValue(row, headers, "amount"), out var amount) || amount <= 0)
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Amount alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Amount alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParsePaymentChannel(ReadValue(row, headers, "paymentchannel"), out var paymentChannel))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -194,7 +211,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
         db.LedgerTransactions.AddRange(toAdd);
         await db.SaveChangesAsync();
-        TempData["ImportSuccess"] = $"{toAdd.Count} gelir-gider kaydi CSV ile eklendi.";
+        TempData["ImportSuccess"] = $"{toAdd.Count} gelir-gider kaydı CSV ile eklendi.";
         return RedirectToAction(nameof(Index));
     }
 

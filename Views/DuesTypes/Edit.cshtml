@@ -1,9 +1,9 @@
-@model Kumburgaz.Web.Models.DuesType
+﻿@model Kumburgaz.Web.Models.DuesType
 @{
-    ViewData["Title"] = "Aidat Tipi Duzenle";
+    ViewData["Title"] = "Aidat Tipi Düzenle";
 }
 
-<h2>Aidat Tipi Duzenle</h2>
+<h2>Aidat Tipi Düzenle</h2>
 
 <form asp-action="Edit" method="post" class="mt-3">
     <input asp-for="Id" type="hidden" />
@@ -22,8 +22,8 @@
         <input asp-for="Active" class="form-check-input" />
         <label asp-for="Active" class="form-check-label"></label>
     </div>
-    <button class="btn btn-primary" type="submit">Guncelle</button>
-    <a class="btn btn-outline-secondary" asp-action="Index">Vazgec</a>
+    <button class="btn btn-primary" type="submit">Güncelle</button>
+    <a class="btn btn-outline-secondary" asp-action="Index">Vazgeç</a>
 </form>
 
 @section Scripts {

@@ -1,10 +1,10 @@
-@model Kumburgaz.Web.Models.LedgerTransactionCreateViewModel
+﻿@model Kumburgaz.Web.Models.LedgerTransactionCreateViewModel
 
 @{
-    ViewData["Title"] = "Gelir Gider Islem";
+    ViewData["Title"] = "Gelir Gider İşlem";
 }
 
-<h2>Gelir Gider Islem</h2>
+<h2>Gelir Gider İşlem</h2>
 <p><a asp-controller="IncomeExpenseCategories" asp-action="Index">Gelir/Gider turlerini yonet</a></p>
 
 <form asp-action="Create" method="post" class="mt-3">
@@ -37,7 +37,7 @@
         </div>
     </div>
     <button type="submit" class="btn btn-primary">Kaydet</button>
-    <a asp-action="Index" class="btn btn-outline-secondary">Vazgec</a>
+    <a asp-action="Index" class="btn btn-outline-secondary">Vazgeç</a>
 </form>
 
 @section Scripts {

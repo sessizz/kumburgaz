@@ -12,7 +12,12 @@ public static class CsvExportHelper
             sb.AppendLine(string.Join(';', row.Select(Escape)));
         }
 
-        return Encoding.UTF8.GetBytes(sb.ToString());
+        var contentBytes = Encoding.UTF8.GetBytes(sb.ToString());
+        var bom = Encoding.UTF8.GetPreamble();
+        var output = new byte[bom.Length + contentBytes.Length];
+        Buffer.BlockCopy(bom, 0, output, 0, bom.Length);
+        Buffer.BlockCopy(contentBytes, 0, output, bom.Length, contentBytes.Length);
+        return output;
     }
 
     private static string Escape(string? value)

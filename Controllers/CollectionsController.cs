@@ -131,14 +131,14 @@ public class CollectionsController(
     {
         if (file is null || file.Length == 0)
         {
-            TempData["ImportError"] = "CSV dosyasi seciniz.";
+            TempData["ImportError"] = "CSV dosyası seciniz.";
             return RedirectToAction(nameof(Index));
         }
 
         var rows = await CsvImportHelper.ReadRowsAsync(file);
         if (rows.Count < 2)
         {
-            TempData["ImportError"] = "CSV baslik ve en az bir veri satiri icermelidir.";
+            TempData["ImportError"] = "CSV baslik ve en az bir veri satırı icermelidir.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -161,25 +161,25 @@ public class CollectionsController(
             var billingGroupIdText = ReadValue(row, headers, "billinggroupid");
             if (!int.TryParse(billingGroupIdText, out var billingGroupId) || !billingGroupSet.Contains(billingGroupId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: gecerli BillingGroupId bulunamadi.";
+                TempData["ImportError"] = $"Satir {lineNo}: geçerli BillingGroupId bulunamadı.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParseDate(ReadValue(row, headers, "date"), out var date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Date alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Date alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParseAmount(ReadValue(row, headers, "amount"), out var amount) || amount <= 0)
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Amount alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Amount alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
             if (!TryParsePaymentChannel(ReadValue(row, headers, "paymentchannel"), out var paymentChannel))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alani gecersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -211,7 +211,7 @@ public class CollectionsController(
 
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {
-        model.BillingGroupOptions = await db.BillingGroups
+        var groups = await db.BillingGroups
             .AsNoTracking()
             .Where(x => x.Active)
             .Include(x => x.DuesType)
@@ -219,10 +219,38 @@ public class CollectionsController(
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(
-                $"{BillingGroupDisplayHelper.UnitDisplay(x)} / {x.DuesType!.Name}",
-                x.Id.ToString()))
             .ToListAsync();
+
+        model.BillingGroupOptions = groups
+            .SelectMany(group =>
+            {
+                var units = group.Units
+                    .Where(x => x.Unit?.Block is not null)
+                    .OrderBy(x => x.Unit!.Block!.Name)
+                    .ThenBy(x => x.Unit!.UnitNo)
+                    .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}")
+                    .ToList();
+
+                if (units.Count == 0)
+                {
+                    return [];
+                }
+
+                var duesType = group.DuesType?.Name ?? string.Empty;
+                if (group.IsMerged || units.Count == 1)
+                {
+                    return
+                    [
+                        new SelectListItem($"{string.Join(" + ", units)} / {duesType}", group.Id.ToString())
+                    ];
+                }
+
+                return units
+                    .Select(unit => new SelectListItem($"{unit} / {duesType}", group.Id.ToString()))
+                    .ToList();
+            })
+            .OrderBy(x => x.Text)
+            .ToList();
 
         return model;
     }

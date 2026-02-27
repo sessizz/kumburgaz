@@ -98,18 +98,45 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await db.Units.FindAsync(id);
+        if (entity is null)
+        {
+            TempData["ActionError"] = "Daire bulunamadı.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var hasRelations = await db.BillingGroupUnits.AnyAsync(x => x.UnitId == id)
+            || await db.Collections.AnyAsync(x => x.UnitId == id)
+            || await db.DuesInstallments.AnyAsync(x => x.UnitId == id);
+
+        if (hasRelations)
+        {
+            TempData["ActionError"] = "Daire bağlı kayıtlar içeriyor. Önce ilişkili kayıtları kaldırın.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        db.Units.Remove(entity);
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = "Daire silindi.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ImportCsv(IFormFile? file)
     {
         if (file is null || file.Length == 0)
         {
-            TempData["ImportError"] = "CSV dosyasi seciniz.";
+            TempData["ImportError"] = "CSV dosyası seciniz.";
             return RedirectToAction(nameof(Index));
         }
 
         var rows = await CsvImportHelper.ReadRowsAsync(file);
         if (rows.Count < 2)
         {
-            TempData["ImportError"] = "CSV baslik ve en az bir veri satiri icermelidir.";
+            TempData["ImportError"] = "CSV baslik ve en az bir veri satırı icermelidir.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -236,7 +263,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
         {
             if (!int.TryParse(blockIdText, out blockId) || !blockById.ContainsKey(blockId))
             {
-                error = "gecerli BlockId bulunamadi.";
+                error = "geçerli BlockId bulunamadı.";
                 return false;
             }
 
@@ -251,7 +278,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
             return true;
         }
 
-        error = "gecerli Block alani bulunamadi.";
+        error = "geçerli Block alanı bulunamadı.";
         return false;
     }
 

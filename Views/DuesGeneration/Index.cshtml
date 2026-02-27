@@ -1,9 +1,9 @@
-@model List<Kumburgaz.Web.Models.DuesGenerationPreviewItem>
+﻿@model List<Kumburgaz.Web.Models.DuesGenerationPreviewItem>
 @{
-    ViewData["Title"] = "Donem Borc Uretimi";
+    ViewData["Title"] = "Dönem Borç Üretimi";
 }
 
-<h2>Donem Borc Uretimi</h2>
+<h2>Dönem Borç Üretimi</h2>
 
 @if (TempData["Success"] is string success)
 {
@@ -16,7 +16,7 @@
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-md-3">
-        <label class="form-label">Donem (YYYY-YYYY)</label>
+        <label class="form-label">Dönem (YYYY-YYYY)</label>
         <input class="form-control" name="period" value="@ViewBag.Period" />
     </div>
     <div class="col-md-2 d-flex align-items-end">
@@ -33,7 +33,7 @@
             <input class="form-control" type="date" name="dueDate" value="@(((DateTime)ViewBag.DueDate).ToString("yyyy-MM-dd"))" />
         </div>
         <div class="col-md-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100" type="submit">Borclari Olustur</button>
+            <button class="btn btn-primary w-100" type="submit">Borçlari Olustur</button>
         </div>
     </div>
 </form>
@@ -42,7 +42,7 @@
       onsubmit="return confirm('Bu donemin olusturulmus borclari silinsin mi?');">
     @Html.AntiForgeryToken()
     <input type="hidden" name="period" value="@ViewBag.Period" />
-    <button class="btn btn-outline-danger" type="submit">Donem Borclarini Sil</button>
+    <button class="btn btn-outline-danger" type="submit">Dönem Borçlarini Sil</button>
 </form>
 
 <table class="table table-bordered table-striped">

@@ -28,7 +28,7 @@ public static class BillingGroupDisplayHelper
         }
 
         return group.IsMerged
-            ? $"{string.Join(" + ", units)} (Birlesik)"
+            ? $"{string.Join(" + ", units)} (Birleşik)"
             : string.Join(", ", units);
     }
 }

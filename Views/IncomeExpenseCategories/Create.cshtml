@@ -1,10 +1,10 @@
-@model Kumburgaz.Web.Models.IncomeExpenseCategory
+﻿@model Kumburgaz.Web.Models.IncomeExpenseCategory
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
-    ViewData["Title"] = "Yeni Gelir Gider Turu";
+    ViewData["Title"] = "Yeni Gelir Gider Türü";
 }
 
-<h2>Yeni Gelir Gider Turu</h2>
+<h2>Yeni Gelir Gider Türü</h2>
 
 <form asp-action="Create" method="post" class="mt-3">
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -23,7 +23,7 @@
         <label asp-for="Active" class="form-check-label"></label>
     </div>
     <button class="btn btn-primary" type="submit">Kaydet</button>
-    <a class="btn btn-outline-secondary" asp-action="Index">Vazgec</a>
+    <a class="btn btn-outline-secondary" asp-action="Index">Vazgeç</a>
 </form>
 
 @section Scripts {

@@ -46,11 +46,6 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
         if (model.Id.HasValue)
         {
             group = await db.BillingGroups.Include(x => x.Units).FirstAsync(x => x.Id == model.Id.Value);
-            if (!model.MergeUnits && selectedUnitIds.Count != 1)
-            {
-                throw new InvalidOperationException("Birlestirme kapaliyken duzenlemede yalnizca bir daire secilebilir.");
-            }
-
             group.Name = model.Name.Trim();
             group.DuesTypeId = model.DuesTypeId;
             group.EffectiveStartPeriod = model.EffectiveStartPeriod;
@@ -59,23 +54,8 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
             group.IsMerged = model.MergeUnits;
 
             db.BillingGroupUnits.RemoveRange(group.Units);
-
-            foreach (var unitId in selectedUnitIds)
-            {
-                db.BillingGroupUnits.Add(new BillingGroupUnit
-                {
-                    BillingGroupId = group.Id,
-                    UnitId = unitId,
-                    StartPeriod = model.EffectiveStartPeriod,
-                    EndPeriod = group.EffectiveEndPeriod
-                });
-            }
-
-            await db.SaveChangesAsync();
-            return;
         }
-
-        if (model.MergeUnits || selectedUnitIds.Count == 1)
+        else
         {
             group = new BillingGroup
             {
@@ -88,54 +68,20 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
             };
             db.BillingGroups.Add(group);
             await db.SaveChangesAsync();
-
-            foreach (var unitId in selectedUnitIds)
-            {
-                db.BillingGroupUnits.Add(new BillingGroupUnit
-                {
-                    BillingGroupId = group.Id,
-                    UnitId = unitId,
-                    StartPeriod = model.EffectiveStartPeriod,
-                    EndPeriod = group.EffectiveEndPeriod
-                });
-            }
-
-            await db.SaveChangesAsync();
-            return;
         }
-
-        // Birlestirme kapaliyken coklu secim: her daire icin ayri grup olustur.
-        var units = await db.Units
-            .Include(x => x.Block)
-            .Where(x => selectedUnitIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id);
 
         foreach (var unitId in selectedUnitIds)
         {
-            var unit = units[unitId];
-            var perUnitGroup = new BillingGroup
-            {
-                Name = $"{model.Name.Trim()} - {unit.Block!.Name}-{unit.UnitNo}",
-                DuesTypeId = model.DuesTypeId,
-                EffectiveStartPeriod = model.EffectiveStartPeriod,
-                EffectiveEndPeriod = string.IsNullOrWhiteSpace(model.EffectiveEndPeriod) ? null : model.EffectiveEndPeriod,
-                Active = model.Active,
-                IsMerged = false
-            };
-
-            db.BillingGroups.Add(perUnitGroup);
-            await db.SaveChangesAsync();
-
             db.BillingGroupUnits.Add(new BillingGroupUnit
             {
-                BillingGroupId = perUnitGroup.Id,
+                BillingGroupId = group.Id,
                 UnitId = unitId,
                 StartPeriod = model.EffectiveStartPeriod,
-                EndPeriod = perUnitGroup.EffectiveEndPeriod
+                EndPeriod = group.EffectiveEndPeriod
             });
-
-            await db.SaveChangesAsync();
         }
+
+        await db.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)

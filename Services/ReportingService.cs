@@ -33,6 +33,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         var rows = installments
             .Select(x => new DuesDebtReportRow
             {
+                InstallmentId = x.Id,
                 BillingGroupId = x.BillingGroupId,
                 UnitDisplay = x.UnitId.HasValue
                     ? $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}"
@@ -94,6 +95,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     var anchor = orderedRows.Last();
                     rows.Add(new DuesDebtReportRow
                     {
+                        InstallmentId = null,
                         BillingGroupId = anchor.BillingGroupId,
                         UnitDisplay = anchor.UnitDisplay,
                         BillingGroupName = anchor.BillingGroupName,

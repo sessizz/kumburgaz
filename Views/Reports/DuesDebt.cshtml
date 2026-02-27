@@ -1,12 +1,22 @@
-﻿@model List<Kumburgaz.Web.Models.DuesDebtReportRow>
+@model List<Kumburgaz.Web.Models.DuesDebtReportRow>
 @using Kumburgaz.Web.Models
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "Aidat Borç Raporu";
     var query = (DuesDebtReportQuery)ViewBag.Query;
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 <h2>Aidat Borç Raporu</h2>
+
+@if (TempData["Success"] is string successMessage)
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+@if (TempData["Error"] is string errorMessage)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
 
 <form method="get" class="row g-2 mb-3">
     <div class="col-md-2">
@@ -55,6 +65,7 @@
             <th>Aidat Grubu</th>
             <th>Tutar</th>
             <th>Kalan</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
@@ -67,6 +78,22 @@
             <td>@row.BillingGroupName</td>
             <td>@row.Amount.ToString("N2")</td>
             <td>@row.RemainingAmount.ToString("N2")</td>
+            <td class="d-flex gap-1">
+                @if (row.InstallmentId.HasValue)
+                {
+                    <a class="btn btn-sm btn-outline-secondary"
+                       asp-action="EditInstallment"
+                       asp-route-id="@row.InstallmentId.Value"
+                       asp-route-returnUrl="@returnUrl">Düzenle</a>
+                    <form asp-action="DeleteInstallment" method="post"
+                          onsubmit="return confirm('Bu borç kaydı silinsin mi?');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@row.InstallmentId.Value" />
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
+                    </form>
+                }
+            </td>
         </tr>
     }
     </tbody>

@@ -47,6 +47,7 @@ public class DuesDebtReportQuery
 
 public class DuesDebtReportRow
 {
+    public int? InstallmentId { get; set; }
     public int BillingGroupId { get; set; }
     public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;
@@ -55,6 +56,28 @@ public class DuesDebtReportRow
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
     public string UnitsText { get; set; } = string.Empty;
+}
+
+public class DuesInstallmentEditViewModel
+{
+    public int Id { get; set; }
+
+    [Required]
+    [RegularExpression(@"^\d{4}-\d{4}$")]
+    public string Period { get; set; } = string.Empty;
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime DueDate { get; set; } = DateTime.Today;
+
+    [Range(0.01, 999999999)]
+    public decimal Amount { get; set; }
+
+    public decimal PaidAmount { get; set; }
+    public decimal RemainingAmount { get; set; }
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string BillingGroupName { get; set; } = string.Empty;
+    public string? ReturnUrl { get; set; }
 }
 
 public class CollectionCreateViewModel

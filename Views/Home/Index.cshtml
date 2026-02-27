@@ -1,49 +1,248 @@
-﻿@{
-    ViewData["Title"] = "Panel";
+@{
+    Layout = null;
+
+    var totalDebt = ViewBag.TotalDebt is decimal debt ? debt : 0m;
+    var totalGenerated = ViewBag.TotalGenerated is decimal generated ? generated : 0m;
+    var totalCollections = ViewBag.TotalCollections is decimal collections ? collections : 0m;
+    var billingGroups = ViewBag.BillingGroups is int groups ? groups : 0;
+    var netBalance = totalCollections - totalDebt;
 }
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kumburgaz Site Management Dashboard</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0ea5e9",
+                        secondary: "#14b8a6",
+                        "background-light": "#f8fafc",
+                        "background-dark": "#0f172a",
+                    },
+                    fontFamily: {
+                        display: ["Manrope", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Manrope', sans-serif;
+        }
 
-<h2>Finansal Ozet</h2>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
 
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="text-muted">Toplam Borç</div>
-                <div class="h4 mb-0">@(((decimal)ViewBag.TotalDebt).ToString("N2")) TL</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="text-muted">Üretilen Aidat</div>
-                <div class="h4 mb-0">@(((decimal)ViewBag.TotalGenerated).ToString("N2")) TL</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="text-muted">Tahsilat</div>
-                <div class="h4 mb-0">@(((decimal)ViewBag.TotalCollections).ToString("N2")) TL</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="text-muted">Aktif Aidat Grubu</div>
-                <div class="h4 mb-0">@ViewBag.BillingGroups</div>
-            </div>
-        </div>
-    </div>
-</div>
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
 
-<h4>Hizli İşlemler</h4>
-<div class="d-flex gap-2 flex-wrap">
-    <a asp-controller="DuesTypes" asp-action="Index" class="btn btn-outline-primary">Aidat Tipleri</a>
-    <a asp-controller="BillingGroups" asp-action="Index" class="btn btn-outline-primary">Aidat Gruplari</a>
-    <a asp-controller="DuesGeneration" asp-action="Index" class="btn btn-outline-primary">Dönem Borç Üretimi</a>
-    <a asp-controller="Collections" asp-action="Create" class="btn btn-outline-primary">Tahsilat Gir</a>
-    <a asp-controller="Reports" asp-action="DuesDebt" class="btn btn-outline-primary">Aidat Borç Raporu</a>
-</div>
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light text-slate-900 min-h-screen flex overflow-hidden">
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col h-screen fixed left-0 top-0 z-20 transition-transform duration-300">
+        <div class="h-16 flex items-center px-6 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary/10 p-2 rounded-lg">
+                    <span class="material-symbols-outlined text-primary">apartment</span>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold leading-tight">Kumburgaz Site</h1>
+                    <p class="text-xs text-slate-500">Management Portal</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium" asp-controller="Home" asp-action="Index">
+                <span class="material-symbols-outlined">dashboard</span>
+                <span>Dashboard</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="Units" asp-action="Index">
+                <span class="material-symbols-outlined">group</span>
+                <span>Residents/Units</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="Collections" asp-action="Index">
+                <span class="material-symbols-outlined">payments</span>
+                <span>Financials</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="Ledger" asp-action="Index">
+                <span class="material-symbols-outlined">badge</span>
+                <span>Staff/Salaries</span>
+            </a>
+            <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="Reports" asp-action="DuesDebt">
+                <span class="material-symbols-outlined">description</span>
+                <span>Reports</span>
+            </a>
+            <div class="pt-4 mt-4 border-t border-slate-100">
+                <p class="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">System</p>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="IncomeExpenseCategories" asp-action="Index">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span>Settings</span>
+                </a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors" asp-controller="Home" asp-action="Privacy">
+                    <span class="material-symbols-outlined">help</span>
+                    <span>Help Center</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="p-4 border-t border-slate-100">
+            <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors">
+                <div class="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-semibold">AY</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-900 truncate">Site Kullanıcısı</p>
+                    <p class="text-xs text-slate-500 truncate">Kumburgaz Yönetim</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 ml-64 flex flex-col h-screen overflow-hidden bg-background-light">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">Dashboard Overview</h2>
+            <div class="flex items-center gap-6">
+                <div class="relative hidden md:block">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+                    <input class="pl-10 pr-4 py-2 rounded-lg bg-slate-50 border-none focus:ring-2 focus:ring-primary/50 text-sm w-64 text-slate-700 placeholder-slate-400 transition-all" placeholder="Search units, residents..." type="text" />
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-7xl mx-auto space-y-8">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Welcome back</h1>
+                        <p class="text-slate-500 mt-1">Here's what's happening at Kumburgaz Site today.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <a class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors" asp-controller="Reports" asp-action="DuesDebt">
+                            <span class="material-symbols-outlined text-[20px]">download</span>
+                            Export Report
+                        </a>
+                        <a class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-primary/20" asp-controller="Ledger" asp-action="Create">
+                            <span class="material-symbols-outlined text-[20px]">add</span>
+                            New Expense
+                        </a>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 h-24 w-24 bg-primary/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                        <div class="relative">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-2 bg-primary/10 rounded-lg">
+                                    <span class="material-symbols-outlined text-primary">account_balance_wallet</span>
+                                </div>
+                            </div>
+                            <p class="text-sm font-medium text-slate-500">Total Dues Collected</p>
+                            <h3 class="text-2xl font-bold text-slate-900 mt-1">₺@totalCollections.ToString("N0")</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 h-24 w-24 bg-amber-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                        <div class="relative">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-2 bg-amber-500/10 rounded-lg">
+                                    <span class="material-symbols-outlined text-amber-600">pending</span>
+                                </div>
+                            </div>
+                            <p class="text-sm font-medium text-slate-500">Pending Debt</p>
+                            <h3 class="text-2xl font-bold text-slate-900 mt-1">₺@totalDebt.ToString("N0")</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 h-24 w-24 bg-rose-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                        <div class="relative">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-2 bg-rose-500/10 rounded-lg">
+                                    <span class="material-symbols-outlined text-rose-600">receipt_long</span>
+                                </div>
+                            </div>
+                            <p class="text-sm font-medium text-slate-500">Generated Dues</p>
+                            <h3 class="text-2xl font-bold text-slate-900 mt-1">₺@totalGenerated.ToString("N0")</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                        <div class="absolute right-0 top-0 h-24 w-24 bg-secondary/5 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                        <div class="relative">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-2 bg-secondary/10 rounded-lg">
+                                    <span class="material-symbols-outlined text-secondary">savings</span>
+                                </div>
+                            </div>
+                            <p class="text-sm font-medium text-slate-500">Net Balance</p>
+                            <h3 class="text-2xl font-bold text-slate-900 mt-1">₺@netBalance.ToString("N0")</h3>
+                            <p class="text-xs text-slate-400 mt-2">@billingGroups aktif aidat grubu</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-900">Hızlı Erişim</h3>
+                                <p class="text-sm text-slate-500">Sık kullanılan ekranlar</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="Collections" asp-action="Create">Tahsilat Gir</a>
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="Ledger" asp-action="Create">Gelir/Gider Gir</a>
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="DuesGeneration" asp-action="Index">Dönem Üretimi</a>
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="Units" asp-action="Index">Daireler</a>
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="BillingGroups" asp-action="Index">Aidat Grupları</a>
+                            <a class="px-4 py-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700" asp-controller="Reports" asp-action="DuesDebt">Borç Raporu</a>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 class="text-lg font-bold text-slate-900">Recent Transactions</h3>
+                            <a class="text-sm text-primary font-medium hover:text-primary/80" asp-controller="Ledger" asp-action="Index">View All</a>
+                        </div>
+                        <div class="p-6 text-sm text-slate-500">
+                            Son işlemleri görmek için Gelir Gider ekranını kullanın.
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="pt-6 pb-2 text-center text-slate-400 text-xs">
+                    © 2026 Kumburgaz Site Management Portal. All rights reserved.
+                </footer>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

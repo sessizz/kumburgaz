@@ -20,7 +20,7 @@
         <input class="form-control" name="period" value="@ViewBag.Period" />
     </div>
     <div class="col-md-2 d-flex align-items-end">
-        <button class="btn btn-outline-primary w-100" type="submit">Onizleme</button>
+        <button class="btn btn-outline-primary w-100" type="submit">Önizleme</button>
     </div>
 </form>
 
@@ -33,16 +33,16 @@
             <input class="form-control" type="date" name="dueDate" value="@(((DateTime)ViewBag.DueDate).ToString("yyyy-MM-dd"))" />
         </div>
         <div class="col-md-2 d-flex align-items-end">
-            <button class="btn btn-primary w-100" type="submit">Borçlari Olustur</button>
+            <button class="btn btn-primary w-100" type="submit">Borçları Oluştur</button>
         </div>
     </div>
 </form>
 
 <form asp-action="Delete" method="post" class="mb-3"
-      onsubmit="return confirm('Bu donemin olusturulmus borclari silinsin mi?');">
+      onsubmit="return confirm('Bu dönemin oluşturulmuş borçları silinsin mi?');">
     @Html.AntiForgeryToken()
     <input type="hidden" name="period" value="@ViewBag.Period" />
-    <button class="btn btn-outline-danger" type="submit">Dönem Borçlarini Sil</button>
+    <button class="btn btn-outline-danger" type="submit">Dönem Borçlarını Sil</button>
 </form>
 
 <table class="table table-bordered table-striped">
@@ -66,3 +66,4 @@
     }
     </tbody>
 </table>
+

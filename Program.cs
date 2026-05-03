@@ -1,9 +1,15 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Services;
+using System.Globalization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var turkishCulture = CultureInfo.GetCultureInfo("tr-TR");
+CultureInfo.DefaultThreadCurrentCulture = turkishCulture;
+CultureInfo.DefaultThreadCurrentUICulture = turkishCulture;
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -57,6 +63,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(turkishCulture),
+    SupportedCultures = [turkishCulture],
+    SupportedUICultures = [turkishCulture]
+});
 app.UseRouting();
 
 app.UseAuthentication();

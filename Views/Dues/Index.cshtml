@@ -4,169 +4,180 @@
     ViewData["Title"] = "Aidatlar";
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
     var collectionsReturnUrl = Url.Action("Index", "Dues", new { q = Model.Query, tab = "collections" }) ?? "/Dues?tab=collections";
-    var duesTabClass = Model.ActiveTab == "dues"
-        ? "border-primary text-primary"
-        : "border-transparent text-slate-500 hover:text-slate-800";
-    var collectionsTabClass = Model.ActiveTab == "collections"
-        ? "border-primary text-primary"
-        : "border-transparent text-slate-500 hover:text-slate-800";
 }
 
-<div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 py-4 border-b border-slate-200">
-        <div class="flex items-center gap-4">
-            <h1 class="text-2xl font-bold text-slate-950 mb-0">Aidatlar</h1>
-            <form method="get" class="relative">
-                <input type="hidden" name="tab" value="@Model.ActiveTab" />
-                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                <input class="form-control pl-10 min-w-[280px]" name="q" value="@Model.Query" placeholder="Hesap ara" />
-            </form>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <a class="btn btn-outline-primary" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@returnUrl">Tahsilat Ekle</a>
-            <a class="btn btn-primary" asp-controller="DuesGeneration" asp-action="Index">Toplu Borç Ekle</a>
-        </div>
-    </div>
-
-    <div class="flex gap-6 px-5 border-b border-slate-200">
-        <a class="py-3 border-b-2 font-semibold no-underline @duesTabClass"
-           asp-controller="Dues"
-           asp-action="Index"
-           asp-route-q="@Model.Query"
-           asp-route-tab="dues">Aidat Borçları</a>
-        <a class="py-3 border-b-2 font-semibold no-underline @collectionsTabClass"
-           asp-controller="Dues"
-           asp-action="Index"
-           asp-route-q="@Model.Query"
-           asp-route-tab="collections">Tahsilatlar</a>
-    </div>
-
-    @if (TempData["ImportSuccess"] is string successMessage)
-    {
-        <div class="alert alert-success m-4">@successMessage</div>
-    }
-    @if (TempData["ImportError"] is string errorMessage)
-    {
-        <div class="alert alert-danger m-4">@errorMessage</div>
-    }
-
-    @if (Model.ActiveTab == "collections")
-    {
-        <div class="flex justify-end gap-2 px-5 py-3 border-b border-slate-200 bg-slate-50">
-            <a class="btn btn-sm btn-outline-secondary" asp-controller="Collections" asp-action="ExportCsv">CSV Dışa Aktar</a>
-            <a class="btn btn-sm btn-outline-primary" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@collectionsReturnUrl">Yeni Tahsilat</a>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="table mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Daire</th>
-                        <th>Grup</th>
-                        <th class="text-end">Tutar</th>
-                        <th>Kasa / Banka</th>
-                        <th>Ref</th>
-                        <th>Not</th>
-                        <th class="text-end">İşlem</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var item in Model.Collections)
-                {
-                    var unitText = item.Unit is not null ? UnitDisplayHelper.Display(item.Unit) : BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup);
-                    <tr>
-                        <td>@item.Date.ToString("dd.MM.yyyy")</td>
-                        <td>@unitText</td>
-                        <td>@item.BillingGroup?.Name</td>
-                        <td class="text-end fw-semibold">@item.Amount.ToString("N2") TL</td>
-                        <td>@(item.CashBox?.Name ?? item.BankAccount?.Name ?? item.PaymentChannel.ToString())</td>
-                        <td>@item.ReferenceNo</td>
-                        <td>@item.Note</td>
-                        <td>
-                            <div class="d-flex justify-content-end gap-1">
-                                <a class="btn btn-sm btn-outline-secondary"
-                                   asp-controller="Collections"
-                                   asp-action="Edit"
-                                   asp-route-id="@item.Id"
-                                   asp-route-returnUrl="@collectionsReturnUrl">Düzenle</a>
-                                <form asp-controller="Collections"
-                                      asp-action="Delete"
-                                      asp-route-id="@item.Id"
-                                      asp-route-returnUrl="@collectionsReturnUrl"
-                                      method="post"
-                                      onsubmit="return confirm('Bu tahsilat kaydı silinsin mi?');">
-                                    @Html.AntiForgeryToken()
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-    else
-    {
-        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
-            <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_110px] gap-4 text-sm font-bold text-slate-600">
-                <div></div>
-                <div>Açıklama</div>
-                <div>Kategori</div>
-                <div>Tahakkuk</div>
-                <div>Ödeme / Vade</div>
-                <div class="text-end">Toplam</div>
-                <div class="text-end">Kalan</div>
-                <div class="text-end">İşlem</div>
+<div class="space-y-4">
+    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-5 py-4 border-b border-base-300">
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-extrabold">Aidatlar</h1>
+                <form method="get" class="join">
+                    <input type="hidden" name="tab" value="@Model.ActiveTab" />
+                    <label class="input input-bordered input-sm join-item flex items-center gap-2 min-w-[260px]">
+                        <span class="material-symbols-outlined ms-sm text-base-content/50">search</span>
+                        <input name="q" value="@Model.Query" placeholder="Hesap ara" class="grow" />
+                    </label>
+                    <button class="btn btn-sm btn-primary join-item">Ara</button>
+                </form>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a class="btn btn-outline btn-sm" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@returnUrl">
+                    <span class="material-symbols-outlined ms-sm">add</span>
+                    Tahsilat Ekle
+                </a>
+                <a class="btn btn-primary btn-sm" asp-controller="DuesGeneration" asp-action="Index">
+                    <span class="material-symbols-outlined ms-sm">event_repeat</span>
+                    Toplu Borç Ekle
+                </a>
             </div>
         </div>
 
-        <div>
-            @foreach (var row in Model.DuesItems)
-            {
-                var rowClass = row.IsPaid ? "bg-emerald-50/70 text-emerald-950" : "bg-white text-slate-900";
-                var dateText = row.PaymentOrDueDate.ToString("dd.MM.yyyy");
-                <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_110px] gap-4 items-center px-5 py-3 border-b border-slate-100 @rowClass">
-                    <div class="flex justify-center">
-                        <span class="material-symbols-outlined rounded-full bg-slate-100 p-2 text-slate-500">receipt_long</span>
-                    </div>
-                    <div>
-                        <div class="font-semibold">@row.Period - Aidatlar</div>
-                        <div class="text-sm text-slate-500">@row.BlockName No @row.UnitNo - @(string.IsNullOrWhiteSpace(row.OwnerName) ? "-" : row.OwnerName)</div>
-                    </div>
-                    <div>
-                        <span class="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">@row.DuesTypeName</span>
-                    </div>
-                    <div class="font-medium">@row.AccrualDate.ToString("dd MMMM yyyy")</div>
-                    <div class="font-medium">
-                        @if (row.IsPaid)
-                        {
-                            <span class="text-emerald-700">Ödendi: @dateText</span>
-                        }
-                        else if (row.IsOverdue)
-                        {
-                            <span class="text-rose-700">Gecikti: @dateText</span>
-                        }
-                        else
-                        {
-                            <span>@dateText</span>
-                        }
-                    </div>
-                    <div class="text-end font-semibold">@row.Amount.ToString("N2") TL</div>
-                    <div class="text-end font-semibold @(row.IsPaid ? "text-emerald-700" : "text-slate-900")">@row.RemainingAmount.ToString("N2") TL</div>
-                    <div class="text-end">
-                        @if (!row.IsPaid)
-                        {
-                            <a class="btn btn-sm btn-outline-primary"
-                               asp-controller="Collections"
-                               asp-action="Create"
-                               asp-route-duesInstallmentId="@row.Id"
-                               asp-route-returnUrl="@returnUrl">Tahsilat</a>
-                        }
-                    </div>
-                </div>
-            }
+        <div role="tablist" class="tabs tabs-border px-5">
+            <a role="tab" class="tab @(Model.ActiveTab == "dues" ? "tab-active" : "")"
+               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="dues">
+                Aidat Borçları
+            </a>
+            <a role="tab" class="tab @(Model.ActiveTab == "collections" ? "tab-active" : "")"
+               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="collections">
+                Tahsilatlar
+            </a>
         </div>
-    }
+
+        @if (TempData["ImportSuccess"] is string successMessage)
+        {
+            <div class="alert alert-success m-4">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span>@successMessage</span>
+            </div>
+        }
+        @if (TempData["ImportError"] is string errorMessage)
+        {
+            <div class="alert alert-error m-4">
+                <span class="material-symbols-outlined">error</span>
+                <span>@errorMessage</span>
+            </div>
+        }
+
+        @if (Model.ActiveTab == "collections")
+        {
+            <div class="flex justify-end gap-2 px-5 py-3 border-b border-base-300 bg-base-200/40">
+                <a class="btn btn-sm btn-outline" asp-controller="Collections" asp-action="ExportCsv">
+                    <span class="material-symbols-outlined ms-sm">download</span>
+                    CSV
+                </a>
+                <a class="btn btn-sm btn-primary" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@collectionsReturnUrl">
+                    <span class="material-symbols-outlined ms-sm">add</span>
+                    Yeni Tahsilat
+                </a>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table table-zebra align-middle">
+                    <thead>
+                        <tr>
+                            <th>Tarih</th>
+                            <th>Daire</th>
+                            <th>Grup</th>
+                            <th class="text-end">Tutar</th>
+                            <th>Kasa / Banka</th>
+                            <th>Ref</th>
+                            <th>Not</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.Collections)
+                    {
+                        var unitText = item.Unit is not null ? UnitDisplayHelper.Display(item.Unit) : BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup);
+                        <tr>
+                            <td>@item.Date.ToString("dd.MM.yyyy")</td>
+                            <td class="font-medium">@unitText</td>
+                            <td>@item.BillingGroup?.Name</td>
+                            <td class="text-end font-bold">@item.Amount.ToString("N2") TL</td>
+                            <td>
+                                <span class="badge badge-ghost">
+                                    @(item.CashBox?.Name ?? item.BankAccount?.Name ?? item.PaymentChannel.ToString())
+                                </span>
+                            </td>
+                            <td class="text-xs">@item.ReferenceNo</td>
+                            <td class="text-xs text-base-content/70">@item.Note</td>
+                            <td>
+                                <div class="flex justify-end gap-1">
+                                    <a class="btn btn-xs btn-ghost"
+                                       asp-controller="Collections" asp-action="Edit"
+                                       asp-route-id="@item.Id"
+                                       asp-route-returnUrl="@collectionsReturnUrl">
+                                        <span class="material-symbols-outlined ms-sm">edit</span>
+                                    </a>
+                                    <form asp-controller="Collections" asp-action="Delete"
+                                          asp-route-id="@item.Id"
+                                          asp-route-returnUrl="@collectionsReturnUrl"
+                                          method="post"
+                                          onsubmit="return confirm('Bu tahsilat kaydı silinsin mi?');">
+                                        @Html.AntiForgeryToken()
+                                        <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                            <span class="material-symbols-outlined ms-sm">delete</span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <ul class="divide-y divide-base-300">
+                @foreach (var row in Model.DuesItems)
+                {
+                    var dateText = row.PaymentOrDueDate.ToString("dd.MM.yyyy");
+                    var rowBg = row.IsPaid ? "bg-success/5" : "";
+                    <li class="grid grid-cols-1 lg:grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_120px] gap-4 items-center px-5 py-4 @rowBg">
+                        <div class="hidden lg:flex justify-center">
+                            <span class="material-symbols-outlined rounded-full bg-base-200 p-2 text-base-content/60">receipt_long</span>
+                        </div>
+                        <div>
+                            <div class="font-bold">@row.Period — Aidatlar</div>
+                            <div class="text-sm text-base-content/60">@row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName)</div>
+                        </div>
+                        <div>
+                            <span class="badge badge-info badge-soft">@row.DuesTypeName</span>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-xs text-base-content/60">Tahakkuk</div>
+                            <div class="font-medium">@row.AccrualDate.ToString("dd MMM yyyy")</div>
+                        </div>
+                        <div class="text-sm">
+                            <div class="text-xs text-base-content/60">@(row.IsPaid ? "Ödeme" : "Vade")</div>
+                            @if (row.IsPaid)
+                            {
+                                <span class="badge badge-success badge-soft">Ödendi · @dateText</span>
+                            }
+                            else if (row.IsOverdue)
+                            {
+                                <span class="badge badge-error badge-soft">Gecikti · @dateText</span>
+                            }
+                            else
+                            {
+                                <span class="font-medium">@dateText</span>
+                            }
+                        </div>
+                        <div class="text-end font-bold">@row.Amount.ToString("N2") TL</div>
+                        <div class="text-end font-bold @(row.IsPaid ? "text-success" : "")">@row.RemainingAmount.ToString("N2") TL</div>
+                        <div class="text-end">
+                            @if (!row.IsPaid)
+                            {
+                                <a class="btn btn-sm btn-primary"
+                                   asp-controller="Collections" asp-action="Create"
+                                   asp-route-duesInstallmentId="@row.Id"
+                                   asp-route-returnUrl="@returnUrl">Tahsilat</a>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
 </div>

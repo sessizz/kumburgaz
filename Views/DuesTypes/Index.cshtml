@@ -1,47 +1,82 @@
-﻿@model List<Kumburgaz.Web.Models.DuesType>
+@model List<Kumburgaz.Web.Models.DuesType>
 @{
     ViewData["Title"] = "Aidat Tipleri";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Aidat Tipleri</h2>
-    <a class="btn btn-primary" asp-action="Create">Yeni Tip</a>
-</div>
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Aidat Tipleri</h2>
+            <p class="text-sm text-base-content/60">Tek oda, çift oda gibi tutar tanımları</p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">
+            <span class="material-symbols-outlined ms-sm">add</span>
+            Yeni Tip
+        </a>
+    </div>
 
-@if (TempData["ActionSuccess"] is string actionSuccess)
-{
-    <div class="alert alert-success">@actionSuccess</div>
-}
-@if (TempData["ActionError"] is string actionError)
-{
-    <div class="alert alert-danger">@actionError</div>
-}
-
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Ad</th>
-            <th>Tutar (TL)</th>
-            <th>Durum</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var item in Model)
+    @if (TempData["ActionSuccess"] is string actionSuccess)
     {
-        <tr>
-            <td>@item.Name</td>
-            <td>@item.Amount.ToString("N2")</td>
-            <td>@(item.Active ? "Aktif" : "Pasif")</td>
-            <td class="d-flex gap-1">
-                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
-                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
-                      onsubmit="return confirm('Bu aidat tipi silinsin mi?');">
-                    @Html.AntiForgeryToken()
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
-                </form>
-            </td>
-        </tr>
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
     }
-    </tbody>
-</table>
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Ad</th>
+                        <th class="text-end">Tutar (TL)</th>
+                        <th>Durum</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td class="font-semibold">@item.Name</td>
+                        <td class="text-end font-bold">@item.Amount.ToString("N2")</td>
+                        <td>
+                            @if (item.Active)
+                            {
+                                <span class="badge badge-success badge-soft">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-ghost">Pasif</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                    Düzenle
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                                      onsubmit="return confirm('Bu aidat tipi silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

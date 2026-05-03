@@ -1,72 +1,103 @@
-﻿@model List<Kumburgaz.Web.Models.Collection>
+@model List<Kumburgaz.Web.Models.Collection>
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Tahsilatlar";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Tahsilatlar</h2>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" asp-action="ExportCsv">CSV Dışa Aktar</a>
-        <a class="btn btn-primary" asp-action="Create">Yeni Tahsilat</a>
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Tahsilatlar</h2>
+            <p class="text-sm text-base-content/60">Aidat ödemeleri</p>
+        </div>
+        <div class="flex gap-2">
+            <a class="btn btn-outline btn-sm" asp-action="ExportCsv">
+                <span class="material-symbols-outlined ms-sm">download</span>
+                CSV
+            </a>
+            <a class="btn btn-primary btn-sm" asp-action="Create">
+                <span class="material-symbols-outlined ms-sm">add</span>
+                Yeni Tahsilat
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ImportSuccess"] is string successMessage)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
+    }
+    @if (TempData["ImportError"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
+
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body">
+            <h3 class="card-title text-sm">CSV ile Toplu Yükle</h3>
+            <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tahsilat CSV dosyası</legend>
+                    <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" />
+                    <p class="label text-xs">Kolonlar: BillingGroupId, Date, Amount, PaymentChannel, ReferenceNo, Note</p>
+                </fieldset>
+                <button type="submit" class="btn btn-outline btn-primary">
+                    <span class="material-symbols-outlined ms-sm">upload</span>
+                    CSV ile Ekle
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Daire</th>
+                        <th>Grup</th>
+                        <th class="text-end">Tutar</th>
+                        <th>Kanal</th>
+                        <th>Ref</th>
+                        <th>Not</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>@item.Date.ToString("dd.MM.yyyy")</td>
+                        <td class="font-medium">@BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup)</td>
+                        <td>@item.BillingGroup?.Name</td>
+                        <td class="text-end font-bold">@item.Amount.ToString("N2")</td>
+                        <td><span class="badge badge-ghost">@item.PaymentChannel</span></td>
+                        <td class="text-xs">@item.ReferenceNo</td>
+                        <td class="text-xs text-base-content/70">@item.Note</td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                                      onsubmit="return confirm('Bu tahsilat kaydı silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
-
-@if (TempData["ImportSuccess"] is string successMessage)
-{
-    <div class="alert alert-success">@successMessage</div>
-}
-@if (TempData["ImportError"] is string errorMessage)
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
-
-<form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="card card-body mb-3">
-    <div class="row g-2 align-items-end">
-        <div class="col-md-7">
-            <label class="form-label mb-1">Tahsilat CSV Yükle</label>
-            <input type="file" name="file" accept=".csv,text/csv" class="form-control" />
-            <div class="form-text">Kolonlar: BillingGroupId, Date, Amount, PaymentChannel, ReferenceNo, Note</div>
-        </div>
-        <div class="col-md-5">
-            <button type="submit" class="btn btn-outline-primary">CSV ile Ekle</button>
-        </div>
-    </div>
-</form>
-
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Tarih</th>
-            <th>Daire</th>
-            <th>Grup</th>
-            <th>Tutar</th>
-            <th>Kanal</th>
-            <th>Ref</th>
-            <th>Not</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var item in Model)
-    {
-        <tr>
-            <td>@item.Date.ToString("dd.MM.yyyy")</td>
-            <td>@BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup)</td>
-            <td>@item.BillingGroup?.Name</td>
-            <td>@item.Amount.ToString("N2")</td>
-            <td>@item.PaymentChannel</td>
-            <td>@item.ReferenceNo</td>
-            <td>@item.Note</td>
-            <td class="d-flex gap-1">
-                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
-                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
-                      onsubmit="return confirm('Bu tahsilat kaydı silinsin mi?');">
-                    @Html.AntiForgeryToken()
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
-                </form>
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>

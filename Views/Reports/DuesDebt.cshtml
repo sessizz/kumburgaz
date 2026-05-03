@@ -7,96 +7,134 @@
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
-<h2>Aidat Borç Raporu</h2>
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-extrabold">Aidat Borç Raporu</h2>
+        <p class="text-sm text-base-content/60">Filtre uygulayarak görüntüleyebilir ve dışa aktarabilirsiniz.</p>
+    </div>
 
-@if (TempData["Success"] is string successMessage)
-{
-    <div class="alert alert-success">@successMessage</div>
-}
-@if (TempData["Error"] is string errorMessage)
-{
-    <div class="alert alert-danger">@errorMessage</div>
-}
-
-<form method="get" class="row g-2 mb-3">
-    <div class="col-md-2">
-        <label class="form-label">Dönem</label>
-        <input class="form-control" name="Period" value="@query.Period" />
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Blok</label>
-        <select class="form-select" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
-            <option value="">Tüm</option>
-        </select>
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Aidat Tipi</label>
-        <select class="form-select" name="DuesTypeId" asp-items="(IEnumerable<SelectListItem>)ViewBag.DuesTypes">
-            <option value="">Tüm</option>
-        </select>
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Aidatlandırma Grubu</label>
-        <select class="form-select" name="BillingGroupId" asp-items="(IEnumerable<SelectListItem>)ViewBag.BillingGroups">
-            <option value="">Tüm</option>
-        </select>
-    </div>
-    <div class="col-12 d-flex gap-2">
-        <button class="btn btn-primary" type="submit">Filtrele</button>
-        <a class="btn btn-outline-success" asp-action="DuesDebtExcel"
-           asp-route-Period="@query.Period"
-           asp-route-BlockId="@query.BlockId"
-           asp-route-DuesTypeId="@query.DuesTypeId"
-           asp-route-BillingGroupId="@query.BillingGroupId">Excel</a>
-        <a class="btn btn-outline-danger" asp-action="DuesDebtPdf"
-           asp-route-Period="@query.Period"
-           asp-route-BlockId="@query.BlockId"
-           asp-route-DuesTypeId="@query.DuesTypeId"
-           asp-route-BillingGroupId="@query.BillingGroupId">PDF</a>
-    </div>
-</form>
-
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Dönem</th>
-            <th>Tahakkuk Tarihi</th>
-            <th>Daire/Birleşik</th>
-            <th>Aidat Tipi</th>
-            <th>Aidat Grubu</th>
-            <th>Tutar</th>
-            <th>Kalan</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var row in Model)
+    @if (TempData["Success"] is string successMessage)
     {
-        <tr>
-            <td>@row.Period</td>
-            <td>@row.AccrualDate.ToString("dd.MM.yyyy")</td>
-            <td>@row.UnitDisplay</td>
-            <td>@row.DuesTypeName</td>
-            <td>@row.BillingGroupName</td>
-            <td>@row.Amount.ToString("N2")</td>
-            <td>@row.RemainingAmount.ToString("N2")</td>
-            <td class="d-flex gap-1">
-                @if (row.InstallmentId.HasValue)
-                {
-                    <a class="btn btn-sm btn-outline-secondary"
-                       asp-action="EditInstallment"
-                       asp-route-id="@row.InstallmentId.Value"
-                       asp-route-returnUrl="@returnUrl">Düzenle</a>
-                    <form asp-action="DeleteInstallment" method="post"
-                          onsubmit="return confirm('Bu borç kaydı silinsin mi?');">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="id" value="@row.InstallmentId.Value" />
-                        <input type="hidden" name="returnUrl" value="@returnUrl" />
-                        <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
-                    </form>
-                }
-            </td>
-        </tr>
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
     }
-    </tbody>
-</table>
+    @if (TempData["Error"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
+
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body">
+            <form method="get" class="space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Dönem</legend>
+                        <input class="input input-bordered" name="Period" value="@query.Period" />
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Blok</legend>
+                        <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Aidat Tipi</legend>
+                        <select class="select select-bordered" name="DuesTypeId" asp-items="(IEnumerable<SelectListItem>)ViewBag.DuesTypes">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Aidatlandırma Grubu</legend>
+                        <select class="select select-bordered" name="BillingGroupId" asp-items="(IEnumerable<SelectListItem>)ViewBag.BillingGroups">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                        Filtrele
+                    </button>
+                    <a class="btn btn-outline btn-success" asp-action="DuesDebtExcel"
+                       asp-route-Period="@query.Period"
+                       asp-route-BlockId="@query.BlockId"
+                       asp-route-DuesTypeId="@query.DuesTypeId"
+                       asp-route-BillingGroupId="@query.BillingGroupId">
+                        <span class="material-symbols-outlined ms-sm">table_chart</span>
+                        Excel
+                    </a>
+                    <a class="btn btn-outline btn-error" asp-action="DuesDebtPdf"
+                       asp-route-Period="@query.Period"
+                       asp-route-BlockId="@query.BlockId"
+                       asp-route-DuesTypeId="@query.DuesTypeId"
+                       asp-route-BillingGroupId="@query.BillingGroupId">
+                        <span class="material-symbols-outlined ms-sm">picture_as_pdf</span>
+                        PDF
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Dönem</th>
+                        <th>Tahakkuk</th>
+                        <th>Daire/Birleşik</th>
+                        <th>Aidat Tipi</th>
+                        <th>Aidat Grubu</th>
+                        <th class="text-end">Tutar</th>
+                        <th class="text-end">Kalan</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model)
+                {
+                    <tr>
+                        <td><span class="badge badge-ghost">@row.Period</span></td>
+                        <td>@row.AccrualDate.ToString("dd.MM.yyyy")</td>
+                        <td class="font-medium">@row.UnitDisplay</td>
+                        <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
+                        <td>@row.BillingGroupName</td>
+                        <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
+                        <td class="text-end font-bold @(row.RemainingAmount > 0 ? "text-error" : row.RemainingAmount < 0 ? "text-info" : "text-success")">
+                            @row.RemainingAmount.ToString("N2")
+                        </td>
+                        <td>
+                            @if (row.InstallmentId.HasValue)
+                            {
+                                <div class="flex justify-end gap-1">
+                                    <a class="btn btn-xs btn-ghost"
+                                       asp-action="EditInstallment"
+                                       asp-route-id="@row.InstallmentId.Value"
+                                       asp-route-returnUrl="@returnUrl">
+                                        <span class="material-symbols-outlined ms-sm">edit</span>
+                                    </a>
+                                    <form asp-action="DeleteInstallment" method="post"
+                                          onsubmit="return confirm('Bu borç kaydı silinsin mi?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@row.InstallmentId.Value" />
+                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                        <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                            <span class="material-symbols-outlined ms-sm">delete</span>
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

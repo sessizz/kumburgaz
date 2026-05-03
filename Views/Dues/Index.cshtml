@@ -7,14 +7,14 @@
 }
 
 <div class="space-y-4">
-    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-5 py-4 border-b border-base-300">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-5 py-4 border-b border-gray-200">
             <div class="flex items-center gap-4">
                 <h1 class="text-2xl font-extrabold">Aidatlar</h1>
                 <form method="get" class="join">
                     <input type="hidden" name="tab" value="@Model.ActiveTab" />
                     <label class="input input-bordered input-sm join-item flex items-center gap-2 min-w-[260px]">
-                        <span class="material-symbols-outlined ms-sm text-base-content/50">search</span>
+                        <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
                         <input name="q" value="@Model.Query" placeholder="Hesap ara" class="grow" />
                     </label>
                     <button class="btn btn-sm btn-primary join-item">Ara</button>
@@ -60,7 +60,7 @@
 
         @if (Model.ActiveTab == "collections")
         {
-            <div class="flex justify-end gap-2 px-5 py-3 border-b border-base-300 bg-base-200/40">
+            <div class="flex justify-end gap-2 px-5 py-3 border-b border-gray-200 bg-gray-50">
                 <a class="btn btn-sm btn-outline" asp-controller="Collections" asp-action="ExportCsv">
                     <span class="material-symbols-outlined ms-sm">download</span>
                     CSV
@@ -100,7 +100,7 @@
                                 </span>
                             </td>
                             <td class="text-xs">@item.ReferenceNo</td>
-                            <td class="text-xs text-base-content/70">@item.Note</td>
+                            <td class="text-xs text-gray-500">@item.Note</td>
                             <td>
                                 <div class="flex justify-end gap-1">
                                     <a class="btn btn-xs btn-ghost"
@@ -129,28 +129,28 @@
         }
         else
         {
-            <ul class="divide-y divide-base-300">
+            <ul class="divide-y divide-gray-200">
                 @foreach (var row in Model.DuesItems)
                 {
                     var dateText = row.PaymentOrDueDate.ToString("dd.MM.yyyy");
                     var rowBg = row.IsPaid ? "bg-success/5" : "";
                     <li class="grid grid-cols-1 lg:grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_120px] gap-4 items-center px-5 py-4 @rowBg">
                         <div class="hidden lg:flex justify-center">
-                            <span class="material-symbols-outlined rounded-full bg-base-200 p-2 text-base-content/60">receipt_long</span>
+                            <span class="material-symbols-outlined rounded-full bg-gray-100 p-2 text-gray-400">receipt_long</span>
                         </div>
                         <div>
                             <div class="font-bold">@row.Period — Aidatlar</div>
-                            <div class="text-sm text-base-content/60">@row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName)</div>
+                            <div class="text-sm text-gray-400">@row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName)</div>
                         </div>
                         <div>
                             <span class="badge badge-info badge-soft">@row.DuesTypeName</span>
                         </div>
                         <div class="text-sm">
-                            <div class="text-xs text-base-content/60">Tahakkuk</div>
+                            <div class="text-xs text-gray-400">Tahakkuk</div>
                             <div class="font-medium">@row.AccrualDate.ToString("dd MMM yyyy")</div>
                         </div>
                         <div class="text-sm">
-                            <div class="text-xs text-base-content/60">@(row.IsPaid ? "Ödeme" : "Vade")</div>
+                            <div class="text-xs text-gray-400">@(row.IsPaid ? "Ödeme" : "Vade")</div>
                             @if (row.IsPaid)
                             {
                                 <span class="badge badge-success badge-soft">Ödendi · @dateText</span>

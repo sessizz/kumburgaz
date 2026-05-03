@@ -14,26 +14,26 @@
 
     @if (Model.ShowRequestId)
     {
-        <div class="mt-4 card bg-base-100 border border-base-300">
-            <div class="card-body">
+        <div class="mt-4 card bg-base-100 border border-gray-200">
+            <div class="p-6">
                 <p class="text-sm">
                     <span class="font-semibold">İstek ID:</span>
-                    <code class="text-xs bg-base-200 px-2 py-1 rounded">@Model.RequestId</code>
+                    <code class="text-xs bg-gray-100 px-2 py-1 rounded">@Model.RequestId</code>
                 </p>
             </div>
         </div>
     }
 
-    <div class="mt-4 card bg-base-100 border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-base">Geliştirme Modu</h3>
-            <p class="text-sm text-base-content/70">
+    <div class="mt-4 card bg-base-100 border border-gray-200">
+        <div class="p-6">
+            <h3 class="font-semibold text-gray-800">Geliştirme Modu</h3>
+            <p class="text-sm text-gray-500">
                 <strong>Development</strong> ortamına geçerek hata hakkında daha ayrıntılı bilgi görüntüleyebilirsiniz.
             </p>
-            <p class="text-sm text-base-content/70">
+            <p class="text-sm text-gray-500">
                 <strong>Geliştirme ortamı yayınlanmış uygulamalarda etkinleştirilmemelidir.</strong>
                 Hassas bilgileri son kullanıcılara ifşa edebilir. Yerel hata ayıklama için
-                <code class="text-xs bg-base-200 px-2 py-1 rounded">ASPNETCORE_ENVIRONMENT=Development</code>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">ASPNETCORE_ENVIRONMENT=Development</code>
                 ortam değişkenini ayarlayıp uygulamayı yeniden başlatın.
             </p>
         </div>

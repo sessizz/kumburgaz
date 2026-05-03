@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-extrabold">Daireler</h2>
-            <p class="text-sm text-base-content/60">Site daireleri ve birleşik daireler</p>
+            <p class="text-sm text-gray-400">Site daireleri ve birleşik daireler</p>
         </div>
         <div class="flex gap-2">
             <a class="btn btn-outline btn-sm" asp-action="ExportCsv">
@@ -50,9 +50,9 @@
         </div>
     }
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-sm font-bold">CSV ile Toplu Yükle</h3>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
             <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Daire CSV dosyası</legend>
@@ -70,8 +70,8 @@
     <form asp-action="DeleteSelected" method="post" id="bulkDeleteUnitsForm" onsubmit="return confirmUnitsFormSubmit(event);">
         @Html.AntiForgeryToken()
 
-        <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
-            <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-base-300 bg-base-200/40">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gray-50">
                 <label class="label cursor-pointer gap-2">
                     <input class="checkbox checkbox-sm checkbox-primary" type="checkbox" id="selectAllUnits" />
                     <span class="label-text font-medium">Tümünü seç</span>
@@ -136,7 +136,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-base-content/40">—</span>
+                                    <span class="text-gray-300">—</span>
                                 }
                             </td>
                             <td>

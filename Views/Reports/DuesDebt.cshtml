@@ -10,7 +10,7 @@
 <div class="space-y-4">
     <div>
         <h2 class="text-2xl font-extrabold">Aidat Borç Raporu</h2>
-        <p class="text-sm text-base-content/60">Filtre uygulayarak görüntüleyebilir ve dışa aktarabilirsiniz.</p>
+        <p class="text-sm text-gray-400">Filtre uygulayarak görüntüleyebilir ve dışa aktarabilirsiniz.</p>
     </div>
 
     @if (TempData["Success"] is string successMessage)
@@ -28,8 +28,8 @@
         </div>
     }
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
             <form method="get" class="space-y-4">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <fieldset class="fieldset">
@@ -81,7 +81,7 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table table-zebra">
                 <thead>

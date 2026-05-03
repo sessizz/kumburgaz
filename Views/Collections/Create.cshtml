@@ -11,12 +11,12 @@
         </a>
         <div>
             <h2 class="text-2xl font-extrabold">Yeni Tahsilat</h2>
-            <p class="text-sm text-base-content/60">Tahsilat seçilen aidat borcuna uygulanır.</p>
+            <p class="text-sm text-gray-400">Tahsilat seçilen aidat borcuna uygulanır.</p>
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
             <form asp-action="Create" method="post" class="space-y-4">
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
                 <input asp-for="BillingGroupId" type="hidden" />

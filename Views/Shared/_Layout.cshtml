@@ -5,6 +5,9 @@
         controller.Equals(currentController, StringComparison.OrdinalIgnoreCase)
             ? "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium"
             : "flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700";
+
+    var settingsControllers = new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories" };
+    var settingsOpen = settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="tr">
@@ -66,24 +69,37 @@
             <a class="@NavClass("Units")" asp-controller="Units" asp-action="Index">
                 <span class="material-symbols-outlined">group</span><span>Daireler</span>
             </a>
+            <a class="@NavClass("Dues")" asp-controller="Dues" asp-action="Index">
+                <span class="material-symbols-outlined">receipt_long</span><span>Aidatlar</span>
+            </a>
             <a class="@NavClass("Ledger")" asp-controller="Ledger" asp-action="Index">
-                <span class="material-symbols-outlined">receipt_long</span><span>Gelir Gider</span>
-            </a>
-            <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
-                <span class="material-symbols-outlined">category</span><span>Aidat Tipleri</span>
-            </a>
-            <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
-                <span class="material-symbols-outlined">view_list</span><span>Aidat Grupları</span>
+                <span class="material-symbols-outlined">payments</span><span>Giderler</span>
             </a>
             <a class="@NavClass("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
                 <span class="material-symbols-outlined">event_repeat</span><span>Dönem Üretimi</span>
             </a>
-            <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
-                <span class="material-symbols-outlined">settings</span><span>Kategori Ayarları</span>
-            </a>
             <a class="@NavClass("Reports")" asp-controller="Reports" asp-action="DuesDebt">
                 <span class="material-symbols-outlined">description</span><span>Raporlar</span>
             </a>
+
+            <details class="group" @(settingsOpen ? "open" : null)>
+                <summary class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer list-none">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span class="flex-1">Ayarlar</span>
+                    <span class="material-symbols-outlined text-[18px] group-open:rotate-180 transition-transform">expand_more</span>
+                </summary>
+                <div class="mt-1 ml-8 space-y-1">
+                    <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
+                        <span class="material-symbols-outlined text-[20px]">category</span><span>Aidat Tipleri</span>
+                    </a>
+                    <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
+                        <span class="material-symbols-outlined text-[20px]">view_list</span><span>Aidat Grupları</span>
+                    </a>
+                    <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
+                        <span class="material-symbols-outlined text-[20px]">tune</span><span>Kategori Ayarları</span>
+                    </a>
+                </div>
+            </details>
         </nav>
     </aside>
 

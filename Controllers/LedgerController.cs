@@ -10,19 +10,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class LedgerController(
-    ApplicationDbContext db,
-    ICollectionService collectionService) : Controller
+public class LedgerController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Index()
     {
         var rows = await db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
+            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
-        ViewBag.Collections = await collectionService.GetAllAsync();
         return View(rows);
     }
 
@@ -30,6 +28,7 @@ public class LedgerController(
     {
         var rows = await db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
+            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
@@ -51,7 +50,7 @@ public class LedgerController(
         }));
 
         var bytes = CsvExportHelper.BuildCsv(csvRows.ToArray());
-        return File(bytes, "text/csv; charset=utf-8", "gelir-gider.csv");
+        return File(bytes, "text/csv; charset=utf-8", "giderler.csv");
     }
 
     public async Task<IActionResult> Create()
@@ -169,7 +168,11 @@ public class LedgerController(
             return RedirectToAction(nameof(Index));
         }
 
-        var categoryIds = await db.IncomeExpenseCategories.AsNoTracking().Select(x => x.Id).ToListAsync();
+        var categoryIds = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .Where(x => x.Type == CategoryTypeHelper.Gider)
+            .Select(x => x.Id)
+            .ToListAsync();
         var categorySet = categoryIds.ToHashSet();
 
         var toAdd = new List<LedgerTransaction>();
@@ -181,7 +184,7 @@ public class LedgerController(
             var categoryIdText = ReadValue(row, headers, "incomeexpensecategoryid");
             if (!int.TryParse(categoryIdText, out var categoryId) || !categorySet.Contains(categoryId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: geçerli IncomeExpenseCategoryId bulunamadı.";
+                TempData["ImportError"] = $"Satir {lineNo}: geçerli gider kategorisi bulunamadı.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -215,7 +218,7 @@ public class LedgerController(
 
         db.LedgerTransactions.AddRange(toAdd);
         await db.SaveChangesAsync();
-        TempData["ImportSuccess"] = $"{toAdd.Count} gelir-gider kaydı CSV ile eklendi.";
+        TempData["ImportSuccess"] = $"{toAdd.Count} gider kaydı CSV ile eklendi.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -223,7 +226,7 @@ public class LedgerController(
     {
         model.CategoryOptions = await db.IncomeExpenseCategories
             .AsNoTracking()
-            .Where(x => x.Active)
+            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gider)
             .OrderBy(x => x.Type)
             .ThenBy(x => x.Name)
             .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString()))

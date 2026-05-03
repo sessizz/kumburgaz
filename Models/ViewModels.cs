@@ -79,6 +79,23 @@ public class DuesDebtReportRow
     public string UnitsText { get; set; } = string.Empty;
 }
 
+public class DuesListItemViewModel
+{
+    public int Id { get; set; }
+    public string Period { get; set; } = string.Empty;
+    public string BlockName { get; set; } = string.Empty;
+    public string UnitNo { get; set; } = string.Empty;
+    public string OwnerName { get; set; } = string.Empty;
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string DuesTypeName { get; set; } = string.Empty;
+    public DateTime AccrualDate { get; set; }
+    public DateTime PaymentOrDueDate { get; set; }
+    public bool IsPaid { get; set; }
+    public bool IsOverdue { get; set; }
+    public decimal Amount { get; set; }
+    public decimal RemainingAmount { get; set; }
+}
+
 public class DuesInstallmentEditViewModel
 {
     public int Id { get; set; }

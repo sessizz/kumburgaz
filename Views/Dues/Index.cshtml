@@ -1,0 +1,72 @@
+@model List<Kumburgaz.Web.Models.DuesListItemViewModel>
+@{
+    ViewData["Title"] = "Aidatlar";
+    var query = ViewBag.Query as string ?? string.Empty;
+}
+
+<div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 py-4 border-b border-slate-200">
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold text-slate-950 mb-0">Aidatlar</h1>
+            <form method="get" class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                <input class="form-control pl-10 min-w-[280px]" name="q" value="@query" placeholder="Hesap ara" />
+            </form>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary" asp-controller="Collections" asp-action="Create">Tahsilat Ekle</a>
+            <a class="btn btn-primary" asp-controller="DuesGeneration" asp-action="Index">Toplu Borç Ekle</a>
+        </div>
+    </div>
+
+    <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
+        <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr] gap-4 text-sm font-bold text-slate-600">
+            <div></div>
+            <div>Açıklama</div>
+            <div>Kategori</div>
+            <div>Tahakkuk</div>
+            <div>Ödeme / Vade</div>
+            <div class="text-end">Toplam</div>
+            <div class="text-end">Kalan</div>
+        </div>
+    </div>
+
+    <div>
+        @foreach (var row in Model)
+        {
+            var rowClass = row.IsPaid ? "bg-emerald-50/70 text-emerald-950" : "bg-white text-slate-900";
+            var dateText = row.IsPaid
+                ? row.PaymentOrDueDate.ToString("dd.MM.yyyy")
+                : row.PaymentOrDueDate.ToString("dd.MM.yyyy");
+            <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr] gap-4 items-center px-5 py-3 border-b border-slate-100 @rowClass">
+                <div class="flex justify-center">
+                    <span class="material-symbols-outlined rounded-full bg-slate-100 p-2 text-slate-500">receipt_long</span>
+                </div>
+                <div>
+                    <div class="font-semibold">@row.Period - Aidatlar</div>
+                    <div class="text-sm text-slate-500">@row.BlockName No @row.UnitNo - @(string.IsNullOrWhiteSpace(row.OwnerName) ? "-" : row.OwnerName)</div>
+                </div>
+                <div>
+                    <span class="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700">@row.DuesTypeName</span>
+                </div>
+                <div class="font-medium">@row.AccrualDate.ToString("dd MMMM yyyy")</div>
+                <div class="font-medium">
+                    @if (row.IsPaid)
+                    {
+                        <span class="text-emerald-700">Ödendi: @dateText</span>
+                    }
+                    else if (row.IsOverdue)
+                    {
+                        <span class="text-rose-700">Gecikti: @dateText</span>
+                    }
+                    else
+                    {
+                        <span>@dateText</span>
+                    }
+                </div>
+                <div class="text-end font-semibold">@row.Amount.ToString("N2") TL</div>
+                <div class="text-end font-semibold @(row.IsPaid ? "text-emerald-700" : "text-slate-900")">@row.RemainingAmount.ToString("N2") TL</div>
+            </div>
+        }
+    </div>
+</div>

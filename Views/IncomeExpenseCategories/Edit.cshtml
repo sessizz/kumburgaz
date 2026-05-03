@@ -1,16 +1,16 @@
 ﻿@model Kumburgaz.Web.Models.IncomeExpenseCategory
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
-    ViewData["Title"] = "Gelir Gider Türü Düzenle";
+    ViewData["Title"] = "Kategori Düzenle";
 }
 
-<h2>Gelir Gider Türü Düzenle</h2>
+<h2>Kategori Düzenle</h2>
 
 <form asp-action="Edit" method="post" class="mt-3">
     <input asp-for="Id" type="hidden" />
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
-        <label asp-for="Type" class="form-label">Tur</label>
+        <label asp-for="Type" class="form-label">Tür</label>
         <select asp-for="Type" asp-items="(IEnumerable<SelectListItem>)ViewBag.Types" class="form-select"></select>
         <span asp-validation-for="Type" class="text-danger"></span>
     </div>

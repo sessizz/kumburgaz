@@ -35,7 +35,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .Where(x => query.Period == null || x.Period == query.Period)
             .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
             .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
-            .Where(x => query.BlockId == null || x.BillingGroup!.Units.Any(u => u.Unit!.BlockId == query.BlockId))
+            .Where(x => query.BlockId == null || x.BillingGroup!.Units.Any(u => u.Unit!.Active && u.Unit.BlockId == query.BlockId))
             .OrderBy(x => x.Period)
             .ThenBy(x => x.BillingGroup!.Name)
             .ToListAsync();
@@ -55,7 +55,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 Amount = x.Amount,
                 RemainingAmount = x.RemainingAmount,
                 UnitsText = string.Join(", ", x.BillingGroup.Units
-                    .Where(u => u.Unit is not null)
+                    .Where(u => u.Unit is { Active: true })
                     .Select(u => UnitDisplayHelper.Display(u.Unit))
                     .OrderBy(v => v))
             })

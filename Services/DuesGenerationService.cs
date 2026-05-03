@@ -35,7 +35,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 DuesTypeName = x.DuesType?.Name ?? "-",
                 Amount = x.DuesType?.Amount ?? 0m,
                 UnitsText = string.Join(", ", x.Units
-                    .Where(u => u.Unit is not null)
+                    .Where(u => u.Unit is { Active: true })
                     .Select(u => UnitDisplayHelper.Display(u.Unit))
                     .OrderBy(v => v))
             })
@@ -71,6 +71,11 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
             var amount = group.DuesType?.Amount ?? 0m;
             if (group.IsMerged)
             {
+                if (!group.Units.Any(u => u.Unit is { Active: true }))
+                {
+                    continue;
+                }
+
                 var exists = await db.DuesInstallments.AnyAsync(x =>
                     x.BillingGroupId == group.Id && x.Period == period && x.UnitId == null);
                 if (exists)
@@ -92,7 +97,11 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 continue;
             }
 
-            var unitIds = group.Units.Select(u => u.UnitId).Distinct().ToList();
+            var unitIds = group.Units
+                .Where(u => u.Unit is { Active: true })
+                .Select(u => u.UnitId)
+                .Distinct()
+                .ToList();
             foreach (var unitId in unitIds)
             {
                 var exists = await db.DuesInstallments.AnyAsync(x =>

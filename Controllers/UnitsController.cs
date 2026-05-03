@@ -358,6 +358,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         var toAdd = new List<Unit>();
         var billingGroupAssignments = new List<CsvBillingGroupAssignment>();
+        var skippedInactiveAssignments = 0;
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
@@ -399,6 +400,12 @@ public class UnitsController(ApplicationDbContext db) : Controller
             var billingGroupName = ReadFirstValue(row, headers, "billinggroup", "billinggroupname", "aidatgrubu");
             if (string.IsNullOrWhiteSpace(billingGroupName))
             {
+                continue;
+            }
+
+            if (!active)
+            {
+                skippedInactiveAssignments++;
                 continue;
             }
 
@@ -487,9 +494,16 @@ public class UnitsController(ApplicationDbContext db) : Controller
         }
 
         await db.SaveChangesAsync();
-        TempData["ImportSuccess"] = billingGroupAssignments.Count == 0
+        var importMessage = billingGroupAssignments.Count == 0
             ? $"{toAdd.Count} daire CSV ile eklendi."
             : $"{toAdd.Count} daire CSV ile eklendi. {createdGroupCount} aidat grubu oluşturuldu, {linkedGroupCount} daire-grup bağlantısı kuruldu.";
+
+        if (skippedInactiveAssignments > 0)
+        {
+            importMessage += $" {skippedInactiveAssignments} pasif daire aidat grubuna bağlanmadı.";
+        }
+
+        TempData["ImportSuccess"] = importMessage;
         return RedirectToAction(nameof(Index));
     }
 

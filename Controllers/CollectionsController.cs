@@ -230,7 +230,7 @@ public class CollectionsController(
             .SelectMany(group =>
             {
                 var units = group.Units
-                    .Where(x => x.Unit is not null)
+                    .Where(x => x.Unit is { Active: true })
                     .OrderBy(x => x.Unit!.Block!.Name)
                     .ThenBy(x => x.Unit!.UnitNo)
                     .Select(x => UnitDisplayHelper.Display(x.Unit))

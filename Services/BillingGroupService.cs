@@ -52,6 +52,13 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
         }
 
         var selectedUnitIds = model.SelectedUnitIds.Distinct().ToList();
+        var activeSelectedUnitCount = await db.Units
+            .CountAsync(x => selectedUnitIds.Contains(x.Id) && x.Active);
+
+        if (activeSelectedUnitCount != selectedUnitIds.Count)
+        {
+            throw new InvalidOperationException("Aidat grubuna sadece aktif daireler eklenebilir.");
+        }
 
         BillingGroup group;
         if (model.Id.HasValue)

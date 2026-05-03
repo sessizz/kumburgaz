@@ -12,7 +12,7 @@ public static class BillingGroupDisplayHelper
         }
 
         var units = group.Units
-            .Where(x => x.Unit is not null)
+            .Where(x => x.Unit is { Active: true })
             .Select(x => UnitDisplayHelper.Display(x.Unit))
             .OrderBy(x => x)
             .ToList();

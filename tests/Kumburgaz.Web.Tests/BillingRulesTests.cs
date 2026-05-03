@@ -69,6 +69,62 @@ public class BillingRulesTests
     }
 
     [Fact]
+    public async Task InactiveUnits_ShouldNotGenerateInstallments()
+    {
+        await using var db = CreateDb();
+        SeedCoreData(db);
+
+        db.BillingGroups.Add(new BillingGroup
+        {
+            Id = 2,
+            Name = "Pasif Daire Grubu",
+            DuesTypeId = 1,
+            EffectiveStartPeriod = "2025-2026",
+            Active = true,
+            IsMerged = false
+        });
+        db.Units.Add(new Unit { Id = 3, BlockId = 1, UnitNo = "3", Active = false });
+        db.BillingGroupUnits.Add(new BillingGroupUnit
+        {
+            Id = 3,
+            BillingGroupId = 2,
+            UnitId = 3,
+            StartPeriod = "2025-2026"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new DuesGenerationService(db);
+        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 1), new DateTime(2025, 7, 31));
+
+        var inactiveInstallmentExists = await db.DuesInstallments
+            .AnyAsync(x => x.BillingGroupId == 2 && x.UnitId == 3);
+
+        Assert.False(inactiveInstallmentExists);
+    }
+
+    [Fact]
+    public async Task BillingGroup_ShouldRejectInactiveUnits()
+    {
+        await using var db = CreateDb();
+        SeedCoreData(db);
+        db.Units.Add(new Unit { Id = 3, BlockId = 1, UnitNo = "3", Active = false });
+        await db.SaveChangesAsync();
+
+        var service = new BillingGroupService(db);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateOrUpdateAsync(new BillingGroupFormViewModel
+            {
+                Name = "Pasif Daire Grubu",
+                DuesTypeId = 1,
+                EffectiveStartPeriod = "2025-2026",
+                Active = true,
+                SelectedUnitIds = [3]
+            }));
+
+        Assert.Contains("aktif daireler", ex.Message);
+    }
+
+    [Fact]
     public async Task Collection_ShouldApplyToOldestInstallmentFirst()
     {
         await using var db = CreateDb();

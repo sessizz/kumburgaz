@@ -187,7 +187,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
     private async Task<int> ResolveRepresentativeUnitIdAsync(int billingGroupId)
     {
         var unitId = await db.BillingGroupUnits
-            .Where(x => x.BillingGroupId == billingGroupId)
+            .Where(x => x.BillingGroupId == billingGroupId && x.Unit!.Active)
             .OrderBy(x => x.Unit!.Block!.Name)
             .ThenBy(x => x.Unit!.UnitNo)
             .Select(x => x.UnitId)

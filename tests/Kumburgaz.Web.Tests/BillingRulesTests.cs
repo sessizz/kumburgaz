@@ -14,7 +14,7 @@ public class BillingRulesTests
         SeedCoreData(db);
 
         var service = new DuesGenerationService(db);
-        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 31));
+        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 1), new DateTime(2025, 7, 31));
 
         var mergedGroupInstallment = await db.DuesInstallments
             .SingleAsync(x => x.BillingGroupId == 1 && x.Period == "2025-2026");
@@ -59,7 +59,7 @@ public class BillingRulesTests
         await db.SaveChangesAsync();
 
         var service = new DuesGenerationService(db);
-        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 31));
+        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 1), new DateTime(2025, 7, 31));
 
         var combinedInstallment = await db.DuesInstallments
             .SingleAsync(x => x.BillingGroupId == 2 && x.Period == "2025-2026");
@@ -77,12 +77,12 @@ public class BillingRulesTests
         db.DuesInstallments.AddRange(
             new DuesInstallment
             {
-                Id = 1, BillingGroupId = 1, Period = "2024-2025", DueDate = new DateTime(2024, 7, 31),
+                Id = 1, BillingGroupId = 1, Period = "2024-2025", AccrualDate = new DateTime(2024, 7, 1), DueDate = new DateTime(2024, 7, 31),
                 Amount = 12000m, RemainingAmount = 12000m
             },
             new DuesInstallment
             {
-                Id = 2, BillingGroupId = 1, Period = "2025-2026", DueDate = new DateTime(2025, 7, 31),
+                Id = 2, BillingGroupId = 1, Period = "2025-2026", AccrualDate = new DateTime(2025, 7, 1), DueDate = new DateTime(2025, 7, 31),
                 Amount = 12000m, RemainingAmount = 12000m
             }
         );

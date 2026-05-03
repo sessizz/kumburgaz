@@ -60,6 +60,7 @@
     <thead>
         <tr>
             <th>Dönem</th>
+            <th>Tahakkuk Tarihi</th>
             <th>Daire/Birleşik</th>
             <th>Aidat Tipi</th>
             <th>Aidat Grubu</th>
@@ -73,6 +74,7 @@
     {
         <tr>
             <td>@row.Period</td>
+            <td>@row.AccrualDate.ToString("dd.MM.yyyy")</td>
             <td>@row.UnitDisplay</td>
             <td>@row.DuesTypeName</td>
             <td>@row.BillingGroupName</td>

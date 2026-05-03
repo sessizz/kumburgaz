@@ -73,6 +73,7 @@ public class DuesDebtReportRow
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
     public string Period { get; set; } = string.Empty;
+    public DateTime AccrualDate { get; set; }
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
     public string UnitsText { get; set; } = string.Empty;
@@ -85,6 +86,10 @@ public class DuesInstallmentEditViewModel
     [Required]
     [RegularExpression(@"^\d{4}-\d{4}$")]
     public string Period { get; set; } = string.Empty;
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime AccrualDate { get; set; } = DateTime.Today;
 
     [Required]
     [DataType(DataType.Date)]

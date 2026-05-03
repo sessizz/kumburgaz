@@ -5,6 +5,6 @@ namespace Kumburgaz.Web.Services;
 public interface IDuesGenerationService
 {
     Task<List<DuesGenerationPreviewItem>> PreviewAsync(string period);
-    Task GenerateForPeriodAsync(string period, DateTime dueDate);
+    Task GenerateForPeriodAsync(string period, DateTime accrualDate, DateTime dueDate);
     Task DeleteForPeriodAsync(string period);
 }

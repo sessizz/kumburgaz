@@ -33,10 +33,18 @@
             <span asp-validation-for="Period" class="text-danger"></span>
         </div>
         <div class="col-md-4 mb-3">
+            <label asp-for="AccrualDate" class="form-label">Tahakkuk Tarihi</label>
+            <input asp-for="AccrualDate" class="form-control" type="date" />
+            <span asp-validation-for="AccrualDate" class="text-danger"></span>
+        </div>
+        <div class="col-md-4 mb-3">
             <label asp-for="DueDate" class="form-label">Vade Tarihi</label>
             <input asp-for="DueDate" class="form-control" type="date" />
             <span asp-validation-for="DueDate" class="text-danger"></span>
         </div>
+    </div>
+
+    <div class="row">
         <div class="col-md-4 mb-3">
             <label asp-for="Amount" class="form-label">Borç Tutarı</label>
             <input asp-for="Amount" class="form-control" />

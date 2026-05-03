@@ -45,9 +45,10 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
         return filtered;
     }
 
-    public async Task GenerateForPeriodAsync(string period, DateTime dueDate)
+    public async Task GenerateForPeriodAsync(string period, DateTime accrualDate, DateTime dueDate)
     {
         ValidatePeriod(period);
+        accrualDate = DateTimeHelper.EnsureUtc(accrualDate);
         dueDate = DateTimeHelper.EnsureUtc(dueDate);
         var periodKey = PeriodHelper.ToKey(period);
         var allActiveGroups = await db.BillingGroups
@@ -82,6 +83,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                     BillingGroupId = group.Id,
                     UnitId = null,
                     Period = period,
+                    AccrualDate = accrualDate,
                     DueDate = dueDate,
                     Amount = amount,
                     RemainingAmount = amount,
@@ -105,6 +107,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                     BillingGroupId = group.Id,
                     UnitId = unitId,
                     Period = period,
+                    AccrualDate = accrualDate,
                     DueDate = dueDate,
                     Amount = amount,
                     RemainingAmount = amount,
@@ -149,6 +152,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                     BillingGroupId = installment.BillingGroupId,
                     UnitId = unitIds[i],
                     Period = installment.Period,
+                    AccrualDate = installment.AccrualDate,
                     DueDate = installment.DueDate,
                     Amount = installment.Amount,
                     RemainingAmount = installment.RemainingAmount,

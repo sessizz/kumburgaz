@@ -8,6 +8,15 @@
     <a class="btn btn-primary" asp-action="Create">Yeni Grup</a>
 </div>
 
+@if (TempData["ActionSuccess"] is string actionSuccess)
+{
+    <div class="alert alert-success">@actionSuccess</div>
+}
+@if (TempData["ActionError"] is string actionError)
+{
+    <div class="alert alert-danger">@actionError</div>
+}
+
 <table class="table table-bordered table-striped">
     <thead>
         <tr>
@@ -28,8 +37,10 @@
             <td>@BillingGroupDisplayHelper.UnitDisplay(item)</td>
             <td class="d-flex gap-1">
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
-                <form asp-action="Delete" asp-route-id="@item.Id" method="post">
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Pasif Yap</button>
+                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                      onsubmit="return confirm('Bu aidat grubu silinsin mi?');">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
                 </form>
             </td>
         </tr>

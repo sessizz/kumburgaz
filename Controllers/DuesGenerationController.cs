@@ -14,15 +14,16 @@ public class DuesGenerationController(IDuesGenerationService duesGenerationServi
         var preview = await duesGenerationService.PreviewAsync(period);
         ViewBag.Period = period;
         var startYear = int.Parse(period[..4]);
+        ViewBag.AccrualDate = new DateTime(startYear, 7, 1);
         ViewBag.DueDate = new DateTime(startYear, 7, 31);
         return View(preview);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Generate(string period, DateTime dueDate)
+    public async Task<IActionResult> Generate(string period, DateTime accrualDate, DateTime dueDate)
     {
-        await duesGenerationService.GenerateForPeriodAsync(period, dueDate);
+        await duesGenerationService.GenerateForPeriodAsync(period, accrualDate, dueDate);
         TempData["Success"] = "Donem borclari olusturuldu.";
         return RedirectToAction(nameof(Index), new { period });
     }

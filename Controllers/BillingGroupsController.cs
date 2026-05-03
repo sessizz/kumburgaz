@@ -96,7 +96,16 @@ public class BillingGroupsController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        await billingGroupService.DeleteAsync(id);
+        try
+        {
+            await billingGroupService.DeleteAsync(id);
+            TempData["ActionSuccess"] = "Aidat grubu silindi.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
         return RedirectToAction(nameof(Index));
     }
 

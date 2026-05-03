@@ -129,6 +129,7 @@ public class DuesInstallment
     [Required, MaxLength(9)]
     public string Period { get; set; } = string.Empty; // YYYY-YYYY
 
+    public DateTime AccrualDate { get; set; }
     public DateTime DueDate { get; set; }
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }

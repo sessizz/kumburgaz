@@ -54,4 +54,28 @@ public class DuesTypesController(ApplicationDbContext db) : Controller
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await db.DuesTypes.FindAsync(id);
+        if (entity is null)
+        {
+            TempData["ActionError"] = "Aidat tipi bulunamadı.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var hasBillingGroups = await db.BillingGroups.AnyAsync(x => x.DuesTypeId == id);
+        if (hasBillingGroups)
+        {
+            TempData["ActionError"] = "Bu aidat tipi aidat gruplarında kullanılıyor. Önce bağlı aidat gruplarını silin veya değiştirin.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        db.DuesTypes.Remove(entity);
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = "Aidat tipi silindi.";
+        return RedirectToAction(nameof(Index));
+    }
 }

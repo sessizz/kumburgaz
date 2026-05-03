@@ -51,6 +51,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 BillingGroupName = x.BillingGroup!.Name,
                 DuesTypeName = x.BillingGroup.DuesType!.Name,
                 Period = x.Period,
+                AccrualDate = x.AccrualDate,
                 Amount = x.Amount,
                 RemainingAmount = x.RemainingAmount,
                 UnitsText = string.Join(", ", x.BillingGroup.Units
@@ -112,6 +113,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                         BillingGroupName = anchor.BillingGroupName,
                         DuesTypeName = "Fazla Ödeme",
                         Period = anchor.Period,
+                        AccrualDate = anchor.AccrualDate,
                         Amount = 0,
                         RemainingAmount = -credit,
                         UnitsText = anchor.UnitsText
@@ -131,21 +133,24 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Aidat Borç");
         ws.Cell(1, 1).Value = "Dönem";
-        ws.Cell(1, 2).Value = "Daire/Birleşik";
-        ws.Cell(1, 3).Value = "Aidat Tipi";
-        ws.Cell(1, 4).Value = "Aidat Grubu";
-        ws.Cell(1, 5).Value = "Tutar";
-        ws.Cell(1, 6).Value = "Kalan";
+        ws.Cell(1, 2).Value = "Tahakkuk Tarihi";
+        ws.Cell(1, 3).Value = "Daire/Birleşik";
+        ws.Cell(1, 4).Value = "Aidat Tipi";
+        ws.Cell(1, 5).Value = "Aidat Grubu";
+        ws.Cell(1, 6).Value = "Tutar";
+        ws.Cell(1, 7).Value = "Kalan";
 
         var rowIndex = 2;
         foreach (var row in rows)
         {
             ws.Cell(rowIndex, 1).Value = row.Period;
-            ws.Cell(rowIndex, 2).Value = row.UnitDisplay;
-            ws.Cell(rowIndex, 3).Value = row.DuesTypeName;
-            ws.Cell(rowIndex, 4).Value = row.BillingGroupName;
-            ws.Cell(rowIndex, 5).Value = row.Amount;
-            ws.Cell(rowIndex, 6).Value = row.RemainingAmount;
+            ws.Cell(rowIndex, 2).Value = row.AccrualDate;
+            ws.Cell(rowIndex, 2).Style.DateFormat.Format = "dd.MM.yyyy";
+            ws.Cell(rowIndex, 3).Value = row.UnitDisplay;
+            ws.Cell(rowIndex, 4).Value = row.DuesTypeName;
+            ws.Cell(rowIndex, 5).Value = row.BillingGroupName;
+            ws.Cell(rowIndex, 6).Value = row.Amount;
+            ws.Cell(rowIndex, 7).Value = row.RemainingAmount;
             rowIndex++;
         }
 
@@ -170,6 +175,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     table.ColumnsDefinition(c =>
                     {
                         c.RelativeColumn(1);
+                        c.RelativeColumn(1);
                         c.RelativeColumn(2);
                         c.RelativeColumn(2);
                         c.RelativeColumn(3);
@@ -180,6 +186,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     table.Header(header =>
                     {
                         header.Cell().Text("Dönem");
+                        header.Cell().Text("Tahakkuk");
                         header.Cell().Text("Daire/Birleşik");
                         header.Cell().Text("Tip");
                         header.Cell().Text("Aidat Grubu");
@@ -190,6 +197,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     foreach (var row in rows)
                     {
                         table.Cell().Text(row.Period);
+                        table.Cell().Text(row.AccrualDate.ToString("dd.MM.yyyy"));
                         table.Cell().Text(row.UnitDisplay);
                         table.Cell().Text(row.DuesTypeName);
                         table.Cell().Text(row.BillingGroupName);

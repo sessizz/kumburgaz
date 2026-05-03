@@ -97,13 +97,24 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
 
     public async Task DeleteAsync(int id)
     {
-        var group = await db.BillingGroups.FindAsync(id);
+        var group = await db.BillingGroups
+            .Include(x => x.Units)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (group is null)
         {
             return;
         }
 
-        group.Active = false;
+        var hasInstallments = await db.DuesInstallments.AnyAsync(x => x.BillingGroupId == id);
+        var hasCollections = await db.Collections.AnyAsync(x => x.BillingGroupId == id);
+
+        if (hasInstallments || hasCollections)
+        {
+            throw new InvalidOperationException("Bu aidat grubunda borç veya tahsilat kaydı var. Önce ilişkili kayıtları silin.");
+        }
+
+        db.BillingGroupUnits.RemoveRange(group.Units);
+        db.BillingGroups.Remove(group);
         await db.SaveChangesAsync();
     }
 }

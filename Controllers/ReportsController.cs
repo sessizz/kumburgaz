@@ -69,6 +69,7 @@ public class ReportsController(
         {
             Id = installment.Id,
             Period = installment.Period,
+            AccrualDate = installment.AccrualDate,
             DueDate = installment.DueDate,
             Amount = installment.Amount,
             PaidAmount = paidAmount,
@@ -119,6 +120,7 @@ public class ReportsController(
 
         var paidAmount = installment.Allocations.Sum(x => x.AppliedAmount);
         installment.Period = model.Period;
+        installment.AccrualDate = DateTimeHelper.EnsureUtc(model.AccrualDate);
         installment.DueDate = DateTimeHelper.EnsureUtc(model.DueDate);
         installment.Amount = model.Amount;
         installment.RemainingAmount = model.Amount - paidAmount;

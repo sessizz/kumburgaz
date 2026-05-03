@@ -14,6 +14,11 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
             .Include(x => x.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Name)
             .ToListAsync();
     }
@@ -24,6 +29,12 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
             .Include(x => x.DuesType)
             .Include(x => x.Units)
             .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .FirstOrDefaultAsync(x => x.Id == id);
     }
 
@@ -51,7 +62,7 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
             group.EffectiveStartPeriod = model.EffectiveStartPeriod;
             group.EffectiveEndPeriod = string.IsNullOrWhiteSpace(model.EffectiveEndPeriod) ? null : model.EffectiveEndPeriod;
             group.Active = model.Active;
-            group.IsMerged = model.MergeUnits;
+            group.IsMerged = false;
 
             db.BillingGroupUnits.RemoveRange(group.Units);
         }
@@ -64,7 +75,7 @@ public class BillingGroupService(ApplicationDbContext db) : IBillingGroupService
                 EffectiveStartPeriod = model.EffectiveStartPeriod,
                 EffectiveEndPeriod = string.IsNullOrWhiteSpace(model.EffectiveEndPeriod) ? null : model.EffectiveEndPeriod,
                 Active = model.Active,
-                IsMerged = model.MergeUnits
+                IsMerged = false
             };
             db.BillingGroups.Add(group);
             await db.SaveChangesAsync();

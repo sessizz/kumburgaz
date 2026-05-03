@@ -1,4 +1,4 @@
-﻿@model Kumburgaz.Web.Models.Unit
+﻿@model Kumburgaz.Web.Models.UnitFormViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "Daire Düzenle";
@@ -11,7 +11,7 @@
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
         <label asp-for="BlockId" class="form-label">Blok</label>
-        <select asp-for="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks" class="form-select"></select>
+        <select asp-for="BlockId" asp-items="Model.BlockOptions" class="form-select"></select>
     </div>
     <div class="mb-3">
         <label asp-for="UnitNo" class="form-label"></label>
@@ -25,6 +25,16 @@
     <div class="form-check mb-3">
         <input asp-for="Active" class="form-check-input" />
         <label asp-for="Active" class="form-check-label"></label>
+    </div>
+    <div class="form-check mb-3">
+        <input asp-for="IsCombined" class="form-check-input" />
+        <label asp-for="IsCombined" class="form-check-label">Birleşik daire</label>
+        <div class="form-text">Örn. A1 + A2 birleşip A1+2 adıyla tek çift oda aidatı ödeyecekse işaretleyin.</div>
+    </div>
+    <div class="mb-3">
+        <label asp-for="ComponentUnitIds" class="form-label">Birleşen fiziksel daireler</label>
+        <select asp-for="ComponentUnitIds" asp-items="Model.ComponentUnitOptions" class="form-select" multiple size="8"></select>
+        <span asp-validation-for="ComponentUnitIds" class="text-danger"></span>
     </div>
     <button class="btn btn-primary" type="submit">Güncelle</button>
     <a class="btn btn-outline-secondary" asp-action="Index">Vazgeç</a>

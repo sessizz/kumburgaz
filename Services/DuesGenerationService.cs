@@ -17,6 +17,11 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
             .Include(x => x.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .Where(x => x.Active)
             .ToListAsync();
 
@@ -30,7 +35,8 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 DuesTypeName = x.DuesType?.Name ?? "-",
                 Amount = x.DuesType?.Amount ?? 0m,
                 UnitsText = string.Join(", ", x.Units
-                    .Select(u => $"{u.Unit?.Block?.Name}-{u.Unit?.UnitNo}")
+                    .Where(u => u.Unit is not null)
+                    .Select(u => UnitDisplayHelper.Display(u.Unit))
                     .OrderBy(v => v))
             })
             .OrderBy(x => x.BillingGroupName)
@@ -48,6 +54,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
             .AsNoTracking()
             .Include(x => x.DuesType)
             .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
             .Where(x => x.Active)
             .ToListAsync();
 

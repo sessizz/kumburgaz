@@ -9,6 +9,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Block> Blocks => Set<Block>();
     public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<CombinedUnitMember> CombinedUnitMembers => Set<CombinedUnitMember>();
     public DbSet<DuesType> DuesTypes => Set<DuesType>();
     public DbSet<BillingGroup> BillingGroups => Set<BillingGroup>();
     public DbSet<BillingGroupUnit> BillingGroupUnits => Set<BillingGroupUnit>();
@@ -29,6 +30,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Unit>()
             .HasIndex(x => new { x.BlockId, x.UnitNo })
             .IsUnique();
+
+        builder.Entity<CombinedUnitMember>()
+            .HasIndex(x => new { x.CombinedUnitId, x.ComponentUnitId })
+            .IsUnique();
+
+        builder.Entity<CombinedUnitMember>()
+            .HasOne(x => x.CombinedUnit)
+            .WithMany(x => x.CombinedUnitMembers)
+            .HasForeignKey(x => x.CombinedUnitId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CombinedUnitMember>()
+            .HasOne(x => x.ComponentUnit)
+            .WithMany(x => x.MemberOfCombinedUnits)
+            .HasForeignKey(x => x.ComponentUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<DuesType>()
             .HasIndex(x => x.Name)
@@ -75,9 +92,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         );
 
         builder.Entity<Unit>().HasData(
-            new Unit { Id = 1, BlockId = 1, UnitNo = "1", OwnerName = "Ornek Malik", Active = true },
-            new Unit { Id = 2, BlockId = 1, UnitNo = "2", OwnerName = "Ornek Malik", Active = true },
-            new Unit { Id = 3, BlockId = 1, UnitNo = "3", OwnerName = "Daire Sahibi 3", Active = true }
+            new Unit { Id = 1, BlockId = 1, UnitNo = "1", OwnerName = "Ornek Malik", Active = true, IsCombined = false },
+            new Unit { Id = 2, BlockId = 1, UnitNo = "2", OwnerName = "Ornek Malik", Active = true, IsCombined = false },
+            new Unit { Id = 3, BlockId = 1, UnitNo = "3", OwnerName = "Daire Sahibi 3", Active = true, IsCombined = false }
         );
 
         builder.Entity<DuesType>().HasData(

@@ -218,6 +218,11 @@ public class CollectionsController(
             .Include(x => x.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -225,10 +230,10 @@ public class CollectionsController(
             .SelectMany(group =>
             {
                 var units = group.Units
-                    .Where(x => x.Unit?.Block is not null)
+                    .Where(x => x.Unit is not null)
                     .OrderBy(x => x.Unit!.Block!.Name)
                     .ThenBy(x => x.Unit!.UnitNo)
-                    .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}")
+                    .Select(x => UnitDisplayHelper.Display(x.Unit))
                     .ToList();
 
                 if (units.Count == 0)

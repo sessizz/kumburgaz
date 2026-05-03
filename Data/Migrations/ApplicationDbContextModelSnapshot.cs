@@ -454,6 +454,9 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Property<int>("BlockId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsCombined")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("OwnerName")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
@@ -476,6 +479,7 @@ namespace Kumburgaz.Web.Data.Migrations
                             Id = 1,
                             Active = true,
                             BlockId = 1,
+                            IsCombined = false,
                             OwnerName = "Ornek Malik",
                             UnitNo = "1"
                         },
@@ -484,6 +488,7 @@ namespace Kumburgaz.Web.Data.Migrations
                             Id = 2,
                             Active = true,
                             BlockId = 1,
+                            IsCombined = false,
                             OwnerName = "Ornek Malik",
                             UnitNo = "2"
                         },
@@ -492,9 +497,34 @@ namespace Kumburgaz.Web.Data.Migrations
                             Id = 3,
                             Active = true,
                             BlockId = 1,
+                            IsCombined = false,
                             OwnerName = "Daire Sahibi 3",
                             UnitNo = "3"
                         });
+                });
+
+            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CombinedUnitId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ComponentUnitId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComponentUnitId");
+
+                    b.HasIndex("CombinedUnitId", "ComponentUnitId")
+                        .IsUnique();
+
+                    b.ToTable("CombinedUnitMembers");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -738,6 +768,25 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
+                {
+                    b.HasOne("Kumburgaz.Web.Models.Unit", "CombinedUnit")
+                        .WithMany("CombinedUnitMembers")
+                        .HasForeignKey("CombinedUnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Kumburgaz.Web.Models.Unit", "ComponentUnit")
+                        .WithMany("MemberOfCombinedUnits")
+                        .HasForeignKey("ComponentUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CombinedUnit");
+
+                    b.Navigation("ComponentUnit");
+                });
+
             modelBuilder.Entity("Kumburgaz.Web.Models.Collection", b =>
                 {
                     b.HasOne("Kumburgaz.Web.Models.BillingGroup", "BillingGroup")
@@ -896,6 +945,10 @@ namespace Kumburgaz.Web.Data.Migrations
             modelBuilder.Entity("Kumburgaz.Web.Models.Unit", b =>
                 {
                     b.Navigation("BillingGroupUnits");
+
+                    b.Navigation("CombinedUnitMembers");
+
+                    b.Navigation("MemberOfCombinedUnits");
                 });
 #pragma warning restore 612, 618
         }

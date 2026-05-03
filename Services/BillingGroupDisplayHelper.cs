@@ -12,8 +12,8 @@ public static class BillingGroupDisplayHelper
         }
 
         var units = group.Units
-            .Where(x => x.Unit?.Block is not null)
-            .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}")
+            .Where(x => x.Unit is not null)
+            .Select(x => UnitDisplayHelper.Display(x.Unit))
             .OrderBy(x => x)
             .ToList();
 

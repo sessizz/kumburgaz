@@ -15,6 +15,9 @@ public class UnitsController(ApplicationDbContext db) : Controller
     {
         var units = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
@@ -26,13 +29,16 @@ public class UnitsController(ApplicationDbContext db) : Controller
     {
         var units = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
 
         var rows = new List<string[]>
         {
-            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active" }
+            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components" }
         };
 
         rows.AddRange(units.Select(x => new[]
@@ -41,7 +47,12 @@ public class UnitsController(ApplicationDbContext db) : Controller
             x.Block?.Name ?? string.Empty,
             x.UnitNo,
             x.OwnerName ?? string.Empty,
-            x.Active ? "true" : "false"
+            x.Active ? "true" : "false",
+            x.IsCombined ? "true" : "false",
+            string.Join(" + ", x.CombinedUnitMembers
+                .Where(m => m.ComponentUnit?.Block is not null)
+                .Select(m => $"{m.ComponentUnit!.Block!.Name}-{m.ComponentUnit.UnitNo}")
+                .OrderBy(v => v))
         }));
 
         var bytes = CsvExportHelper.BuildCsv(rows.ToArray());
@@ -50,48 +61,68 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
     public async Task<IActionResult> Create()
     {
-        await PopulateBlocksAsync();
-        return View(new Unit { Active = true });
+        return View(await BuildFormAsync(new UnitFormViewModel { Active = true }));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Unit model)
+    public async Task<IActionResult> Create(UnitFormViewModel model)
     {
+        await ValidateUnitFormAsync(model);
         if (!ModelState.IsValid)
         {
-            await PopulateBlocksAsync();
-            return View(model);
+            return View(await BuildFormAsync(model));
         }
 
-        db.Units.Add(model);
+        var unit = new Unit();
+        ApplyModel(unit, model);
+        db.Units.Add(unit);
+        await db.SaveChangesAsync();
+
+        await SaveCombinedMembersAsync(unit.Id, model);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(int id)
     {
-        var unit = await db.Units.FindAsync(id);
+        var unit = await db.Units
+            .Include(x => x.CombinedUnitMembers)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (unit is null)
         {
             return NotFound();
         }
 
-        await PopulateBlocksAsync();
-        return View(unit);
+        return View(await BuildFormAsync(ToFormModel(unit)));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(Unit model)
+    public async Task<IActionResult> Edit(UnitFormViewModel model)
     {
-        if (!ModelState.IsValid)
+        if (model.Id is null)
         {
-            await PopulateBlocksAsync();
-            return View(model);
+            return NotFound();
         }
 
-        db.Units.Update(model);
+        await ValidateUnitFormAsync(model);
+        if (!ModelState.IsValid)
+        {
+            return View(await BuildFormAsync(model));
+        }
+
+        var unit = await db.Units
+            .Include(x => x.CombinedUnitMembers)
+            .FirstOrDefaultAsync(x => x.Id == model.Id.Value);
+
+        if (unit is null)
+        {
+            return NotFound();
+        }
+
+        ApplyModel(unit, model);
+        await SaveCombinedMembersAsync(unit.Id, model);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
     }
@@ -109,7 +140,8 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         var hasRelations = await db.BillingGroupUnits.AnyAsync(x => x.UnitId == id)
             || await db.Collections.AnyAsync(x => x.UnitId == id)
-            || await db.DuesInstallments.AnyAsync(x => x.UnitId == id);
+            || await db.DuesInstallments.AnyAsync(x => x.UnitId == id)
+            || await db.CombinedUnitMembers.AnyAsync(x => x.ComponentUnitId == id);
 
         if (hasRelations)
         {
@@ -206,12 +238,120 @@ public class UnitsController(ApplicationDbContext db) : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task PopulateBlocksAsync()
+    private async Task<UnitFormViewModel> BuildFormAsync(UnitFormViewModel model)
     {
-        ViewBag.Blocks = await db.Blocks.AsNoTracking()
+        model.BlockOptions = await db.Blocks.AsNoTracking()
             .OrderBy(x => x.Name)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
             .ToListAsync();
+
+        model.ComponentUnitOptions = await db.Units.AsNoTracking()
+            .Where(x => !x.IsCombined && x.Id != model.Id)
+            .Include(x => x.Block)
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .Select(x => new SelectListItem($"{x.Block!.Name}-{x.UnitNo}", x.Id.ToString()))
+            .ToListAsync();
+
+        return model;
+    }
+
+    private async Task ValidateUnitFormAsync(UnitFormViewModel model)
+    {
+        model.ComponentUnitIds = model.ComponentUnitIds.Distinct().ToList();
+
+        if (!model.IsCombined)
+        {
+            return;
+        }
+
+        if (model.ComponentUnitIds.Count < 2)
+        {
+            ModelState.AddModelError(nameof(model.ComponentUnitIds), "Birleşik daire için en az iki fiziksel daire seçin.");
+            return;
+        }
+
+        if (model.Id.HasValue && model.ComponentUnitIds.Contains(model.Id.Value))
+        {
+            ModelState.AddModelError(nameof(model.ComponentUnitIds), "Birleşik daire kendisini bileşen olarak içeremez.");
+            return;
+        }
+
+        var validComponentCount = await db.Units.AsNoTracking()
+            .CountAsync(x => model.ComponentUnitIds.Contains(x.Id) && !x.IsCombined);
+
+        if (validComponentCount != model.ComponentUnitIds.Count)
+        {
+            ModelState.AddModelError(nameof(model.ComponentUnitIds), "Bileşen olarak sadece fiziksel daireler seçilebilir.");
+            return;
+        }
+
+        var usedInAnotherCombinedUnit = await db.CombinedUnitMembers.AsNoTracking()
+            .Include(x => x.CombinedUnit)
+            .Where(x => model.ComponentUnitIds.Contains(x.ComponentUnitId) &&
+                        (!model.Id.HasValue || x.CombinedUnitId != model.Id.Value) &&
+                        x.CombinedUnit!.Active)
+            .AnyAsync();
+
+        if (usedInAnotherCombinedUnit)
+        {
+            ModelState.AddModelError(nameof(model.ComponentUnitIds), "Seçilen fiziksel dairelerden biri başka bir aktif birleşik dairede kullanılıyor.");
+        }
+    }
+
+    private static UnitFormViewModel ToFormModel(Unit unit)
+    {
+        return new UnitFormViewModel
+        {
+            Id = unit.Id,
+            BlockId = unit.BlockId,
+            UnitNo = unit.UnitNo,
+            OwnerName = unit.OwnerName,
+            Active = unit.Active,
+            IsCombined = unit.IsCombined,
+            ComponentUnitIds = unit.CombinedUnitMembers.Select(x => x.ComponentUnitId).ToList()
+        };
+    }
+
+    private static void ApplyModel(Unit unit, UnitFormViewModel model)
+    {
+        unit.BlockId = model.BlockId;
+        unit.UnitNo = model.UnitNo.Trim();
+        unit.OwnerName = string.IsNullOrWhiteSpace(model.OwnerName) ? null : model.OwnerName.Trim();
+        unit.Active = model.Active;
+        unit.IsCombined = model.IsCombined;
+    }
+
+    private async Task SaveCombinedMembersAsync(int unitId, UnitFormViewModel model)
+    {
+        var existing = await db.CombinedUnitMembers
+            .Where(x => x.CombinedUnitId == unitId)
+            .ToListAsync();
+
+        db.CombinedUnitMembers.RemoveRange(existing);
+
+        if (!model.IsCombined)
+        {
+            return;
+        }
+
+        foreach (var componentUnitId in model.ComponentUnitIds.Distinct())
+        {
+            db.CombinedUnitMembers.Add(new CombinedUnitMember
+            {
+                CombinedUnitId = unitId,
+                ComponentUnitId = componentUnitId
+            });
+        }
+
+        var componentUnits = await db.Units
+            .Where(x => model.ComponentUnitIds.Contains(x.Id))
+            .ToListAsync();
+
+        foreach (var componentUnit in componentUnits)
+        {
+            componentUnit.Active = false;
+        }
     }
 
     private static Dictionary<string, int> BuildHeaders(string[] row)

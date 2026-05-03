@@ -33,7 +33,7 @@
         <div class="col-md-7">
             <label class="form-label mb-1">Daire CSV Yükle</label>
             <input type="file" name="file" accept=".csv,text/csv" class="form-control" />
-            <div class="form-text">Kolonlar: BlockId veya Block, UnitNo, OwnerName, Active</div>
+            <div class="form-text">Kolonlar: BlockId veya Block, UnitNo, OwnerName, Active. Birleşik daireleri formdan oluşturun.</div>
         </div>
         <div class="col-md-5">
             <button type="submit" class="btn btn-outline-primary">CSV ile Ekle</button>
@@ -47,6 +47,8 @@
             <th>Blok</th>
             <th>Daire No</th>
             <th>Malik</th>
+            <th>Tip</th>
+            <th>Bileşenler</th>
             <th>Durum</th>
             <th></th>
         </tr>
@@ -58,6 +60,20 @@
             <td>@item.Block?.Name</td>
             <td>@item.UnitNo</td>
             <td>@item.OwnerName</td>
+            <td>@(item.IsCombined ? "Birleşik" : "Fiziksel")</td>
+            <td>
+                @if (item.IsCombined)
+                {
+                    @string.Join(" + ", item.CombinedUnitMembers
+                        .Where(x => x.ComponentUnit?.Block is not null)
+                        .Select(x => $"{x.ComponentUnit!.Block!.Name}-{x.ComponentUnit.UnitNo}")
+                        .OrderBy(x => x))
+                }
+                else
+                {
+                    <span class="text-muted">-</span>
+                }
+            </td>
             <td>@(item.Active ? "Aktif" : "Pasif")</td>
             <td class="d-flex gap-1">
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>

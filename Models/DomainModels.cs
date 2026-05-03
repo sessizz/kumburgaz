@@ -48,8 +48,20 @@ public class Unit
     public string? OwnerName { get; set; }
 
     public bool Active { get; set; } = true;
+    public bool IsCombined { get; set; }
 
     public ICollection<BillingGroupUnit> BillingGroupUnits { get; set; } = new List<BillingGroupUnit>();
+    public ICollection<CombinedUnitMember> CombinedUnitMembers { get; set; } = new List<CombinedUnitMember>();
+    public ICollection<CombinedUnitMember> MemberOfCombinedUnits { get; set; } = new List<CombinedUnitMember>();
+}
+
+public class CombinedUnitMember
+{
+    public int Id { get; set; }
+    public int CombinedUnitId { get; set; }
+    public Unit? CombinedUnit { get; set; }
+    public int ComponentUnitId { get; set; }
+    public Unit? ComponentUnit { get; set; }
 }
 
 public class DuesType

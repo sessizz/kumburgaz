@@ -22,6 +22,53 @@ public class BillingRulesTests
     }
 
     [Fact]
+    public async Task CombinedUnit_ShouldGenerateSingleInstallmentForCombinedUnit()
+    {
+        await using var db = CreateDb();
+        SeedCoreData(db);
+
+        db.Units.Add(new Unit
+        {
+            Id = 3,
+            BlockId = 1,
+            UnitNo = "1+2",
+            OwnerName = "Ornek Malik",
+            Active = true,
+            IsCombined = true
+        });
+        db.CombinedUnitMembers.AddRange(
+            new CombinedUnitMember { Id = 1, CombinedUnitId = 3, ComponentUnitId = 1 },
+            new CombinedUnitMember { Id = 2, CombinedUnitId = 3, ComponentUnitId = 2 }
+        );
+        db.BillingGroups.Add(new BillingGroup
+        {
+            Id = 2,
+            Name = "A1-A2 Cift Oda",
+            DuesTypeId = 2,
+            EffectiveStartPeriod = "2025-2026",
+            Active = true,
+            IsMerged = false
+        });
+        db.BillingGroupUnits.Add(new BillingGroupUnit
+        {
+            Id = 3,
+            BillingGroupId = 2,
+            UnitId = 3,
+            StartPeriod = "2025-2026"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new DuesGenerationService(db);
+        await service.GenerateForPeriodAsync("2025-2026", new DateTime(2025, 7, 31));
+
+        var combinedInstallment = await db.DuesInstallments
+            .SingleAsync(x => x.BillingGroupId == 2 && x.Period == "2025-2026");
+
+        Assert.Equal(3, combinedInstallment.UnitId);
+        Assert.Equal(12000m, combinedInstallment.Amount);
+    }
+
+    [Fact]
     public async Task Collection_ShouldApplyToOldestInstallmentFirst()
     {
         await using var db = CreateDb();

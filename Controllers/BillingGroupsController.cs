@@ -64,7 +64,7 @@ public class BillingGroupsController(
             EffectiveStartPeriod = group.EffectiveStartPeriod,
             EffectiveEndPeriod = group.EffectiveEndPeriod,
             Active = group.Active,
-            MergeUnits = group.IsMerged,
+            MergeUnits = false,
             SelectedUnitIds = group.Units.Select(x => x.UnitId).ToList()
         };
 
@@ -109,14 +109,20 @@ public class BillingGroupsController(
             .Select(x => new SelectListItem(x.Name + $" ({x.Amount:N2} TL)", x.Id.ToString()))
             .ToListAsync();
 
-        model.UnitOptions = await db.Units
+        var units = await db.Units
             .AsNoTracking()
             .Where(x => x.Active)
             .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
-            .Select(x => new SelectListItem($"{x.Block!.Name}-{x.UnitNo}", x.Id.ToString()))
             .ToListAsync();
+
+        model.UnitOptions = units
+            .Select(x => new SelectListItem(UnitDisplayHelper.Display(x), x.Id.ToString()))
+            .ToList();
 
         return model;
     }

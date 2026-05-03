@@ -20,7 +20,17 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ThenInclude(x => x!.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
             .Where(x => query.Period == null || x.Period == query.Period)
             .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
@@ -36,7 +46,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 InstallmentId = x.Id,
                 BillingGroupId = x.BillingGroupId,
                 UnitDisplay = x.UnitId.HasValue
-                    ? $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo}"
+                    ? UnitDisplayHelper.Display(x.Unit)
                     : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
                 BillingGroupName = x.BillingGroup!.Name,
                 DuesTypeName = x.BillingGroup.DuesType!.Name,
@@ -44,7 +54,8 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 Amount = x.Amount,
                 RemainingAmount = x.RemainingAmount,
                 UnitsText = string.Join(", ", x.BillingGroup.Units
-                    .Select(u => $"{u.Unit!.Block!.Name}-{u.Unit.UnitNo}")
+                    .Where(u => u.Unit is not null)
+                    .Select(u => UnitDisplayHelper.Display(u.Unit))
                     .OrderBy(v => v))
             })
             .OrderBy(x => x.UnitDisplay)

@@ -27,6 +27,26 @@ public class BillingGroupFormViewModel
     public List<SelectListItem> UnitOptions { get; set; } = [];
 }
 
+public class UnitFormViewModel
+{
+    public int? Id { get; set; }
+
+    [Required]
+    public int BlockId { get; set; }
+
+    [Required, MaxLength(30)]
+    public string UnitNo { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? OwnerName { get; set; }
+
+    public bool Active { get; set; } = true;
+    public bool IsCombined { get; set; }
+    public List<int> ComponentUnitIds { get; set; } = [];
+    public List<SelectListItem> BlockOptions { get; set; } = [];
+    public List<SelectListItem> ComponentUnitOptions { get; set; } = [];
+}
+
 public class DuesGenerationPreviewItem
 {
     public int BillingGroupId { get; set; }

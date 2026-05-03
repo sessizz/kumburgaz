@@ -44,7 +44,17 @@ public class ReportsController(
             .ThenInclude(x => x!.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
             .Include(x => x.Allocations)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -64,7 +74,7 @@ public class ReportsController(
             PaidAmount = paidAmount,
             RemainingAmount = installment.RemainingAmount,
             UnitDisplay = installment.UnitId.HasValue
-                ? $"{installment.Unit!.Block!.Name}-{installment.Unit.UnitNo}"
+                ? UnitDisplayHelper.Display(installment.Unit)
                 : BillingGroupDisplayHelper.UnitDisplay(installment.BillingGroup),
             BillingGroupName = installment.BillingGroup?.Name ?? "-",
             ReturnUrl = returnUrl
@@ -87,7 +97,17 @@ public class ReportsController(
             .ThenInclude(x => x!.Units)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
             .Include(x => x.Allocations)
             .FirstOrDefaultAsync(x => x.Id == model.Id);
@@ -117,7 +137,7 @@ public class ReportsController(
             model.PaidAmount = paidAmount;
             model.RemainingAmount = installment.RemainingAmount;
             model.UnitDisplay = installment.UnitId.HasValue
-                ? $"{installment.Unit!.Block!.Name}-{installment.Unit.UnitNo}"
+                ? UnitDisplayHelper.Display(installment.Unit)
                 : BillingGroupDisplayHelper.UnitDisplay(installment.BillingGroup);
             model.BillingGroupName = installment.BillingGroup?.Name ?? "-";
             return View(model);

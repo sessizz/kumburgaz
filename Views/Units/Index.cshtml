@@ -42,7 +42,7 @@
 </form>
 
 <form asp-action="DeleteSelected" method="post" id="bulkDeleteUnitsForm"
-      onsubmit="return confirmSelectedUnitsDelete();">
+      onsubmit="return confirmUnitsFormSubmit(event);">
     @Html.AntiForgeryToken()
 
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -50,7 +50,15 @@
             <input class="form-check-input" type="checkbox" id="selectAllUnits" />
             <label class="form-check-label" for="selectAllUnits">Tümünü seç</label>
         </div>
-        <button class="btn btn-outline-danger btn-sm" type="submit">Seçilenleri Sil</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm"
+                    type="submit"
+                    formaction="@Url.Action("CombineSelected", "Units")"
+                    data-bulk-action="combine">
+                Birleştir
+            </button>
+            <button class="btn btn-outline-danger btn-sm" type="submit" data-bulk-action="delete">Seçilenleri Sil</button>
+        </div>
     </div>
 
     <table class="table table-bordered table-striped">
@@ -97,7 +105,7 @@
                             type="submit"
                             formmethod="post"
                             formaction="@Url.Action("Delete", "Units", new { id = item.Id })"
-                            onclick="return confirm('Bu daire silinsin mi?');">
+                            data-bulk-action="single-delete">
                         Sil
                     </button>
                 </td>
@@ -129,14 +137,41 @@
             });
         });
 
+        function selectedUnitCount() {
+            return unitCheckboxes.filter((checkbox) => checkbox.checked).length;
+        }
+
+        function confirmUnitsFormSubmit(event) {
+            const action = event.submitter?.dataset?.bulkAction;
+            if (action === "single-delete") {
+                return confirm("Bu daire silinsin mi?");
+            }
+
+            if (action === "combine") {
+                return confirmSelectedUnitsCombine();
+            }
+
+            return confirmSelectedUnitsDelete();
+        }
+
         function confirmSelectedUnitsDelete() {
-            const selectedCount = unitCheckboxes.filter((checkbox) => checkbox.checked).length;
+            const selectedCount = selectedUnitCount();
             if (selectedCount === 0) {
                 alert("Silmek için en az bir daire seçin.");
                 return false;
             }
 
             return confirm(`${selectedCount} daire silinsin mi? Bağlı kayıt içeren daireler atlanır.`);
+        }
+
+        function confirmSelectedUnitsCombine() {
+            const selectedCount = selectedUnitCount();
+            if (selectedCount !== 2) {
+                alert("Birleştirmek için tam 2 daire seçin.");
+                return false;
+            }
+
+            return confirm("Seçilen 2 daire birleşik daireye dönüştürülsün mü?");
         }
     </script>
 }

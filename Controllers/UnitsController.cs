@@ -215,6 +215,94 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CombineSelected(List<int> selectedUnitIds)
+    {
+        selectedUnitIds = selectedUnitIds.Distinct().ToList();
+        if (selectedUnitIds.Count != 2)
+        {
+            TempData["ActionError"] = "Birleştirmek için tam 2 fiziksel daire seçin.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var units = await db.Units
+            .Include(x => x.Block)
+            .Where(x => selectedUnitIds.Contains(x.Id))
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        if (units.Count != 2)
+        {
+            TempData["ActionError"] = "Seçilen dairelerden biri bulunamadı.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (units.Any(x => x.IsCombined))
+        {
+            TempData["ActionError"] = "Birleşik daire tekrar birleşime alınamaz. Sadece fiziksel daire seçin.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        if (units.Select(x => x.BlockId).Distinct().Count() > 1)
+        {
+            TempData["ActionError"] = "Birleştirilecek daireler aynı blokta olmalıdır.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var alreadyUsed = await db.CombinedUnitMembers
+            .Include(x => x.CombinedUnit)
+            .AnyAsync(x => selectedUnitIds.Contains(x.ComponentUnitId) && x.CombinedUnit!.Active);
+
+        if (alreadyUsed)
+        {
+            TempData["ActionError"] = "Seçilen dairelerden biri başka bir aktif birleşik dairede kullanılıyor.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var combinedUnitNo = string.Join("+", units.Select(x => x.UnitNo.Trim()));
+        var blockId = units[0].BlockId;
+        var exists = await db.Units.AnyAsync(x => x.BlockId == blockId && x.UnitNo == combinedUnitNo);
+        if (exists)
+        {
+            TempData["ActionError"] = $"{units[0].Block?.Name}-{combinedUnitNo} adlı daire zaten var.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var ownerNames = units
+            .Select(x => x.OwnerName?.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct()
+            .ToList();
+
+        var combinedUnit = new Unit
+        {
+            BlockId = blockId,
+            UnitNo = combinedUnitNo,
+            OwnerName = ownerNames.Count == 0 ? null : string.Join(" / ", ownerNames),
+            Active = true,
+            IsCombined = true
+        };
+
+        db.Units.Add(combinedUnit);
+        await db.SaveChangesAsync();
+
+        foreach (var unit in units)
+        {
+            unit.Active = false;
+            db.CombinedUnitMembers.Add(new CombinedUnitMember
+            {
+                CombinedUnitId = combinedUnit.Id,
+                ComponentUnitId = unit.Id
+            });
+        }
+
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = $"{units[0].Block?.Name}-{combinedUnitNo} birleşik dairesi oluşturuldu.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ImportCsv(IFormFile? file)
     {
         if (file is null || file.Length == 0)

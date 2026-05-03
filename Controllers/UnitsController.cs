@@ -157,6 +157,64 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteSelected(List<int> selectedUnitIds)
+    {
+        selectedUnitIds = selectedUnitIds.Distinct().ToList();
+        if (selectedUnitIds.Count == 0)
+        {
+            TempData["ActionError"] = "Silmek için en az bir daire seçin.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var relatedUnitIds = new HashSet<int>();
+
+        relatedUnitIds.UnionWith(await db.BillingGroupUnits
+            .Where(x => selectedUnitIds.Contains(x.UnitId))
+            .Select(x => x.UnitId)
+            .ToListAsync());
+
+        relatedUnitIds.UnionWith(await db.Collections
+            .Where(x => selectedUnitIds.Contains(x.UnitId))
+            .Select(x => x.UnitId)
+            .ToListAsync());
+
+        relatedUnitIds.UnionWith(await db.DuesInstallments
+            .Where(x => x.UnitId.HasValue && selectedUnitIds.Contains(x.UnitId.Value))
+            .Select(x => x.UnitId!.Value)
+            .ToListAsync());
+
+        relatedUnitIds.UnionWith(await db.CombinedUnitMembers
+            .Where(x => selectedUnitIds.Contains(x.ComponentUnitId))
+            .Select(x => x.ComponentUnitId)
+            .ToListAsync());
+
+        var deletableIds = selectedUnitIds
+            .Where(id => !relatedUnitIds.Contains(id))
+            .ToList();
+
+        if (deletableIds.Count == 0)
+        {
+            TempData["ActionError"] = "Seçilen dairelerin tamamı bağlı kayıt içeriyor. Önce ilişkili kayıtları kaldırın.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var units = await db.Units
+            .Where(x => deletableIds.Contains(x.Id))
+            .ToListAsync();
+
+        db.Units.RemoveRange(units);
+        await db.SaveChangesAsync();
+
+        var skippedCount = selectedUnitIds.Count - units.Count;
+        TempData["ActionSuccess"] = skippedCount == 0
+            ? $"{units.Count} daire silindi."
+            : $"{units.Count} daire silindi. {skippedCount} daire bağlı kayıt içerdiği için atlandı.";
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ImportCsv(IFormFile? file)
     {
         if (file is null || file.Length == 0)

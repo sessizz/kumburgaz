@@ -41,49 +41,102 @@
     </div>
 </form>
 
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Blok</th>
-            <th>Daire No</th>
-            <th>Malik</th>
-            <th>Tip</th>
-            <th>Bileşenler</th>
-            <th>Durum</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var item in Model)
-    {
-        <tr>
-            <td>@item.Block?.Name</td>
-            <td>@item.UnitNo</td>
-            <td>@item.OwnerName</td>
-            <td>@(item.IsCombined ? "Birleşik" : "Fiziksel")</td>
-            <td>
-                @if (item.IsCombined)
-                {
-                    @string.Join(" + ", item.CombinedUnitMembers
-                        .Where(x => x.ComponentUnit?.Block is not null)
-                        .Select(x => $"{x.ComponentUnit!.Block!.Name}-{x.ComponentUnit.UnitNo}")
-                        .OrderBy(x => x))
+<form asp-action="DeleteSelected" method="post" id="bulkDeleteUnitsForm"
+      onsubmit="return confirmSelectedUnitsDelete();">
+    @Html.AntiForgeryToken()
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="selectAllUnits" />
+            <label class="form-check-label" for="selectAllUnits">Tümünü seç</label>
+        </div>
+        <button class="btn btn-outline-danger btn-sm" type="submit">Seçilenleri Sil</button>
+    </div>
+
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th style="width: 44px;"></th>
+                <th>Blok</th>
+                <th>Daire No</th>
+                <th>Malik</th>
+                <th>Tip</th>
+                <th>Bileşenler</th>
+                <th>Durum</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>
+                    <input class="form-check-input unit-select" type="checkbox" name="selectedUnitIds" value="@item.Id" />
+                </td>
+                <td>@item.Block?.Name</td>
+                <td>@item.UnitNo</td>
+                <td>@item.OwnerName</td>
+                <td>@(item.IsCombined ? "Birleşik" : "Fiziksel")</td>
+                <td>
+                    @if (item.IsCombined)
+                    {
+                        @string.Join(" + ", item.CombinedUnitMembers
+                            .Where(x => x.ComponentUnit?.Block is not null)
+                            .Select(x => $"{x.ComponentUnit!.Block!.Name}-{x.ComponentUnit.UnitNo}")
+                            .OrderBy(x => x))
+                    }
+                    else
+                    {
+                        <span class="text-muted">-</span>
+                    }
+                </td>
+                <td>@(item.Active ? "Aktif" : "Pasif")</td>
+                <td class="d-flex gap-1">
+                    <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
+                    <button class="btn btn-sm btn-outline-danger"
+                            type="submit"
+                            formmethod="post"
+                            formaction="@Url.Action("Delete", "Units", new { id = item.Id })"
+                            onclick="return confirm('Bu daire silinsin mi?');">
+                        Sil
+                    </button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</form>
+
+@section Scripts {
+    <script>
+        const selectAllUnits = document.getElementById("selectAllUnits");
+        const unitCheckboxes = Array.from(document.querySelectorAll(".unit-select"));
+
+        selectAllUnits?.addEventListener("change", () => {
+            unitCheckboxes.forEach((checkbox) => {
+                checkbox.checked = selectAllUnits.checked;
+            });
+        });
+
+        unitCheckboxes.forEach((checkbox) => {
+            checkbox.addEventListener("change", () => {
+                if (!selectAllUnits) {
+                    return;
                 }
-                else
-                {
-                    <span class="text-muted">-</span>
-                }
-            </td>
-            <td>@(item.Active ? "Aktif" : "Pasif")</td>
-            <td class="d-flex gap-1">
-                <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@item.Id">Düzenle</a>
-                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
-                      onsubmit="return confirm('Bu daire silinsin mi?');">
-                    @Html.AntiForgeryToken()
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Sil</button>
-                </form>
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+
+                selectAllUnits.checked = unitCheckboxes.length > 0 && unitCheckboxes.every((item) => item.checked);
+                selectAllUnits.indeterminate = unitCheckboxes.some((item) => item.checked) && !selectAllUnits.checked;
+            });
+        });
+
+        function confirmSelectedUnitsDelete() {
+            const selectedCount = unitCheckboxes.filter((checkbox) => checkbox.checked).length;
+            if (selectedCount === 0) {
+                alert("Silmek için en az bir daire seçin.");
+                return false;
+            }
+
+            return confirm(`${selectedCount} daire silinsin mi? Bağlı kayıt içeren daireler atlanır.`);
+        }
+    </script>
+}

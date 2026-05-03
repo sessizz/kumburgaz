@@ -164,6 +164,49 @@ public class BillingRulesTests
         Assert.Equal(InstallmentStatus.PartiallyPaid, feb.Status);
     }
 
+    [Fact]
+    public async Task Collection_ShouldApplySelectedUnitInstallmentFirst()
+    {
+        await using var db = CreateDb();
+        SeedCoreData(db);
+
+        db.DuesInstallments.AddRange(
+            new DuesInstallment
+            {
+                Id = 1, BillingGroupId = 1, UnitId = 1, Period = "2025-2026", AccrualDate = new DateTime(2025, 7, 1), DueDate = new DateTime(2025, 7, 31),
+                Amount = 12000m, RemainingAmount = 12000m
+            },
+            new DuesInstallment
+            {
+                Id = 2, BillingGroupId = 1, UnitId = 2, Period = "2025-2026", AccrualDate = new DateTime(2025, 7, 1), DueDate = new DateTime(2025, 7, 31),
+                Amount = 12000m, RemainingAmount = 12000m
+            }
+        );
+        await db.SaveChangesAsync();
+
+        var service = new CollectionService(db);
+        await service.CreateAsync(new CollectionCreateViewModel
+        {
+            BillingGroupId = 1,
+            DuesInstallmentId = 2,
+            Date = new DateTime(2026, 2, 15),
+            Amount = 12000m,
+            PaymentChannel = PaymentChannel.Bank
+        });
+
+        var firstUnitInstallment = await db.DuesInstallments.FindAsync(1);
+        var secondUnitInstallment = await db.DuesInstallments.FindAsync(2);
+        var collection = await db.Collections.SingleAsync();
+
+        Assert.NotNull(firstUnitInstallment);
+        Assert.NotNull(secondUnitInstallment);
+        Assert.Equal(12000m, firstUnitInstallment!.RemainingAmount);
+        Assert.Equal(0m, secondUnitInstallment!.RemainingAmount);
+        Assert.Equal(InstallmentStatus.Open, firstUnitInstallment.Status);
+        Assert.Equal(InstallmentStatus.Paid, secondUnitInstallment.Status);
+        Assert.Equal(2, collection.UnitId);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

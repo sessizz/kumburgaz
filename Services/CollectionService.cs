@@ -31,6 +31,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
     {
         return db.Collections
             .AsNoTracking()
+            .Include(x => x.Allocations)
             .FirstOrDefaultAsync(x => x.Id == id);
     }
 
@@ -89,7 +90,24 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat tutari sifirdan buyuk olmalidir.");
         }
 
-        var representativeUnitId = await ResolveRepresentativeUnitIdAsync(model.BillingGroupId);
+        var targetInstallment = model.DuesInstallmentId.HasValue
+            ? await db.DuesInstallments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == model.DuesInstallmentId.Value)
+            : null;
+
+        if (model.DuesInstallmentId.HasValue && targetInstallment is null)
+        {
+            throw new InvalidOperationException("Secilen aidat borcu bulunamadi.");
+        }
+
+        var billingGroupId = targetInstallment?.BillingGroupId ?? model.BillingGroupId;
+        if (billingGroupId <= 0)
+        {
+            throw new InvalidOperationException("Tahsilat icin aidat borcu seciniz.");
+        }
+
+        var representativeUnitId = targetInstallment?.UnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
         var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase);
@@ -120,7 +138,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
 
             db.CollectionAllocations.RemoveRange(collection.Allocations);
 
-            collection.BillingGroupId = model.BillingGroupId;
+            collection.BillingGroupId = billingGroupId;
             collection.UnitId = representativeUnitId;
             collection.Date = utcDate;
             collection.Amount = model.Amount;
@@ -132,7 +150,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         {
             collection = new Collection
             {
-                BillingGroupId = model.BillingGroupId,
+                BillingGroupId = billingGroupId,
                 UnitId = representativeUnitId,
                 Date = utcDate,
                 Amount = model.Amount,
@@ -145,11 +163,28 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             await db.SaveChangesAsync();
         }
 
-        var openInstallments = await db.DuesInstallments
-            .Where(x => x.BillingGroupId == model.BillingGroupId && x.RemainingAmount > 0)
+        var openInstallmentsQuery = db.DuesInstallments
+            .Where(x => x.BillingGroupId == billingGroupId && x.RemainingAmount > 0);
+
+        if (targetInstallment?.UnitId is not null)
+        {
+            var unitId = targetInstallment.UnitId.Value;
+            openInstallmentsQuery = openInstallmentsQuery.Where(x => x.UnitId == unitId);
+        }
+
+        var openInstallments = await openInstallmentsQuery
             .OrderBy(x => x.Period)
             .ThenBy(x => x.DueDate)
             .ToListAsync();
+
+        if (targetInstallment is not null)
+        {
+            openInstallments = openInstallments
+                .OrderByDescending(x => x.Id == targetInstallment.Id)
+                .ThenBy(x => x.Period)
+                .ThenBy(x => x.DueDate)
+                .ToList();
+        }
 
         var remaining = model.Amount;
         foreach (var installment in openInstallments)

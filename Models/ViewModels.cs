@@ -127,6 +127,8 @@ public class CollectionCreateViewModel
     [Required]
     public int BillingGroupId { get; set; }
 
+    public int? DuesInstallmentId { get; set; }
+
     [Required]
     [DataType(DataType.Date)]
     public DateTime Date { get; set; } = DateTime.Today;
@@ -139,7 +141,9 @@ public class CollectionCreateViewModel
 
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
+    public string? ReturnUrl { get; set; }
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
+    public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel

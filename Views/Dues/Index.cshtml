@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Aidatlar";
     var query = ViewBag.Query as string ?? string.Empty;
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
@@ -14,13 +15,13 @@
             </form>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a class="btn btn-outline-primary" asp-controller="Collections" asp-action="Create">Tahsilat Ekle</a>
+            <a class="btn btn-outline-primary" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@returnUrl">Tahsilat Ekle</a>
             <a class="btn btn-primary" asp-controller="DuesGeneration" asp-action="Index">Toplu Borç Ekle</a>
         </div>
     </div>
 
     <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
-        <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr] gap-4 text-sm font-bold text-slate-600">
+        <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_110px] gap-4 text-sm font-bold text-slate-600">
             <div></div>
             <div>Açıklama</div>
             <div>Kategori</div>
@@ -28,6 +29,7 @@
             <div>Ödeme / Vade</div>
             <div class="text-end">Toplam</div>
             <div class="text-end">Kalan</div>
+            <div class="text-end">İşlem</div>
         </div>
     </div>
 
@@ -38,7 +40,7 @@
             var dateText = row.IsPaid
                 ? row.PaymentOrDueDate.ToString("dd.MM.yyyy")
                 : row.PaymentOrDueDate.ToString("dd.MM.yyyy");
-            <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr] gap-4 items-center px-5 py-3 border-b border-slate-100 @rowClass">
+            <div class="grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_110px] gap-4 items-center px-5 py-3 border-b border-slate-100 @rowClass">
                 <div class="flex justify-center">
                     <span class="material-symbols-outlined rounded-full bg-slate-100 p-2 text-slate-500">receipt_long</span>
                 </div>
@@ -66,6 +68,16 @@
                 </div>
                 <div class="text-end font-semibold">@row.Amount.ToString("N2") TL</div>
                 <div class="text-end font-semibold @(row.IsPaid ? "text-emerald-700" : "text-slate-900")">@row.RemainingAmount.ToString("N2") TL</div>
+                <div class="text-end">
+                    @if (!row.IsPaid)
+                    {
+                        <a class="btn btn-sm btn-outline-primary"
+                           asp-controller="Collections"
+                           asp-action="Create"
+                           asp-route-duesInstallmentId="@row.Id"
+                           asp-route-returnUrl="@returnUrl">Tahsilat</a>
+                    }
+                </div>
             </div>
         }
     </div>

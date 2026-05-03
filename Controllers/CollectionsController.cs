@@ -16,7 +16,7 @@ public class CollectionsController(
 {
     public async Task<IActionResult> Index()
     {
-        return RedirectToAction("Index", "Ledger");
+        return RedirectToAction("Index", "Dues");
     }
 
     public async Task<IActionResult> ExportCsv()
@@ -42,12 +42,14 @@ public class CollectionsController(
         return File(bytes, "text/csv; charset=utf-8", "tahsilatlar.csv");
     }
 
-    public async Task<IActionResult> Create()
+    public async Task<IActionResult> Create(int? duesInstallmentId = null, string? returnUrl = null)
     {
         return View(await BuildFormAsync(new CollectionCreateViewModel
         {
+            DuesInstallmentId = duesInstallmentId,
             Date = DateTime.Today,
-            PaymentChannel = PaymentChannel.Bank
+            PaymentChannel = PaymentChannel.Bank,
+            ReturnUrl = returnUrl
         }));
     }
 
@@ -63,7 +65,7 @@ public class CollectionsController(
         try
         {
             await collectionService.CreateAsync(model);
-            return RedirectToAction(nameof(Index));
+            return RedirectAfterSave(model.ReturnUrl);
         }
         catch (Exception ex)
         {
@@ -83,11 +85,16 @@ public class CollectionsController(
         var model = new CollectionCreateViewModel
         {
             BillingGroupId = entity.BillingGroupId,
+            DuesInstallmentId = entity.Allocations
+                .OrderBy(x => x.Id)
+                .Select(x => (int?)x.DuesInstallmentId)
+                .FirstOrDefault(),
             Date = entity.Date,
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
             ReferenceNo = entity.ReferenceNo,
-            Note = entity.Note
+            Note = entity.Note,
+            ReturnUrl = Request.Query["returnUrl"].FirstOrDefault()
         };
 
         ViewBag.CollectionId = id;
@@ -107,7 +114,7 @@ public class CollectionsController(
         try
         {
             await collectionService.UpdateAsync(id, model);
-            return RedirectToAction(nameof(Index));
+            return RedirectAfterSave(model.ReturnUrl);
         }
         catch (Exception ex)
         {
@@ -211,6 +218,50 @@ public class CollectionsController(
 
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {
+        if (model.DuesInstallmentId.HasValue)
+        {
+            var selectedInstallment = await db.DuesInstallments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == model.DuesInstallmentId.Value);
+
+            if (selectedInstallment is not null)
+            {
+                model.BillingGroupId = selectedInstallment.BillingGroupId;
+                if (model.Amount <= 0)
+                {
+                    model.Amount = selectedInstallment.RemainingAmount;
+                }
+            }
+        }
+
+        var installments = await db.DuesInstallments
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => x.Unit == null || x.Unit.Active)
+            .Where(x => x.RemainingAmount > 0 || (model.DuesInstallmentId.HasValue && x.Id == model.DuesInstallmentId.Value))
+            .OrderBy(x => x.Period)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Unit!.Block!.Name)
+            .ThenBy(x => x.Unit!.UnitNo)
+            .ToListAsync();
+
+        model.DuesInstallmentOptions = installments
+            .Select(x =>
+            {
+                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup);
+                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
+                var text = $"{x.Period} / {unitText} / {duesType} / Kalan {x.RemainingAmount:N2} TL";
+                return new SelectListItem(text, x.Id.ToString(), model.DuesInstallmentId == x.Id);
+            })
+            .ToList();
+
         var groups = await db.BillingGroups
             .AsNoTracking()
             .Where(x => x.Active)
@@ -258,6 +309,16 @@ public class CollectionsController(
             .ToList();
 
         return model;
+    }
+
+    private IActionResult RedirectAfterSave(string? returnUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+        {
+            return LocalRedirect(returnUrl);
+        }
+
+        return RedirectToAction("Index", "Dues");
     }
 
     private static Dictionary<string, int> BuildHeaders(string[] row)

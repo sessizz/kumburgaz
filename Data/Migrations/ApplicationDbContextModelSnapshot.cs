@@ -192,9 +192,6 @@ namespace Kumburgaz.Web.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<DateTime>("AccrualDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<int>("BillingGroupId")
                         .HasColumnType("integer");
 
@@ -251,6 +248,30 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.ToTable("CollectionAllocations");
                 });
 
+            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CombinedUnitId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ComponentUnitId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComponentUnitId");
+
+                    b.HasIndex("CombinedUnitId", "ComponentUnitId")
+                        .IsUnique();
+
+                    b.ToTable("CombinedUnitMembers");
+                });
+
             modelBuilder.Entity("Kumburgaz.Web.Models.DuesInstallment", b =>
                 {
                     b.Property<int>("Id")
@@ -258,6 +279,9 @@ namespace Kumburgaz.Web.Data.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AccrualDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
@@ -506,30 +530,6 @@ namespace Kumburgaz.Web.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CombinedUnitId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ComponentUnitId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ComponentUnitId");
-
-                    b.HasIndex("CombinedUnitId", "ComponentUnitId")
-                        .IsUnique();
-
-                    b.ToTable("CombinedUnitMembers");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -771,25 +771,6 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Navigation("Site");
                 });
 
-            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
-                {
-                    b.HasOne("Kumburgaz.Web.Models.Unit", "CombinedUnit")
-                        .WithMany("CombinedUnitMembers")
-                        .HasForeignKey("CombinedUnitId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Kumburgaz.Web.Models.Unit", "ComponentUnit")
-                        .WithMany("MemberOfCombinedUnits")
-                        .HasForeignKey("ComponentUnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CombinedUnit");
-
-                    b.Navigation("ComponentUnit");
-                });
-
             modelBuilder.Entity("Kumburgaz.Web.Models.Collection", b =>
                 {
                     b.HasOne("Kumburgaz.Web.Models.BillingGroup", "BillingGroup")
@@ -826,6 +807,25 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Navigation("Collection");
 
                     b.Navigation("DuesInstallment");
+                });
+
+            modelBuilder.Entity("Kumburgaz.Web.Models.CombinedUnitMember", b =>
+                {
+                    b.HasOne("Kumburgaz.Web.Models.Unit", "CombinedUnit")
+                        .WithMany("CombinedUnitMembers")
+                        .HasForeignKey("CombinedUnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Kumburgaz.Web.Models.Unit", "ComponentUnit")
+                        .WithMany("MemberOfCombinedUnits")
+                        .HasForeignKey("ComponentUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CombinedUnit");
+
+                    b.Navigation("ComponentUnit");
                 });
 
             modelBuilder.Entity("Kumburgaz.Web.Models.DuesInstallment", b =>

@@ -126,10 +126,10 @@ public class CollectionsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, string? returnUrl = null)
     {
         await collectionService.DeleteAsync(id);
-        return RedirectToAction(nameof(Index));
+        return RedirectAfterSave(returnUrl);
     }
 
     [HttpPost]

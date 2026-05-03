@@ -8,9 +8,11 @@ using Microsoft.EntityFrameworkCore;
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class DuesController(ApplicationDbContext db) : Controller
+public class DuesController(
+    ApplicationDbContext db,
+    ICollectionService collectionService) : Controller
 {
-    public async Task<IActionResult> Index(string? q = null)
+    public async Task<IActionResult> Index(string? q = null, string? tab = null)
     {
         var installments = await db.DuesInstallments
             .AsNoTracking()
@@ -71,8 +73,14 @@ public class DuesController(ApplicationDbContext db) : Controller
             .ThenBy(x => x.UnitNo)
             .ToList();
 
-        ViewBag.Query = query;
-        return View(rows);
+        var collections = await collectionService.GetAllAsync();
+        return View(new DuesIndexViewModel
+        {
+            DuesItems = rows,
+            Collections = collections,
+            Query = query ?? string.Empty,
+            ActiveTab = string.Equals(tab, "collections", StringComparison.OrdinalIgnoreCase) ? "collections" : "dues"
+        });
     }
 
     private static Unit? FirstActiveGroupUnit(BillingGroup? group)

@@ -96,6 +96,14 @@ public class DuesListItemViewModel
     public decimal RemainingAmount { get; set; }
 }
 
+public class DuesIndexViewModel
+{
+    public List<DuesListItemViewModel> DuesItems { get; set; } = [];
+    public List<Collection> Collections { get; set; } = [];
+    public string Query { get; set; } = string.Empty;
+    public string ActiveTab { get; set; } = "dues";
+}
+
 public class DuesInstallmentEditViewModel
 {
     public int Id { get; set; }

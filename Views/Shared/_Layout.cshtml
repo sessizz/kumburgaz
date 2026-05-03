@@ -2,131 +2,168 @@
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
 
     string NavClass(string controller) =>
-        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase)
-            ? "flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium"
-            : "flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700";
+        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase) ? "menu-active" : string.Empty;
 
     var settingsControllers = new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories" };
     var settingsOpen = settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-theme="corporate">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        primary: "#0ea5e9",
-                        secondary: "#14b8a6",
-                        "background-light": "#f8fafc",
-                    },
-                    fontFamily: {
-                        display: ["Manrope", "sans-serif"],
-                    },
-                },
-            },
-        };
-    </script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Kumburgaz.Web.styles.css" asp-append-version="true" />
-    <style>
-        body { font-family: "Manrope", sans-serif; }
-        .material-symbols-outlined {
-            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+
+    <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+
+    <style type="text/tailwindcss">
+        @@theme {
+            --font-sans: "Manrope", system-ui, sans-serif;
         }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+    <style>
+        body { font-family: "Manrope", system-ui, sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 24;
+            vertical-align: middle;
+        }
+        .ms-sm { font-size: 18px; }
+        .ms-md { font-size: 20px; }
+        .ms-lg { font-size: 22px; }
     </style>
 </head>
-<body class="bg-background-light text-slate-900 min-h-screen md:flex">
-    <aside class="hidden md:flex md:w-64 bg-white border-r border-slate-200 flex-col h-screen fixed left-0 top-0 z-20">
-        <div class="h-16 flex items-center px-6 border-b border-slate-100">
-            <div class="flex items-center gap-3">
-                <div class="bg-primary/10 p-2 rounded-lg">
-                    <span class="material-symbols-outlined text-primary">apartment</span>
+<body class="min-h-screen bg-base-200">
+    <div class="drawer lg:drawer-open">
+        <input id="app-drawer" type="checkbox" class="drawer-toggle" />
+
+        <div class="drawer-content flex flex-col min-h-screen">
+            <header class="navbar sticky top-0 z-30 bg-base-100/90 backdrop-blur border-b border-base-300 px-3 lg:px-6">
+                <div class="flex-none lg:hidden">
+                    <label for="app-drawer" class="btn btn-square btn-ghost" aria-label="Menü">
+                        <span class="material-symbols-outlined">menu</span>
+                    </label>
                 </div>
-                <div>
-                    <h1 class="text-sm font-bold leading-tight">Kumburgaz Site</h1>
-                    <p class="text-xs text-slate-500">Yönetim Portalı</p>
+                <div class="flex-1">
+                    <h2 class="text-lg lg:text-xl font-bold text-base-content">@ViewData["Title"]</h2>
                 </div>
-            </div>
+                <div class="flex-none">
+                    <div class="flex items-center gap-2">
+                        <partial name="_LoginPartial" />
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 p-4 lg:p-8">
+                <div class="max-w-7xl mx-auto">
+                    @RenderBody()
+                </div>
+            </main>
+
+            <footer class="footer footer-center p-4 text-base-content/60 text-xs">
+                <aside>© 2026 Kumburgaz Yönetim</aside>
+            </footer>
         </div>
 
-        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-            <a class="@NavClass("Home")" asp-controller="Home" asp-action="Index">
-                <span class="material-symbols-outlined">dashboard</span><span>Gösterge Paneli</span>
-            </a>
-            <a class="@NavClass("Units")" asp-controller="Units" asp-action="Index">
-                <span class="material-symbols-outlined">group</span><span>Daireler</span>
-            </a>
-            <a class="@NavClass("Dues")" asp-controller="Dues" asp-action="Index">
-                <span class="material-symbols-outlined">receipt_long</span><span>Aidatlar</span>
-            </a>
-            <a class="@NavClass("CashBank")" asp-controller="CashBank" asp-action="Index">
-                <span class="material-symbols-outlined">account_balance_wallet</span><span>Kasa/Banka</span>
-            </a>
-            <a class="@NavClass("Ledger")" asp-controller="Ledger" asp-action="Index">
-                <span class="material-symbols-outlined">payments</span><span>Giderler</span>
-            </a>
-            <a class="@NavClass("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
-                <span class="material-symbols-outlined">event_repeat</span><span>Dönem Üretimi</span>
-            </a>
-            <a class="@NavClass("Reports")" asp-controller="Reports" asp-action="DuesDebt">
-                <span class="material-symbols-outlined">description</span><span>Raporlar</span>
-            </a>
-
-            <details class="group" @(settingsOpen ? "open" : null)>
-                <summary class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer list-none">
-                    <span class="material-symbols-outlined">settings</span>
-                    <span class="flex-1">Ayarlar</span>
-                    <span class="material-symbols-outlined text-[18px] group-open:rotate-180 transition-transform">expand_more</span>
-                </summary>
-                <div class="mt-1 ml-8 space-y-1">
-                    <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
-                        <span class="material-symbols-outlined text-[20px]">category</span><span>Aidat Tipleri</span>
-                    </a>
-                    <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
-                        <span class="material-symbols-outlined text-[20px]">view_list</span><span>Aidat Grupları</span>
-                    </a>
-                    <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
-                        <span class="material-symbols-outlined text-[20px]">tune</span><span>Kategori Ayarları</span>
-                    </a>
+        <aside class="drawer-side z-40">
+            <label for="app-drawer" aria-label="Menüyü kapat" class="drawer-overlay"></label>
+            <div class="bg-base-100 border-r border-base-300 w-72 min-h-full flex flex-col">
+                <div class="h-16 px-5 flex items-center gap-3 border-b border-base-300">
+                    <div class="bg-primary/10 text-primary rounded-xl p-2">
+                        <span class="material-symbols-outlined">apartment</span>
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-extrabold leading-tight">Kumburgaz Site</h1>
+                        <p class="text-xs text-base-content/60">Yönetim Portalı</p>
+                    </div>
                 </div>
-            </details>
-        </nav>
-    </aside>
 
-    <main class="flex-1 md:ml-64 min-h-screen flex flex-col">
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-10">
-            <h2 class="text-lg md:text-xl font-bold text-slate-900">@ViewData["Title"]</h2>
-            <div class="flex items-center gap-3">
-                <partial name="_LoginPartial" />
+                <ul class="menu menu-md flex-1 p-3 gap-1 overflow-y-auto">
+                    <li>
+                        <a class="@NavClass("Home")" asp-controller="Home" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">dashboard</span>
+                            <span>Gösterge Paneli</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("Units")" asp-controller="Units" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">group</span>
+                            <span>Daireler</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("Dues")" asp-controller="Dues" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">receipt_long</span>
+                            <span>Aidatlar</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("CashBank")" asp-controller="CashBank" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">account_balance_wallet</span>
+                            <span>Kasa/Banka</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("Ledger")" asp-controller="Ledger" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">payments</span>
+                            <span>Giderler</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
+                            <span class="material-symbols-outlined ms-md">event_repeat</span>
+                            <span>Dönem Üretimi</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="@NavClass("Reports")" asp-controller="Reports" asp-action="DuesDebt">
+                            <span class="material-symbols-outlined ms-md">description</span>
+                            <span>Raporlar</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <details @(settingsOpen ? "open" : null)>
+                            <summary>
+                                <span class="material-symbols-outlined ms-md">settings</span>
+                                <span>Ayarlar</span>
+                            </summary>
+                            <ul>
+                                <li>
+                                    <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
+                                        <span class="material-symbols-outlined ms-sm">category</span>
+                                        <span>Aidat Tipleri</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
+                                        <span class="material-symbols-outlined ms-sm">view_list</span>
+                                        <span>Aidat Grupları</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
+                                        <span class="material-symbols-outlined ms-sm">tune</span>
+                                        <span>Kategori Ayarları</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </details>
+                    </li>
+                </ul>
+
+                <div class="p-4 text-xs text-base-content/50 border-t border-base-300">
+                    <p>Sürüm 2026.05</p>
+                </div>
             </div>
-        </header>
-
-        <div class="flex-1 overflow-y-auto p-4 md:p-8">
-            <div class="max-w-7xl mx-auto">
-                @RenderBody()
-            </div>
-        </div>
-
-        <footer class="text-center text-slate-400 text-xs pb-4">
-            © 2026 Kumburgaz Yönetim
-        </footer>
-    </main>
+        </aside>
+    </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

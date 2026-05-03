@@ -4,15 +4,36 @@
 
 @if (SignInManager.IsSignedIn(User))
 {
-    <a class="text-sm text-slate-600 hover:text-slate-900" asp-area="Identity" asp-page="/Account/Manage/Index" title="Hesap">
-        @User.Identity?.Name
-    </a>
-    <form asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })">
-        <button type="submit" class="px-3 py-1.5 rounded-lg text-sm border border-slate-200 hover:bg-slate-50">Çıkış</button>
-    </form>
+    <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2 normal-case">
+            <div class="avatar avatar-placeholder">
+                <div class="bg-primary text-primary-content rounded-full w-8 h-8">
+                    <span class="text-xs font-bold">@(User.Identity?.Name?.Substring(0, 1).ToUpper() ?? "?")</span>
+                </div>
+            </div>
+            <span class="hidden sm:inline text-sm">@User.Identity?.Name</span>
+            <span class="material-symbols-outlined ms-sm">expand_more</span>
+        </div>
+        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-50 w-56 p-2 shadow-lg border border-base-300 mt-2">
+            <li>
+                <a asp-area="Identity" asp-page="/Account/Manage/Index">
+                    <span class="material-symbols-outlined ms-sm">person</span>
+                    Hesap
+                </a>
+            </li>
+            <li>
+                <form asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })" method="post">
+                    <button type="submit" class="w-full text-left">
+                        <span class="material-symbols-outlined ms-sm">logout</span>
+                        Çıkış
+                    </button>
+                </form>
+            </li>
+        </ul>
+    </div>
 }
 else
 {
-    <a class="text-sm text-slate-600 hover:text-slate-900" asp-area="Identity" asp-page="/Account/Register">Kayıt Ol</a>
-    <a class="px-3 py-1.5 rounded-lg text-sm border border-slate-200 hover:bg-slate-50" asp-area="Identity" asp-page="/Account/Login">Giriş</a>
+    <a class="btn btn-ghost btn-sm" asp-area="Identity" asp-page="/Account/Register">Kayıt Ol</a>
+    <a class="btn btn-primary btn-sm" asp-area="Identity" asp-page="/Account/Login">Giriş</a>
 }

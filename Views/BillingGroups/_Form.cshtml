@@ -1,39 +1,39 @@
-﻿@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+@model Kumburgaz.Web.Models.BillingGroupFormViewModel
 
-<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
 
-<div class="mb-3">
-    <label asp-for="Name" class="form-label"></label>
-    <input asp-for="Name" class="form-control" />
-    <span asp-validation-for="Name" class="text-danger"></span>
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Grup Adı</legend>
+    <input asp-for="Name" class="input input-bordered w-full" />
+    <span asp-validation-for="Name" class="text-error text-xs"></span>
+</fieldset>
+
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Aidat Tipi</legend>
+    <select asp-for="DuesTypeId" asp-items="Model.DuesTypeOptions" class="select select-bordered w-full"></select>
+    <span asp-validation-for="DuesTypeId" class="text-error text-xs"></span>
+</fieldset>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <fieldset class="fieldset">
+        <legend class="fieldset-legend">Başlangıç Dönemi (YYYY-YYYY)</legend>
+        <input asp-for="EffectiveStartPeriod" class="input input-bordered w-full" />
+        <span asp-validation-for="EffectiveStartPeriod" class="text-error text-xs"></span>
+    </fieldset>
+    <fieldset class="fieldset">
+        <legend class="fieldset-legend">Bitiş Dönemi (YYYY-YYYY, opsiyonel)</legend>
+        <input asp-for="EffectiveEndPeriod" class="input input-bordered w-full" />
+        <span asp-validation-for="EffectiveEndPeriod" class="text-error text-xs"></span>
+    </fieldset>
 </div>
 
-<div class="mb-3">
-    <label asp-for="DuesTypeId" class="form-label">Aidat Tipi</label>
-    <select asp-for="DuesTypeId" asp-items="Model.DuesTypeOptions" class="form-select"></select>
-    <span asp-validation-for="DuesTypeId" class="text-danger"></span>
-</div>
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Daire / Birleşik Daire</legend>
+    <select asp-for="SelectedUnitIds" asp-items="Model.UnitOptions" class="select select-bordered w-full" multiple size="8"></select>
+    <p class="label text-xs">İki fiziksel daire tek çift oda aidatı ödeyecekse önce Daireler ekranında birleşik daire oluşturun, burada o birleşik daireyi seçin.</p>
+</fieldset>
 
-<div class="row">
-    <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveStartPeriod" class="form-label">Baslangic Dönemi (YYYY-YYYY)</label>
-        <input asp-for="EffectiveStartPeriod" class="form-control" />
-        <span asp-validation-for="EffectiveStartPeriod" class="text-danger"></span>
-    </div>
-    <div class="col-md-6 mb-3">
-        <label asp-for="EffectiveEndPeriod" class="form-label">Bitis Dönemi (YYYY-YYYY, opsiyonel)</label>
-        <input asp-for="EffectiveEndPeriod" class="form-control" />
-        <span asp-validation-for="EffectiveEndPeriod" class="text-danger"></span>
-    </div>
-</div>
-
-<div class="mb-3">
-    <label class="form-label">Daire / Birleşik Daire</label>
-    <select asp-for="SelectedUnitIds" asp-items="Model.UnitOptions" class="form-select" multiple size="8"></select>
-    <div class="form-text">İki fiziksel daire tek çift oda aidatı ödeyecekse önce Daireler ekranında birleşik daire oluşturun, burada o birleşik daireyi seçin.</div>
-</div>
-
-<div class="form-check mb-3">
-    <input asp-for="Active" class="form-check-input" />
-    <label asp-for="Active" class="form-check-label"></label>
-</div>
+<label class="label cursor-pointer justify-start gap-3">
+    <input asp-for="Active" class="toggle toggle-primary" />
+    <span class="label-text">Aktif</span>
+</label>

@@ -1,43 +1,66 @@
-﻿@model Kumburgaz.Web.Models.UnitFormViewModel
+@model Kumburgaz.Web.Models.UnitFormViewModel
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "Yeni Daire";
 }
 
-<h2>Yeni Daire</h2>
+<div class="max-w-2xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Yeni Daire</h2>
+    </div>
 
-<form asp-action="Create" method="post" class="mt-3">
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-    <div class="mb-3">
-        <label asp-for="BlockId" class="form-label">Blok</label>
-        <select asp-for="BlockId" asp-items="Model.BlockOptions" class="form-select"></select>
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body">
+            <form asp-action="Create" method="post" class="space-y-4">
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Blok</legend>
+                    <select asp-for="BlockId" asp-items="Model.BlockOptions" class="select select-bordered w-full"></select>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Daire No</legend>
+                    <input asp-for="UnitNo" class="input input-bordered w-full" />
+                    <span asp-validation-for="UnitNo" class="text-error text-xs"></span>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Malik</legend>
+                    <input asp-for="OwnerName" class="input input-bordered w-full" />
+                </fieldset>
+
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input asp-for="Active" class="toggle toggle-primary" />
+                    <span class="label-text">Aktif</span>
+                </label>
+
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input asp-for="IsCombined" class="toggle toggle-primary" />
+                    <span class="label-text">Birleşik daire</span>
+                </label>
+                <p class="text-xs text-base-content/60 -mt-2">Örn. A1 + A2 birleşip A1+2 adıyla tek çift oda aidatı ödeyecekse işaretleyin.</p>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Birleşen fiziksel daireler</legend>
+                    <select asp-for="ComponentUnitIds" asp-items="Model.ComponentUnitOptions" class="select select-bordered w-full" multiple size="8"></select>
+                    <span asp-validation-for="ComponentUnitIds" class="text-error text-xs"></span>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="mb-3">
-        <label asp-for="UnitNo" class="form-label"></label>
-        <input asp-for="UnitNo" class="form-control" />
-        <span asp-validation-for="UnitNo" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="OwnerName" class="form-label"></label>
-        <input asp-for="OwnerName" class="form-control" />
-    </div>
-    <div class="form-check mb-3">
-        <input asp-for="Active" class="form-check-input" />
-        <label asp-for="Active" class="form-check-label"></label>
-    </div>
-    <div class="form-check mb-3">
-        <input asp-for="IsCombined" class="form-check-input" />
-        <label asp-for="IsCombined" class="form-check-label">Birleşik daire</label>
-        <div class="form-text">Örn. A1 + A2 birleşip A1+2 adıyla tek çift oda aidatı ödeyecekse işaretleyin.</div>
-    </div>
-    <div class="mb-3">
-        <label asp-for="ComponentUnitIds" class="form-label">Birleşen fiziksel daireler</label>
-        <select asp-for="ComponentUnitIds" asp-items="Model.ComponentUnitOptions" class="form-select" multiple size="8"></select>
-        <span asp-validation-for="ComponentUnitIds" class="text-danger"></span>
-    </div>
-    <button class="btn btn-primary" type="submit">Kaydet</button>
-    <a class="btn btn-outline-secondary" asp-action="Index">Vazgeç</a>
-</form>
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

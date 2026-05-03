@@ -6,7 +6,7 @@
 <div class="space-y-4">
     <div>
         <h2 class="text-2xl font-extrabold">Dönem Borç Üretimi</h2>
-        <p class="text-sm text-base-content/60">Mali dönem (YYYY-YYYY) için tüm aidat gruplarına toplu taksit oluştur.</p>
+        <p class="text-sm text-gray-400">Mali dönem (YYYY-YYYY) için tüm aidat gruplarına toplu taksit oluştur.</p>
     </div>
 
     @if (TempData["Success"] is string success)
@@ -24,9 +24,9 @@
         </div>
     }
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-sm">1. Önizleme</h3>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">1. Önizleme</h3>
             <form method="get" class="flex flex-wrap gap-3 items-end">
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Dönem (YYYY-YYYY)</legend>
@@ -40,9 +40,9 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-sm">2. Borçları Oluştur</h3>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">2. Borçları Oluştur</h3>
             <form asp-action="Generate" method="post" class="flex flex-wrap gap-3 items-end">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="period" value="@ViewBag.Period" />
@@ -62,10 +62,10 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-sm text-error">3. Tehlikeli Bölge</h3>
-            <p class="text-sm text-base-content/60">Bu dönem için oluşturulmuş tüm borç kayıtları silinir.</p>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700 text-error">3. Tehlikeli Bölge</h3>
+            <p class="text-sm text-gray-400">Bu dönem için oluşturulmuş tüm borç kayıtları silinir.</p>
             <form asp-action="Delete" method="post" class="mt-2"
                   onsubmit="return confirm('Bu dönemin oluşturulmuş borçları silinsin mi?');">
                 @Html.AntiForgeryToken()
@@ -78,8 +78,8 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
-        <div class="px-5 py-3 border-b border-base-300 bg-base-200/40">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-200 bg-gray-50">
             <h3 class="text-sm font-bold">Önizleme · @ViewBag.Period</h3>
         </div>
         <div class="overflow-x-auto">

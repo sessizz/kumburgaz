@@ -24,6 +24,10 @@ public class HomeController(ApplicationDbContext db) : Controller
         ViewBag.LedgerExpense = db.LedgerTransactions
             .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .Sum(x => x.Amount);
+
+        ViewBag.CashBoxNames = db.CashBoxes.Select(x => x.Name).ToList();
+        ViewBag.BankAccountNames = db.BankAccounts.Select(x => x.Name).ToList();
+
         return View();
     }
 

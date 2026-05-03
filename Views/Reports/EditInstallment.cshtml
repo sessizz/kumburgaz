@@ -12,9 +12,9 @@
         <h2 class="text-2xl font-extrabold">Borç Düzenle</h2>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <div class="stats stats-vertical lg:stats-horizontal bg-base-200/40 shadow-none border border-base-300">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <div class="stats stats-vertical lg:stats-horizontal bg-gray-50 shadow-none border border-gray-200">
                 <div class="stat">
                     <div class="stat-title">Daire</div>
                     <div class="stat-value text-base">@Model.UnitDisplay</div>
@@ -35,8 +35,8 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
             <form asp-action="EditInstallment" method="post" class="space-y-4">
                 @Html.AntiForgeryToken()
                 <input asp-for="Id" type="hidden" />

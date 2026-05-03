@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-extrabold">Aidatlandırma Grupları</h2>
-            <p class="text-sm text-base-content/60">Aidat tipi + dönem + daire eşleşmeleri</p>
+            <p class="text-sm text-gray-400">Aidat tipi + dönem + daire eşleşmeleri</p>
         </div>
         <a class="btn btn-primary btn-sm" asp-action="Create">
             <span class="material-symbols-outlined ms-sm">add</span>
@@ -30,7 +30,7 @@
         </div>
     }
 
-    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table table-zebra">
                 <thead>
@@ -50,12 +50,12 @@
                         <td>
                             <div class="flex flex-col">
                                 <span>@item.DuesType?.Name</span>
-                                <span class="text-xs text-base-content/60">@item.DuesType?.Amount.ToString("N2") TL</span>
+                                <span class="text-xs text-gray-400">@item.DuesType?.Amount.ToString("N2") TL</span>
                             </div>
                         </td>
                         <td>
                             <span class="badge badge-ghost badge-sm">@item.EffectiveStartPeriod</span>
-                            <span class="text-base-content/40">→</span>
+                            <span class="text-gray-300">→</span>
                             <span class="badge badge-ghost badge-sm">@(item.EffectiveEndPeriod ?? "Devam")</span>
                         </td>
                         <td class="text-sm">@BillingGroupDisplayHelper.UnitDisplay(item)</td>

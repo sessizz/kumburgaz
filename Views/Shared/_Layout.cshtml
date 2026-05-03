@@ -1,166 +1,155 @@
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
 
-    string NavClass(string controller) =>
-        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase) ? "menu-active" : string.Empty;
+    string IsActive(string controller) =>
+        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
 
-    var settingsControllers = new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories" };
-    var settingsOpen = settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase);
+    bool IsSettings() => new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories" }
+        .Contains(currentController, StringComparer.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
-<html lang="tr" data-theme="corporate">
+<html lang="tr" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
 
     <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
 
     <style type="text/tailwindcss">
         @@theme {
-            --font-sans: "Manrope", system-ui, sans-serif;
+            --font-sans: "Inter", system-ui, sans-serif;
+            --color-primary: #2563eb;
+            --color-primary-content: #ffffff;
         }
     </style>
     <style>
-        body { font-family: "Manrope", system-ui, sans-serif; }
+        * { font-family: "Inter", system-ui, sans-serif; }
         .material-symbols-outlined {
-            font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 24;
+            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 22;
             vertical-align: middle;
+            font-size: 20px;
+            line-height: 1;
         }
-        .ms-sm { font-size: 18px; }
-        .ms-md { font-size: 20px; }
-        .ms-lg { font-size: 22px; }
+
+        /* Sidebar nav item */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: 6px;
+            color: #4b5563;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s;
+            cursor: pointer;
+        }
+        .nav-item:hover { background: #f3f4f6; color: #111827; }
+        .nav-item.active { color: #2563eb; font-weight: 600; }
+        .nav-item.active .nav-icon { color: #2563eb; }
+
+        .nav-icon { font-size: 20px; width: 24px; text-align: center; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
     </style>
 </head>
-<body class="min-h-screen bg-base-200">
-    <div class="drawer lg:drawer-open">
-        <input id="app-drawer" type="checkbox" class="drawer-toggle" />
+<body style="background:#f3f4f6; min-height:100vh; display:flex;">
 
-        <div class="drawer-content flex flex-col min-h-screen">
-            <header class="navbar sticky top-0 z-30 bg-base-100/90 backdrop-blur border-b border-base-300 px-3 lg:px-6">
-                <div class="flex-none lg:hidden">
-                    <label for="app-drawer" class="btn btn-square btn-ghost" aria-label="Menü">
-                        <span class="material-symbols-outlined">menu</span>
-                    </label>
-                </div>
-                <div class="flex-1">
-                    <h2 class="text-lg lg:text-xl font-bold text-base-content">@ViewData["Title"]</h2>
-                </div>
-                <div class="flex-none">
-                    <div class="flex items-center gap-2">
-                        <partial name="_LoginPartial" />
-                    </div>
-                </div>
-            </header>
+    <!-- Mobile overlay -->
+    <input type="checkbox" id="sidebar-toggle" class="hidden peer/sidebar" />
 
-            <main class="flex-1 p-4 lg:p-8">
-                <div class="max-w-7xl mx-auto">
-                    @RenderBody()
-                </div>
-            </main>
-
-            <footer class="footer footer-center p-4 text-base-content/60 text-xs">
-                <aside>© 2026 Kumburgaz Yönetim</aside>
-            </footer>
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 flex flex-col bg-white border-r border-gray-200 w-56 shrink-0 transition-transform -translate-x-full lg:translate-x-0 peer-checked/sidebar:translate-x-0">
+        <!-- Logo -->
+        <div class="flex items-center gap-2 px-4 py-4 border-b border-gray-100">
+            <label for="sidebar-toggle" class="lg:hidden cursor-pointer text-gray-500 hover:text-gray-800 mr-1">
+                <span class="material-symbols-outlined">close</span>
+            </label>
+            <span class="material-symbols-outlined text-blue-600" style="font-size:22px;">apartment</span>
+            <span class="text-base font-bold text-gray-900 tracking-tight">kumburgaz</span>
         </div>
 
-        <aside class="drawer-side z-40">
-            <label for="app-drawer" aria-label="Menüyü kapat" class="drawer-overlay"></label>
-            <div class="bg-base-100 border-r border-base-300 w-72 min-h-full flex flex-col">
-                <div class="h-16 px-5 flex items-center gap-3 border-b border-base-300">
-                    <div class="bg-primary/10 text-primary rounded-xl p-2">
-                        <span class="material-symbols-outlined">apartment</span>
-                    </div>
-                    <div>
-                        <h1 class="text-sm font-extrabold leading-tight">Kumburgaz Site</h1>
-                        <p class="text-xs text-base-content/60">Yönetim Portalı</p>
-                    </div>
-                </div>
-
-                <ul class="menu menu-md flex-1 p-3 gap-1 overflow-y-auto">
-                    <li>
-                        <a class="@NavClass("Home")" asp-controller="Home" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">dashboard</span>
-                            <span>Gösterge Paneli</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("Units")" asp-controller="Units" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">group</span>
-                            <span>Daireler</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("Dues")" asp-controller="Dues" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">receipt_long</span>
-                            <span>Aidatlar</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("CashBank")" asp-controller="CashBank" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">account_balance_wallet</span>
-                            <span>Kasa/Banka</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("Ledger")" asp-controller="Ledger" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">payments</span>
-                            <span>Giderler</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
-                            <span class="material-symbols-outlined ms-md">event_repeat</span>
-                            <span>Dönem Üretimi</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a class="@NavClass("Reports")" asp-controller="Reports" asp-action="DuesDebt">
-                            <span class="material-symbols-outlined ms-md">description</span>
-                            <span>Raporlar</span>
-                        </a>
-                    </li>
-
-                    <li>
-                        <details @(settingsOpen ? "open" : null)>
-                            <summary>
-                                <span class="material-symbols-outlined ms-md">settings</span>
-                                <span>Ayarlar</span>
-                            </summary>
-                            <ul>
-                                <li>
-                                    <a class="@NavClass("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
-                                        <span class="material-symbols-outlined ms-sm">category</span>
-                                        <span>Aidat Tipleri</span>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="@NavClass("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
-                                        <span class="material-symbols-outlined ms-sm">view_list</span>
-                                        <span>Aidat Grupları</span>
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="@NavClass("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
-                                        <span class="material-symbols-outlined ms-sm">tune</span>
-                                        <span>Kategori Ayarları</span>
-                                    </a>
-                                </li>
-                            </ul>
-                        </details>
-                    </li>
-                </ul>
-
-                <div class="p-4 text-xs text-base-content/50 border-t border-base-300">
-                    <p>Sürüm 2026.05</p>
-                </div>
+        <!-- Site badge -->
+        <div class="px-3 py-2 border-b border-gray-100">
+            <div class="text-xs font-semibold tracking-widest text-gray-400 uppercase px-2 py-1.5 bg-gray-50 rounded border border-gray-200 text-center select-none">
+                Kumburgaz Site
             </div>
-        </aside>
+        </div>
+
+        <!-- Nav -->
+        <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+            <a class="nav-item @IsActive("Home")" asp-controller="Home" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#3b82f6">dashboard</span>
+                Genel Bakış
+            </a>
+            <a class="nav-item @IsActive("Dues")" asp-controller="Dues" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#14b8a6">receipt_long</span>
+                Aidatlar
+            </a>
+            <a class="nav-item @IsActive("Ledger")" asp-controller="Ledger" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#f59e0b">payments</span>
+                Giderler
+            </a>
+            <a class="nav-item @IsActive("Units")" asp-controller="Units" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#8b5cf6">group</span>
+                Hesaplar
+            </a>
+            <a class="nav-item @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#10b981">account_balance_wallet</span>
+                Kasa, Banka
+            </a>
+
+            <!-- Yönetim group -->
+            <div class="pt-3 pb-1">
+                <span class="text-xs font-semibold tracking-widest uppercase text-gray-400 px-2">Yönetim</span>
+            </div>
+            <a class="nav-item @IsActive("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#6366f1">event_repeat</span>
+                Dönem Üretimi
+            </a>
+            <a class="nav-item @(IsSettings() ? "active" : "")" asp-controller="BillingGroups" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#64748b">settings</span>
+                Ayarlar
+            </a>
+            <a class="nav-item @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt">
+                <span class="nav-icon material-symbols-outlined" style="color:#ec4899">bar_chart</span>
+                Raporlar
+            </a>
+        </nav>
+
+        <!-- Footer -->
+        <div class="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">
+            v2026.05
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="flex-1 flex flex-col min-h-screen min-w-0">
+        <!-- Topbar -->
+        <header class="sticky top-0 z-30 bg-white border-b border-gray-200 flex items-center gap-4 px-4 lg:px-6 h-14">
+            <label for="sidebar-toggle" class="lg:hidden cursor-pointer text-gray-500 hover:text-gray-800">
+                <span class="material-symbols-outlined">menu</span>
+            </label>
+            <h1 class="text-base font-semibold text-gray-900 flex-1">@ViewData["Title"]</h1>
+            <div class="flex items-center gap-3">
+                <partial name="_LoginPartial" />
+            </div>
+        </header>
+
+        <!-- Content -->
+        <main class="flex-1 p-4 lg:p-6">
+            <div class="max-w-7xl mx-auto">
+                @RenderBody()
+            </div>
+        </main>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>

@@ -8,7 +8,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-extrabold">Giderler</h2>
-            <p class="text-sm text-base-content/60">Aidat dışı gelir/gider hareketleri</p>
+            <p class="text-sm text-gray-400">Aidat dışı gelir/gider hareketleri</p>
         </div>
         <div class="flex gap-2">
             <a class="btn btn-outline btn-sm" asp-action="ExportCsv">
@@ -51,9 +51,9 @@
         </div>
     }
 
-    <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body">
-            <h3 class="card-title text-sm">CSV ile Toplu Yükle</h3>
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
             <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Gider CSV dosyası</legend>
@@ -68,7 +68,7 @@
         </div>
     </div>
 
-    <div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table table-zebra">
                 <thead>
@@ -93,7 +93,7 @@
                                 @(row.CashBox?.Name ?? row.BankAccount?.Name ?? row.PaymentChannel.ToString())
                             </span>
                         </td>
-                        <td class="text-sm text-base-content/70">@row.Description</td>
+                        <td class="text-sm text-gray-500">@row.Description</td>
                         <td>
                             <div class="flex justify-end gap-1">
                                 <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@row.Id">

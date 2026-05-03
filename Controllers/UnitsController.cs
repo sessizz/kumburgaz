@@ -32,13 +32,16 @@ public class UnitsController(ApplicationDbContext db) : Controller
             .Include(x => x.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.BillingGroupUnits)
+            .ThenInclude(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
 
         var rows = new List<string[]>
         {
-            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components" }
+            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
         };
 
         rows.AddRange(units.Select(x => new[]
@@ -52,7 +55,11 @@ public class UnitsController(ApplicationDbContext db) : Controller
             string.Join(" + ", x.CombinedUnitMembers
                 .Where(m => m.ComponentUnit?.Block is not null)
                 .Select(m => $"{m.ComponentUnit!.Block!.Name}-{m.ComponentUnit.UnitNo}")
-                .OrderBy(v => v))
+                .OrderBy(v => v)),
+            x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.Name ?? string.Empty,
+            x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.DuesType?.Name ?? string.Empty,
+            x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.StartPeriod ?? string.Empty,
+            x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.EndPeriod ?? string.Empty
         }));
 
         var bytes = CsvExportHelper.BuildCsv(rows.ToArray());
@@ -334,6 +341,15 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var blocks = await db.Blocks.AsNoTracking().ToListAsync();
         var blockById = blocks.ToDictionary(x => x.Id);
         var blockByName = blocks.ToDictionary(x => NormalizeHeaderKey(x.Name), x => x.Id);
+        var duesTypes = await db.DuesTypes.AsNoTracking().ToListAsync();
+        var duesTypeById = duesTypes.ToDictionary(x => x.Id);
+        var duesTypeByName = duesTypes.ToDictionary(x => NormalizeHeaderKey(x.Name), x => x.Id);
+        var existingBillingGroups = await db.BillingGroups
+            .Include(x => x.Units)
+            .ToListAsync();
+        var billingGroupsByName = existingBillingGroups
+            .GroupBy(x => NormalizeHeaderKey(x.Name))
+            .ToDictionary(x => x.Key, x => x.First());
 
         var existingKeys = await db.Units.AsNoTracking()
             .Select(x => $"{x.BlockId}|{x.UnitNo.Trim().ToUpperInvariant()}")
@@ -341,6 +357,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var seen = new HashSet<string>(existingKeys);
 
         var toAdd = new List<Unit>();
+        var billingGroupAssignments = new List<CsvBillingGroupAssignment>();
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
@@ -369,18 +386,110 @@ public class UnitsController(ApplicationDbContext db) : Controller
             var ownerName = ReadValue(row, headers, "ownername");
             var active = ParseBool(ReadValue(row, headers, "active"), true);
 
-            toAdd.Add(new Unit
+            var unit = new Unit
             {
                 BlockId = blockId,
                 UnitNo = unitNo.Trim(),
                 OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
                 Active = active
-            });
+            };
+
+            toAdd.Add(unit);
+
+            var billingGroupName = ReadFirstValue(row, headers, "billinggroup", "billinggroupname", "aidatgrubu");
+            if (string.IsNullOrWhiteSpace(billingGroupName))
+            {
+                continue;
+            }
+
+            var billingGroupKey = NormalizeHeaderKey(billingGroupName);
+            var effectiveStartPeriod = ReadFirstValue(row, headers, "effectivestartperiod", "startperiod", "period", "donem");
+            effectiveStartPeriod = string.IsNullOrWhiteSpace(effectiveStartPeriod)
+                ? PeriodHelper.CurrentFiscalPeriod(DateTime.Today)
+                : effectiveStartPeriod.Trim();
+
+            if (!PeriodHelper.IsValid(effectiveStartPeriod))
+            {
+                TempData["ImportError"] = $"Satir {lineNo}: EffectiveStartPeriod/Period formati YYYY-YYYY olmali.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var effectiveEndPeriod = ReadFirstValue(row, headers, "effectiveendperiod", "endperiod");
+            if (!string.IsNullOrWhiteSpace(effectiveEndPeriod) && !PeriodHelper.IsValid(effectiveEndPeriod))
+            {
+                TempData["ImportError"] = $"Satir {lineNo}: EffectiveEndPeriod formati YYYY-YYYY olmali.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var existingGroup = billingGroupsByName.GetValueOrDefault(billingGroupKey);
+            int? duesTypeId = null;
+            if (TryResolveDuesTypeId(row, headers, duesTypeById, duesTypeByName, out var resolvedDuesTypeId, out var duesTypeError))
+            {
+                duesTypeId = resolvedDuesTypeId;
+            }
+            else if (existingGroup is null)
+            {
+                TempData["ImportError"] = $"Satir {lineNo}: {duesTypeError}";
+                return RedirectToAction(nameof(Index));
+            }
+
+            billingGroupAssignments.Add(new CsvBillingGroupAssignment(
+                unit,
+                billingGroupName.Trim(),
+                billingGroupKey,
+                duesTypeId ?? existingGroup!.DuesTypeId,
+                effectiveStartPeriod,
+                string.IsNullOrWhiteSpace(effectiveEndPeriod) ? null : effectiveEndPeriod.Trim()));
         }
 
         db.Units.AddRange(toAdd);
         await db.SaveChangesAsync();
-        TempData["ImportSuccess"] = $"{toAdd.Count} daire CSV ile eklendi.";
+
+        var createdGroupCount = 0;
+        var linkedGroupCount = 0;
+        foreach (var assignment in billingGroupAssignments)
+        {
+            if (!billingGroupsByName.TryGetValue(assignment.BillingGroupKey, out var group))
+            {
+                group = new BillingGroup
+                {
+                    Name = assignment.BillingGroupName,
+                    DuesTypeId = assignment.DuesTypeId,
+                    EffectiveStartPeriod = assignment.EffectiveStartPeriod,
+                    EffectiveEndPeriod = assignment.EffectiveEndPeriod,
+                    Active = true,
+                    IsMerged = false
+                };
+                db.BillingGroups.Add(group);
+                await db.SaveChangesAsync();
+                billingGroupsByName[assignment.BillingGroupKey] = group;
+                createdGroupCount++;
+            }
+
+            var alreadyLinked = group.Units.Any(x => x.UnitId == assignment.Unit.Id &&
+                                                     x.StartPeriod == assignment.EffectiveStartPeriod);
+            if (alreadyLinked)
+            {
+                continue;
+            }
+
+            var groupUnit = new BillingGroupUnit
+            {
+                BillingGroupId = group.Id,
+                UnitId = assignment.Unit.Id,
+                StartPeriod = assignment.EffectiveStartPeriod,
+                EndPeriod = assignment.EffectiveEndPeriod
+            };
+
+            db.BillingGroupUnits.Add(groupUnit);
+            group.Units.Add(groupUnit);
+            linkedGroupCount++;
+        }
+
+        await db.SaveChangesAsync();
+        TempData["ImportSuccess"] = billingGroupAssignments.Count == 0
+            ? $"{toAdd.Count} daire CSV ile eklendi."
+            : $"{toAdd.Count} daire CSV ile eklendi. {createdGroupCount} aidat grubu oluşturuldu, {linkedGroupCount} daire-grup bağlantısı kuruldu.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -525,6 +634,20 @@ public class UnitsController(ApplicationDbContext db) : Controller
         return row[idx].Trim();
     }
 
+    private static string ReadFirstValue(string[] row, Dictionary<string, int> headers, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = ReadValue(row, headers, key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
     private static string NormalizeHeaderKey(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -568,6 +691,39 @@ public class UnitsController(ApplicationDbContext db) : Controller
         return false;
     }
 
+    private static bool TryResolveDuesTypeId(
+        string[] row,
+        Dictionary<string, int> headers,
+        Dictionary<int, DuesType> duesTypeById,
+        Dictionary<string, int> duesTypeByName,
+        out int duesTypeId,
+        out string error)
+    {
+        duesTypeId = 0;
+        var duesTypeIdText = ReadFirstValue(row, headers, "duestypeid", "aidattipiid");
+        if (!string.IsNullOrWhiteSpace(duesTypeIdText))
+        {
+            if (!int.TryParse(duesTypeIdText, out duesTypeId) || !duesTypeById.ContainsKey(duesTypeId))
+            {
+                error = "geçerli DuesTypeId bulunamadı.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        var duesTypeName = NormalizeHeaderKey(ReadFirstValue(row, headers, "duestype", "aidattipi"));
+        if (!string.IsNullOrWhiteSpace(duesTypeName) && duesTypeByName.TryGetValue(duesTypeName, out duesTypeId))
+        {
+            error = string.Empty;
+            return true;
+        }
+
+        error = "yeni aidat grubu için DuesTypeId veya DuesType alanı zorunludur.";
+        return false;
+    }
+
     private static bool ParseBool(string value, bool fallback)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -588,4 +744,12 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         return fallback;
     }
+
+    private sealed record CsvBillingGroupAssignment(
+        Unit Unit,
+        string BillingGroupName,
+        string BillingGroupKey,
+        int DuesTypeId,
+        string EffectiveStartPeriod,
+        string? EffectiveEndPeriod);
 }

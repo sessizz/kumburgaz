@@ -16,6 +16,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
     {
         var rows = await db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
             .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
@@ -28,6 +30,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
     {
         var rows = await db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
             .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
@@ -72,7 +76,9 @@ public class LedgerController(ApplicationDbContext db) : Controller
             Date = DateTimeHelper.EnsureUtc(model.Date),
             IncomeExpenseCategoryId = model.IncomeExpenseCategoryId,
             Amount = model.Amount,
-            PaymentChannel = model.PaymentChannel,
+            PaymentChannel = ResolvePaymentChannel(model, out var cashBoxId, out var bankAccountId),
+            CashBoxId = cashBoxId,
+            BankAccountId = bankAccountId,
             Description = model.Description
         });
 
@@ -94,6 +100,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
             IncomeExpenseCategoryId = entity.IncomeExpenseCategoryId,
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
+            AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
             Description = entity.Description
         };
 
@@ -120,7 +127,9 @@ public class LedgerController(ApplicationDbContext db) : Controller
         entity.Date = DateTimeHelper.EnsureUtc(model.Date);
         entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
         entity.Amount = model.Amount;
-        entity.PaymentChannel = model.PaymentChannel;
+        entity.PaymentChannel = ResolvePaymentChannel(model, out var cashBoxId, out var bankAccountId);
+        entity.CashBoxId = cashBoxId;
+        entity.BankAccountId = bankAccountId;
         entity.Description = model.Description;
 
         await db.SaveChangesAsync();
@@ -232,7 +241,21 @@ public class LedgerController(ApplicationDbContext db) : Controller
             .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString()))
             .ToListAsync();
 
+        model.AccountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, model.AccountKey);
+
         return model;
+    }
+
+    private static PaymentChannel ResolvePaymentChannel(LedgerTransactionCreateViewModel model, out int? cashBoxId, out int? bankAccountId)
+    {
+        if (FinancialAccountHelper.TryParse(model.AccountKey, out var channel, out cashBoxId, out bankAccountId))
+        {
+            return channel;
+        }
+
+        cashBoxId = null;
+        bankAccountId = null;
+        return model.PaymentChannel;
     }
 
     private static Dictionary<string, int> BuildHeaders(string[] row)

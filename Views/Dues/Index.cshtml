@@ -65,7 +65,7 @@
                         <th>Daire</th>
                         <th>Grup</th>
                         <th class="text-end">Tutar</th>
-                        <th>Kanal</th>
+                        <th>Kasa / Banka</th>
                         <th>Ref</th>
                         <th>Not</th>
                         <th class="text-end">İşlem</th>
@@ -80,7 +80,7 @@
                         <td>@unitText</td>
                         <td>@item.BillingGroup?.Name</td>
                         <td class="text-end fw-semibold">@item.Amount.ToString("N2") TL</td>
-                        <td>@item.PaymentChannel</td>
+                        <td>@(item.CashBox?.Name ?? item.BankAccount?.Name ?? item.PaymentChannel.ToString())</td>
                         <td>@item.ReferenceNo</td>
                         <td>@item.Note</td>
                         <td>

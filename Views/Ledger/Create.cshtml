@@ -28,8 +28,11 @@
     </div>
     <div class="row">
         <div class="col-md-4 mb-3">
-            <label asp-for="PaymentChannel" class="form-label"></label>
-            <select asp-for="PaymentChannel" asp-items="Html.GetEnumSelectList<Kumburgaz.Web.Models.PaymentChannel>()" class="form-select"></select>
+            <label asp-for="AccountKey" class="form-label">Kasa / Banka</label>
+            <select asp-for="AccountKey" asp-items="Model.AccountOptions" class="form-select">
+                <option value="">Kasa veya banka seçiniz</option>
+            </select>
+            <span asp-validation-for="AccountKey" class="text-danger"></span>
         </div>
         <div class="col-md-8 mb-3">
             <label asp-for="Description" class="form-label"></label>

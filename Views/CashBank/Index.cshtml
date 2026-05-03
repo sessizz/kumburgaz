@@ -1,0 +1,129 @@
+@model Kumburgaz.Web.Models.CashBankIndexViewModel
+@{
+    ViewData["Title"] = "Kasa/Banka";
+}
+
+<div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 py-4 border-b border-slate-200">
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold text-slate-950 mb-0">Kasa ve Bankalar</h1>
+            <form method="get" class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                <input class="form-control pl-10 min-w-[280px]" name="q" value="@Model.Query" placeholder="Hesap ara" />
+            </form>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#cashBoxModal">Kasa Ekle</button>
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#bankAccountModal">Banka Ekle</button>
+        </div>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success m-4">@actionSuccess</div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-danger m-4">@actionError</div>
+    }
+
+    <div class="bg-slate-50 px-5 py-3 border-b border-slate-200">
+        <div class="grid grid-cols-[64px_1fr_180px] gap-4 text-sm font-bold text-slate-600">
+            <div></div>
+            <div>Kasa / Banka Adı</div>
+            <div class="text-end">Bakiye</div>
+        </div>
+    </div>
+
+    <div>
+        @foreach (var item in Model.Items)
+        {
+            var icon = item.Type == "bank" ? "account_balance" : "payments";
+            <div class="grid grid-cols-[64px_1fr_180px] gap-4 items-center px-5 py-4 border-b border-slate-100 bg-white">
+                <div class="flex justify-center">
+                    <span class="material-symbols-outlined rounded-full bg-slate-100 p-2 text-slate-600">@icon</span>
+                </div>
+                <div>
+                    <div class="font-semibold text-slate-900">@item.Name</div>
+                    @if (!string.IsNullOrWhiteSpace(item.Detail))
+                    {
+                        <div class="text-sm text-slate-500">@item.Detail</div>
+                    }
+                </div>
+                <div class="text-end font-bold text-slate-900">@item.Balance.ToString("N2") TL</div>
+            </div>
+        }
+    </div>
+
+    <div class="px-5 py-4 text-end font-bold text-lg text-slate-900">
+        @Model.TotalBalance.ToString("N2") TL
+    </div>
+</div>
+
+<div class="modal fade" id="cashBoxModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" asp-action="CreateCashBox" method="post">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h5 class="modal-title">Kasa Ekle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label asp-for="CashBoxForm.Name" class="form-label">Kasa Adı</label>
+                    <input name="Name" value="@Model.CashBoxForm.Name" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="CashBoxForm.OpeningBalance" class="form-label">Açılış Bakiyesi</label>
+                    <input name="OpeningBalance" value="@Model.CashBoxForm.OpeningBalance" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="CashBoxForm.OpeningBalanceDate" class="form-label">Açılış Tarihi</label>
+                    <input name="OpeningBalanceDate" value="@Model.CashBoxForm.OpeningBalanceDate.ToString("yyyy-MM-dd")" class="form-control" type="date" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="bankAccountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" asp-action="CreateBankAccount" method="post">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h5 class="modal-title">Banka Ekle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label asp-for="BankAccountForm.Name" class="form-label">Banka İsmi</label>
+                    <input name="Name" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="BankAccountForm.Branch" class="form-label">Şube</label>
+                    <input name="Branch" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="BankAccountForm.Iban" class="form-label">IBAN</label>
+                    <input name="Iban" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="BankAccountForm.OpeningBalance" class="form-label">Devir Bakiyesi</label>
+                    <input name="OpeningBalance" value="@Model.BankAccountForm.OpeningBalance" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="BankAccountForm.OpeningBalanceDate" class="form-label">Devir Tarihi</label>
+                    <input name="OpeningBalanceDate" value="@Model.BankAccountForm.OpeningBalanceDate.ToString("yyyy-MM-dd")" class="form-control" type="date" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+</div>

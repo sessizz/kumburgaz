@@ -48,7 +48,7 @@
         <th>Tarih</th>
         <th>Kategori</th>
         <th>Tutar</th>
-        <th>Kanal</th>
+        <th>Kasa / Banka</th>
         <th>Açıklama</th>
         <th></th>
     </tr>
@@ -60,7 +60,7 @@
             <td>@row.Date.ToString("dd.MM.yyyy")</td>
             <td>@row.IncomeExpenseCategory?.Name</td>
             <td>@row.Amount.ToString("N2")</td>
-            <td>@row.PaymentChannel</td>
+            <td>@(row.CashBox?.Name ?? row.BankAccount?.Name ?? row.PaymentChannel.ToString())</td>
             <td>@row.Description</td>
             <td class="d-flex gap-1">
                 <a class="btn btn-sm btn-outline-secondary" asp-action="Edit" asp-route-id="@row.Id">Düzenle</a>

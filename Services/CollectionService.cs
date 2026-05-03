@@ -22,6 +22,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
@@ -107,6 +109,12 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat icin aidat borcu seciniz.");
         }
 
+        var hasAccount = FinancialAccountHelper.TryParse(model.AccountKey, out var paymentChannel, out var cashBoxId, out var bankAccountId);
+        if (!hasAccount)
+        {
+            paymentChannel = model.PaymentChannel;
+        }
+
         var representativeUnitId = targetInstallment?.UnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
@@ -142,7 +150,9 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             collection.UnitId = representativeUnitId;
             collection.Date = utcDate;
             collection.Amount = model.Amount;
-            collection.PaymentChannel = model.PaymentChannel;
+            collection.PaymentChannel = paymentChannel;
+            collection.CashBoxId = cashBoxId;
+            collection.BankAccountId = bankAccountId;
             collection.ReferenceNo = model.ReferenceNo;
             collection.Note = model.Note;
         }
@@ -154,7 +164,9 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
                 UnitId = representativeUnitId,
                 Date = utcDate,
                 Amount = model.Amount,
-                PaymentChannel = model.PaymentChannel,
+                PaymentChannel = paymentChannel,
+                CashBoxId = cashBoxId,
+                BankAccountId = bankAccountId,
                 ReferenceNo = model.ReferenceNo,
                 Note = model.Note
             };

@@ -147,11 +147,15 @@ public class CollectionCreateViewModel
     [Required]
     public PaymentChannel PaymentChannel { get; set; }
 
+    [Required]
+    public string? AccountKey { get; set; }
+
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
     public string? ReturnUrl { get; set; }
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
     public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> AccountOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel
@@ -169,6 +173,57 @@ public class LedgerTransactionCreateViewModel
     [Required]
     public PaymentChannel PaymentChannel { get; set; }
 
+    [Required]
+    public string? AccountKey { get; set; }
+
     public string? Description { get; set; }
     public List<SelectListItem> CategoryOptions { get; set; } = [];
+    public List<SelectListItem> AccountOptions { get; set; } = [];
+}
+
+public class CashBoxFormViewModel
+{
+    [Required, MaxLength(80)]
+    public string Name { get; set; } = "Kasa";
+
+    public decimal OpeningBalance { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
+}
+
+public class BankAccountFormViewModel
+{
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? Branch { get; set; }
+
+    [MaxLength(34)]
+    public string? Iban { get; set; }
+
+    public decimal OpeningBalance { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
+}
+
+public class CashBankListItemViewModel
+{
+    public string Type { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Detail { get; set; }
+    public decimal Balance { get; set; }
+}
+
+public class CashBankIndexViewModel
+{
+    public List<CashBankListItemViewModel> Items { get; set; } = [];
+    public string Query { get; set; } = string.Empty;
+    public decimal TotalBalance => Items.Sum(x => x.Balance);
+    public CashBoxFormViewModel CashBoxForm { get; set; } = new();
+    public BankAccountFormViewModel BankAccountForm { get; set; } = new();
 }

@@ -148,6 +148,10 @@ public class Collection
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
     public PaymentChannel PaymentChannel { get; set; }
+    public int? CashBoxId { get; set; }
+    public CashBox? CashBox { get; set; }
+    public int? BankAccountId { get; set; }
+    public BankAccount? BankAccount { get; set; }
 
     [MaxLength(80)]
     public string? ReferenceNo { get; set; }
@@ -189,6 +193,10 @@ public class LedgerTransaction
     public IncomeExpenseCategory? IncomeExpenseCategory { get; set; }
     public decimal Amount { get; set; }
     public PaymentChannel PaymentChannel { get; set; }
+    public int? CashBoxId { get; set; }
+    public CashBox? CashBox { get; set; }
+    public int? BankAccountId { get; set; }
+    public BankAccount? BankAccount { get; set; }
 
     [MaxLength(250)]
     public string? Description { get; set; }
@@ -201,10 +209,14 @@ public class BankAccount
     [Required, MaxLength(120)]
     public string Name { get; set; } = string.Empty;
 
+    [MaxLength(120)]
+    public string? Branch { get; set; }
+
     [MaxLength(34)]
     public string? Iban { get; set; }
 
     public decimal OpeningBalance { get; set; }
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
     public bool Active { get; set; } = true;
 }
 
@@ -216,5 +228,6 @@ public class CashBox
     public string Name { get; set; } = "Kasa";
 
     public decimal OpeningBalance { get; set; }
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
     public bool Active { get; set; } = true;
 }

@@ -92,6 +92,7 @@ public class CollectionsController(
             Date = entity.Date,
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
+            AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
             ReferenceNo = entity.ReferenceNo,
             Note = entity.Note,
             ReturnUrl = Request.Query["returnUrl"].FirstOrDefault()
@@ -261,6 +262,8 @@ public class CollectionsController(
                 return new SelectListItem(text, x.Id.ToString(), model.DuesInstallmentId == x.Id);
             })
             .ToList();
+
+        model.AccountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, model.AccountKey);
 
         var groups = await db.BillingGroups
             .AsNoTracking()

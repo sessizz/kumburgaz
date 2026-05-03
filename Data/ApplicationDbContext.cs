@@ -18,6 +18,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CollectionAllocation> CollectionAllocations => Set<CollectionAllocation>();
     public DbSet<IncomeExpenseCategory> IncomeExpenseCategories => Set<IncomeExpenseCategory>();
     public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();
+    public DbSet<CashBox> CashBoxes => Set<CashBox>();
+    public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -71,12 +73,44 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(x => x.Amount)
             .HasPrecision(18, 2);
 
+        builder.Entity<Collection>()
+            .HasOne(x => x.CashBox)
+            .WithMany()
+            .HasForeignKey(x => x.CashBoxId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Collection>()
+            .HasOne(x => x.BankAccount)
+            .WithMany()
+            .HasForeignKey(x => x.BankAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Entity<CollectionAllocation>()
             .Property(x => x.AppliedAmount)
             .HasPrecision(18, 2);
 
         builder.Entity<LedgerTransaction>()
             .Property(x => x.Amount)
+            .HasPrecision(18, 2);
+
+        builder.Entity<LedgerTransaction>()
+            .HasOne(x => x.CashBox)
+            .WithMany()
+            .HasForeignKey(x => x.CashBoxId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<LedgerTransaction>()
+            .HasOne(x => x.BankAccount)
+            .WithMany()
+            .HasForeignKey(x => x.BankAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<CashBox>()
+            .Property(x => x.OpeningBalance)
+            .HasPrecision(18, 2);
+
+        builder.Entity<BankAccount>()
+            .Property(x => x.OpeningBalance)
             .HasPrecision(18, 2);
 
         Seed(builder);
@@ -134,5 +168,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             new IncomeExpenseCategory { Id = 2, Name = "Gorevli Maasi", Type = "Gider", Active = true },
             new IncomeExpenseCategory { Id = 3, Name = "Bakim Onarim", Type = "Gider", Active = true }
         );
+
+        builder.Entity<CashBox>().HasData(new CashBox
+        {
+            Id = 1,
+            Name = "Kasa",
+            OpeningBalance = 0m,
+            OpeningBalanceDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            Active = true
+        });
     }
 }

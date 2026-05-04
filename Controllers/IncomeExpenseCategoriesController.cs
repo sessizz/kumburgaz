@@ -18,13 +18,8 @@ public class IncomeExpenseCategoriesController(ApplicationDbContext db) : Contro
             .ThenBy(x => x.Name)
             .ToListAsync();
 
-        return View(rows);
-    }
-
-    public IActionResult Create()
-    {
         PopulateTypes();
-        return View(new IncomeExpenseCategory { Active = true, Type = CategoryTypeHelper.Gider });
+        return View(rows);
     }
 
     [HttpPost]
@@ -34,12 +29,13 @@ public class IncomeExpenseCategoriesController(ApplicationDbContext db) : Contro
         model.Type = CategoryTypeHelper.Normalize(model.Type);
         if (!ModelState.IsValid)
         {
-            PopulateTypes();
-            return View(model);
+            TempData["Error"] = "Lütfen tüm alanları doldurun.";
+            return RedirectToAction(nameof(Index));
         }
 
         db.IncomeExpenseCategories.Add(model);
         await db.SaveChangesAsync();
+        TempData["Success"] = $"'{model.Name}' kategorisi eklendi.";
         return RedirectToAction(nameof(Index));
     }
 

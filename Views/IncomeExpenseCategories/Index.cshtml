@@ -10,11 +10,26 @@
             <h2 class="text-2xl font-extrabold">Kategori Ayarları</h2>
             <p class="text-sm text-gray-400">Gelir/gider kategorileri</p>
         </div>
-        <a class="btn btn-primary btn-sm" asp-action="Create">
+        <button class="btn btn-primary btn-sm" onclick="categoryModal.showModal()">
             <span class="material-symbols-outlined ms-sm">add</span>
             Yeni Kategori
-        </a>
+        </button>
     </div>
+
+    @if (TempData["Success"] is string successMessage)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
+    }
+    @if (TempData["Error"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
@@ -56,6 +71,7 @@
                                     Düzenle
                                 </a>
                                 <form asp-action="Toggle" asp-route-id="@item.Id" method="post">
+                                    @Html.AntiForgeryToken()
                                     <button class="btn btn-xs btn-ghost" type="submit">
                                         <span class="material-symbols-outlined ms-sm">toggle_on</span>
                                         Durum
@@ -70,3 +86,40 @@
         </div>
     </div>
 </div>
+
+<!-- Yeni Kategori Modal -->
+<dialog id="categoryModal" class="modal">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold mb-4">Yeni Kategori</h3>
+        <form asp-action="Create" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Tür</legend>
+                <select name="Type" class="select select-bordered w-full">
+                    @foreach (var t in (IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Types)
+                    {
+                        <option value="@t.Value">@t.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Ad</legend>
+                <input name="Name" class="input input-bordered w-full" placeholder="Kategori adı" required />
+            </fieldset>
+            <label class="label cursor-pointer justify-start gap-3">
+                <input name="Active" type="checkbox" value="true" checked class="toggle toggle-primary" />
+                <span class="label-text">Aktif</span>
+            </label>
+            <div class="flex gap-2 justify-end pt-2">
+                <button type="button" class="btn btn-ghost" onclick="categoryModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-symbols-outlined ms-sm">save</span>
+                    Ekle
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>kapat</button>
+    </form>
+</dialog>

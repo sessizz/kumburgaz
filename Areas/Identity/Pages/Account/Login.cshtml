@@ -1,0 +1,58 @@
+@page
+@model Kumburgaz.Web.Areas.Identity.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Giriş Yap";
+}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="p-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-1">Giriş Yap</h2>
+        <p class="text-sm text-gray-400 mb-6">Hesabınıza erişmek için giriş yapın.</p>
+
+        <form method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert alert-error text-sm py-2">
+                    <span class="material-symbols-outlined">error</span>
+                    <div>
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">E-posta</legend>
+                <input asp-for="Input.Email" class="input input-bordered w-full" autocomplete="username" placeholder="ornek@site.com" />
+                <span asp-validation-for="Input.Email" class="text-error text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Şifre</legend>
+                <input asp-for="Input.Password" class="input input-bordered w-full" type="password" autocomplete="current-password" placeholder="••••••••" />
+                <span asp-validation-for="Input.Password" class="text-error text-xs"></span>
+            </fieldset>
+
+            <div class="flex items-center justify-between">
+                <label class="label cursor-pointer gap-2">
+                    <input asp-for="Input.RememberMe" type="checkbox" class="checkbox checkbox-sm checkbox-primary" />
+                    <span class="label-text text-sm">Beni hatırla</span>
+                </label>
+            </div>
+
+            <button class="btn btn-primary w-full" type="submit">
+                <span class="material-symbols-outlined ms-sm">login</span>
+                Giriş Yap
+            </button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

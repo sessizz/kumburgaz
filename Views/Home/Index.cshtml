@@ -16,8 +16,7 @@
     var paidPct      = installTotal > 0 ? (double)paidInstallments / installTotal * 100 : 0;
     var collPct      = totalGenerated > 0 ? (double)(totalCollections / totalGenerated * 100m) : 0;
 
-    var cashBoxNames    = ViewBag.CashBoxNames    as List<string> ?? new List<string>();
-    var bankAccountNames = ViewBag.BankAccountNames as List<string> ?? new List<string>();
+    var cashBankItems = ViewBag.CashBankItems as List<Kumburgaz.Web.Models.CashBankListItemViewModel> ?? new();
 
     @* SVG donut: r=54, sw=14, circumference ≈ 339.3 *@
     const double CIR = 2 * Math.PI * 54;
@@ -170,27 +169,26 @@
                 <h2 class="font-semibold text-gray-800 text-sm">Kasa ve Bankalar</h2>
                 <a asp-controller="CashBank" asp-action="Index" class="text-xs text-blue-600 hover:underline font-medium">Tümü →</a>
             </div>
-            @if (cashBoxNames.Any() || bankAccountNames.Any())
+            @if (cashBankItems.Any())
             {
                 <ul class="divide-y divide-gray-100">
-                    @foreach (var name in cashBoxNames)
+                    @foreach (var item in cashBankItems)
                     {
                         <li class="flex items-center justify-between px-5 py-3">
                             <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-amber-400" style="font-size:18px">payments</span>
-                                <a asp-controller="CashBank" asp-action="Index" class="text-sm text-blue-600 hover:underline">@name</a>
+                                @if (item.Type == "cash")
+                                {
+                                    <span class="material-symbols-outlined text-amber-400" style="font-size:18px">payments</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined text-blue-400" style="font-size:18px">account_balance</span>
+                                }
+                                <a asp-controller="CashBank" asp-action="Index" class="text-sm text-blue-600 hover:underline">@item.Name</a>
                             </div>
-                            <span class="text-xs text-gray-400">Kasa</span>
-                        </li>
-                    }
-                    @foreach (var name in bankAccountNames)
-                    {
-                        <li class="flex items-center justify-between px-5 py-3">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-blue-400" style="font-size:18px">account_balance</span>
-                                <a asp-controller="CashBank" asp-action="Index" class="text-sm text-blue-600 hover:underline">@name</a>
-                            </div>
-                            <span class="text-xs text-gray-400">Banka</span>
+                            <span class="text-sm font-semibold @(item.Balance >= 0 ? "text-gray-800" : "text-red-600")">
+                                @item.Balance.ToString("N2") ₺
+                            </span>
                         </li>
                     }
                 </ul>

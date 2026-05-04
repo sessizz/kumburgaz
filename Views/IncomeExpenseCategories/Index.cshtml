@@ -31,7 +31,13 @@
                 @foreach (var item in Model)
                 {
                     <tr>
-                        <td><span class="badge badge-info badge-soft">@CategoryTypeHelper.Display(item.Type)</span></td>
+                        <td>
+                            @{
+                                var typeDisplay = CategoryTypeHelper.Display(item.Type);
+                                var typeBadge = typeDisplay == CategoryTypeHelper.Gelir ? "badge-success badge-soft" : "badge-error badge-soft";
+                            }
+                            <span class="badge @typeBadge">@typeDisplay</span>
+                        </td>
                         <td class="font-medium">@item.Name</td>
                         <td>
                             @if (item.Active)

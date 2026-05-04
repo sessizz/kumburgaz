@@ -115,9 +115,21 @@
                 <span class="nav-icon material-symbols-outlined" style="color:#6366f1">event_repeat</span>
                 Dönem Üretimi
             </a>
-            <a class="nav-item @(IsSettings() ? "active" : "")" asp-controller="BillingGroups" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">settings</span>
-                Ayarlar
+            <!-- Ayarlar group -->
+            <div class="pt-2 pb-1">
+                <span class="text-xs font-semibold tracking-widest uppercase text-gray-400 px-2">Ayarlar</span>
+            </div>
+            <a class="nav-item @IsActive("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#64748b">group_work</span>
+                Aidat Grupları
+            </a>
+            <a class="nav-item @IsActive("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#64748b">sell</span>
+                Aidat Tipleri
+            </a>
+            <a class="nav-item @IsActive("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#64748b">category</span>
+                Gelir/Gider Kategorileri
             </a>
             <a class="nav-item @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt">
                 <span class="nav-icon material-symbols-outlined" style="color:#ec4899">bar_chart</span>

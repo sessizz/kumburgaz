@@ -25,8 +25,34 @@ public class HomeController(ApplicationDbContext db) : Controller
             .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .Sum(x => x.Amount);
 
-        ViewBag.CashBoxNames = db.CashBoxes.Select(x => x.Name).ToList();
-        ViewBag.BankAccountNames = db.BankAccounts.Select(x => x.Name).ToList();
+        var collections = db.Collections
+            .Select(x => new { x.CashBoxId, x.BankAccountId, x.Amount })
+            .ToList();
+        var expenses = db.LedgerTransactions
+            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+            .Select(x => new { x.CashBoxId, x.BankAccountId, x.Amount })
+            .ToList();
+        var cashBoxes = db.CashBoxes.Where(x => x.Active).OrderBy(x => x.Name).ToList();
+        var bankAccounts = db.BankAccounts.Where(x => x.Active).OrderBy(x => x.Name).ThenBy(x => x.Branch).ToList();
+
+        var cashBankItems = new List<CashBankListItemViewModel>();
+        cashBankItems.AddRange(cashBoxes.Select(x => new CashBankListItemViewModel
+        {
+            Type = "cash",
+            Name = x.Name,
+            Balance = x.OpeningBalance
+                + collections.Where(c => c.CashBoxId == x.Id).Sum(c => c.Amount)
+                - expenses.Where(e => e.CashBoxId == x.Id).Sum(e => e.Amount)
+        }));
+        cashBankItems.AddRange(bankAccounts.Select(x => new CashBankListItemViewModel
+        {
+            Type = "bank",
+            Name = string.IsNullOrWhiteSpace(x.Branch) ? x.Name : $"{x.Name} - {x.Branch}",
+            Balance = x.OpeningBalance
+                + collections.Where(c => c.BankAccountId == x.Id).Sum(c => c.Amount)
+                - expenses.Where(e => e.BankAccountId == x.Id).Sum(e => e.Amount)
+        }));
+        ViewBag.CashBankItems = cashBankItems;
 
         return View();
     }

@@ -53,16 +53,18 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
             <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
-            <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+            <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="space-y-2">
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Daire CSV dosyası</legend>
-                    <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" />
-                    <p class="label text-xs">Kolonlar: BlockId veya Block, UnitNo, OwnerName, Active. Aidat grubu için opsiyonel: BillingGroup, DuesTypeId veya DuesType, EffectiveStartPeriod, EffectiveEndPeriod.</p>
+                    <div class="flex items-center gap-3">
+                        <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered flex-1" />
+                        <button type="submit" class="btn btn-outline btn-primary shrink-0">
+                            <span class="material-symbols-outlined ms-sm">upload</span>
+                            CSV ile Ekle
+                        </button>
+                    </div>
                 </fieldset>
-                <button type="submit" class="btn btn-outline btn-primary">
-                    <span class="material-symbols-outlined ms-sm">upload</span>
-                    CSV ile Ekle
-                </button>
+                <p class="text-xs text-gray-400">Kolonlar: BlockId veya Block, UnitNo, OwnerName, Active. Aidat grubu için opsiyonel: BillingGroup, DuesTypeId veya DuesType, EffectiveStartPeriod, EffectiveEndPeriod.</p>
             </form>
         </div>
     </div>

@@ -48,18 +48,22 @@
             {
                 var icon = item.Type == "bank" ? "account_balance" : "payments";
                 var iconBg = item.Type == "bank" ? "bg-info/10 text-info" : "bg-warning/10 text-warning";
-                <li class="grid grid-cols-[64px_1fr_180px] gap-4 items-center px-5 py-4">
-                    <div class="flex justify-center">
-                        <span class="material-symbols-outlined rounded-xl @iconBg p-3">@icon</span>
-                    </div>
-                    <div>
-                        <div class="font-bold">@item.Name</div>
-                        @if (!string.IsNullOrWhiteSpace(item.Detail))
-                        {
-                            <div class="text-sm text-gray-400">@item.Detail</div>
-                        }
-                    </div>
-                    <div class="text-end font-extrabold text-lg">@item.Balance.ToString("N2") TL</div>
+                <li>
+                    <a class="grid grid-cols-[64px_1fr_180px] gap-4 items-center px-5 py-4 hover:bg-gray-50 transition-colors block"
+                       asp-action="@(item.Type == "bank" ? "BankDetail" : "CashBoxDetail")"
+                       asp-route-id="@item.Id">
+                        <div class="flex justify-center">
+                            <span class="material-symbols-outlined rounded-xl @iconBg p-3">@icon</span>
+                        </div>
+                        <div>
+                            <div class="font-bold">@item.Name</div>
+                            @if (!string.IsNullOrWhiteSpace(item.Detail))
+                            {
+                                <div class="text-sm text-gray-400">@item.Detail</div>
+                            }
+                        </div>
+                        <div class="text-end font-extrabold text-lg">@item.Balance.ToString("N2") TL</div>
+                    </a>
                 </li>
             }
         </ul>

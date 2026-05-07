@@ -4,11 +4,12 @@ using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class CashBankController(ApplicationDbContext db) : Controller
+public class CashBankController(ApplicationDbContext db, CashBankDetailService detailService) : Controller
 {
     public async Task<IActionResult> Index(string? q = null)
     {
@@ -42,6 +43,7 @@ public class CashBankController(ApplicationDbContext db) : Controller
         var items = new List<CashBankListItemViewModel>();
         items.AddRange(cashBoxes.Select(x => new CashBankListItemViewModel
         {
+            Id = x.Id,
             Type = "cash",
             Name = x.Name,
             Balance = x.OpeningBalance
@@ -50,6 +52,7 @@ public class CashBankController(ApplicationDbContext db) : Controller
         }));
         items.AddRange(bankAccounts.Select(x => new CashBankListItemViewModel
         {
+            Id = x.Id,
             Type = "bank",
             Name = string.IsNullOrWhiteSpace(x.Branch) ? x.Name : $"{x.Name} - {x.Branch}",
             Detail = x.Iban,
@@ -117,5 +120,42 @@ public class CashBankController(ApplicationDbContext db) : Controller
         await db.SaveChangesAsync();
         TempData["ActionSuccess"] = "Banka kartı eklendi.";
         return RedirectToAction(nameof(Index));
+    }
+
+    [HttpGet("/CashBank/CashBox/{id:int}")]
+    public async Task<IActionResult> CashBoxDetail(int id, CashBankDetailQuery q)
+    {
+        q.Type ??= "all"; q.Range ??= "all";
+        if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
+            return await ExportCsv("cash", id, q);
+        var vm = await detailService.BuildAsync("cash", id, q);
+        if (vm == null) return NotFound();
+        ViewData["Title"] = vm.Name;
+        return View("Detail", vm);
+    }
+
+    [HttpGet("/CashBank/Bank/{id:int}")]
+    public async Task<IActionResult> BankDetail(int id, CashBankDetailQuery q)
+    {
+        q.Type ??= "all"; q.Range ??= "all";
+        if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
+            return await ExportCsv("bank", id, q);
+        var vm = await detailService.BuildAsync("bank", id, q);
+        if (vm == null) return NotFound();
+        ViewData["Title"] = vm.Name;
+        return View("Detail", vm);
+    }
+
+    private async Task<IActionResult> ExportCsv(string kind, int id, CashBankDetailQuery q)
+    {
+        var vm = await detailService.BuildAsync(kind, id, q);
+        if (vm == null) return NotFound();
+        var rows = vm.Groups.SelectMany(g => g.Items).ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine("Tarih;Açıklama;Tip;Tutar;Bakiye");
+        foreach (var r in rows)
+            sb.AppendLine($"{r.Date:dd.MM.yyyy};{r.Description};{r.Kind};{r.Amount:N2};{r.RunningBalance:N2}");
+        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        return File(bytes, "text/csv;charset=utf-8", $"{vm.Name}-islemler.csv");
     }
 }

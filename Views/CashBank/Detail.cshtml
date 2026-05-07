@@ -1,0 +1,24 @@
+@model Kumburgaz.Web.Models.CashBankDetailViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = Model.Name;
+    var trTR = new CultureInfo("tr-TR");
+}
+
+<div class="max-w-7xl mx-auto space-y-5">
+    <nav class="text-xs text-gray-400 flex items-center gap-1.5">
+        <a asp-action="Index" class="hover:text-gray-600">Kasa, Banka</a>
+        <span class="material-symbols-outlined" style="font-size:14px;">chevron_right</span>
+        <span class="text-gray-600">@Model.Name@(Model.Branch != null ? $" · {Model.Branch}" : "")</span>
+    </nav>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
+        <div class="space-y-5">
+            <partial name="_DetailParts/_Header" model="Model" />
+            <partial name="_DetailParts/_TransactionsCard" model="Model" />
+        </div>
+        <aside class="space-y-5">
+            <partial name="_DetailParts/_SidePanel" model="Model" />
+        </aside>
+    </div>
+</div>

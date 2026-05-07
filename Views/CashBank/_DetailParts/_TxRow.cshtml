@@ -1,0 +1,36 @@
+@model Kumburgaz.Web.Models.TxRow
+@using System.Globalization
+@{
+    var trTR = new CultureInfo("tr-TR");
+    var kindClass = Model.Kind switch {
+        Kumburgaz.Web.Models.TxKind.Tahsilat => "ttype-tahsilat",
+        Kumburgaz.Web.Models.TxKind.Cikis => "ttype-cikis",
+        Kumburgaz.Web.Models.TxKind.Transfer => "ttype-transfer",
+        _ => "ttype-girdi"
+    };
+    var kindLabel = Model.Kind switch {
+        Kumburgaz.Web.Models.TxKind.Tahsilat => "Tahsilat",
+        Kumburgaz.Web.Models.TxKind.Cikis => "Para Çıkışı",
+        Kumburgaz.Web.Models.TxKind.Transfer => "Transfer",
+        _ => "Girdi"
+    };
+    var isPos = Model.Amount >= 0;
+    var amtClass = isPos ? "amount-pos" : "amount-neg";
+    var sign = isPos ? "+" : "−";
+    var absAmt = Math.Abs(Model.Amount).ToString("N2", trTR);
+}
+<li class="tx-row grid grid-cols-1 md:grid-cols-[1fr_140px_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
+    <div class="min-w-0">
+        <div class="font-medium text-gray-900 truncate">@Model.Description</div>
+        @if (!string.IsNullOrWhiteSpace(Model.Subline))
+        {
+            <div class="text-xs text-gray-500 mt-0.5">@Model.Subline</div>
+        }
+    </div>
+    <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>
+    <div class="text-right tabular-nums font-semibold @amtClass">@sign@absAmt <span class="text-gray-400 font-normal">₺</span></div>
+    <div class="text-right tabular-nums font-medium text-gray-700">@Model.RunningBalance.ToString("N2", trTR) <span class="text-gray-400 font-normal">₺</span></div>
+    <div class="text-right text-gray-400 hover:text-gray-700 cursor-pointer">
+        <span class="material-symbols-outlined">more_horiz</span>
+    </div>
+</li>

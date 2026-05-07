@@ -1,0 +1,131 @@
+@model Kumburgaz.Web.Models.CashBankDetailViewModel
+@using System.Globalization
+@{
+    var trTR = new CultureInfo("tr-TR");
+    var balStr = Model.Balance.ToString("N2", trTR);
+    var dotIdx = balStr.LastIndexOf(',');
+    var balMain = dotIdx >= 0 ? balStr[..dotIdx] : balStr;
+    var balCents = dotIdx >= 0 ? balStr[(dotIdx + 1)..] : "00";
+}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="p-4 border-b border-gray-100 flex items-center gap-2">
+        <div class="dropdown">
+            <button tabindex="0" class="btn btn-sm btn-outline">
+                Diğer
+                <span class="material-symbols-outlined ms-sm">expand_more</span>
+            </button>
+            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-40 p-2 shadow-sm border border-gray-200">
+                <li><a>Düzenle</a></li>
+                <li><a>Pasifleştir</a></li>
+                <li><a class="text-error">Sil</a></li>
+            </ul>
+        </div>
+        <div class="flex-1"></div>
+        <button class="btn btn-sm btn-primary">
+            <span class="material-symbols-outlined ms-sm">swap_horiz</span>
+            Para Hareketi
+        </button>
+    </div>
+    <div class="p-5">
+        <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bakiye</div>
+        <div class="mt-1 flex items-baseline gap-1">
+            <span class="text-3xl font-extrabold text-gray-900 tabular-nums">@balMain,<span class="text-gray-500 text-2xl">@balCents</span></span>
+            <span class="text-base text-gray-500 ml-1">₺</span>
+        </div>
+        @if (Model.LastTransactionAt.HasValue)
+        {
+            <div class="text-xs text-gray-400 mt-1">Son işlem @Model.LastTransactionAt.Value.ToString("d MMM yyyy", new CultureInfo("tr-TR"))</div>
+        }
+        <div class="grid grid-cols-3 gap-2 mt-4">
+            @{
+                var shortcuts = Model.Kind == "bank"
+                    ? new[] { ("south_west", "Tahsilat"), ("north_east", "Ödeme"), ("swap_horiz", "Transfer") }
+                    : new[] { ("south_west", "Tahsilat"), ("north_east", "Ödeme"), ("upload", "Bankaya Yatır") };
+            }
+            @foreach (var (icon, label) in shortcuts)
+            {
+                <button class="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 text-gray-700 hover:text-blue-700 transition">
+                    <span class="material-symbols-outlined">@icon</span>
+                    <span class="text-xs font-medium">@label</span>
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="flex border-b border-gray-200 px-2 pt-2 gap-1">
+        <button class="seg-tab" onclick="switchTab(this,'notes')" data-tab="notes">Notlar</button>
+        <button class="seg-tab active" onclick="switchTab(this,'history')" data-tab="history">Geçmiş</button>
+    </div>
+
+    <div id="panel-history" class="p-4">
+        @if (Model.History.Any())
+        {
+            <ul class="space-y-1">
+                @foreach (var h in Model.History)
+                {
+                    <li class="tl-item @h.Action">
+                        <span class="tl-dot"></span>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined @(h.Action == "created" ? "text-emerald-500" : "text-blue-500")" style="font-size:18px;">
+                                @(h.Action == "created" ? "add_circle" : "edit_note")
+                            </span>
+                            <span class="text-sm font-semibold text-gray-900">@h.Title</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-0.5 ml-6">
+                            @h.At.ToString("dd.MM.yyyy HH:mm") · <span class="text-gray-700 font-medium">@h.ByUserName</span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="text-sm text-gray-400">Geçmiş yok.</p>
+        }
+    </div>
+
+    <div id="panel-notes" class="p-4 hidden">
+        <textarea class="textarea textarea-bordered w-full text-sm" rows="4" placeholder="Bu hesapla ilgili notlarınız…">@Model.Note</textarea>
+        <div class="flex justify-end mt-2">
+            <button class="btn btn-sm btn-primary">Kaydet</button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+    <div class="text-xs font-semibold tracking-widest uppercase text-gray-400 mb-3">Hızlı Bakış</div>
+    <div class="space-y-2.5 text-sm">
+        <div class="flex items-center justify-between">
+            <span class="text-gray-500">Açılış bakiyesi</span>
+            <span class="font-semibold text-gray-900 tabular-nums">@Model.OpeningBalance.ToString("N2", trTR) ₺</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-500">Açılış tarihi</span>
+            <span class="font-semibold text-gray-900">@Model.OpeningDate.ToString("dd.MM.yyyy")</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-500">Toplam işlem</span>
+            <span class="font-semibold text-gray-900">@Model.TotalCount</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-500">Bekleyen</span>
+            <span class="font-semibold @(Model.PendingCount > 0 ? "text-amber-600" : "text-gray-900")">@Model.PendingCount</span>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function switchTab(btn, tab) {
+    document.querySelectorAll('.seg-tab[data-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['notes','history'].forEach(id => {
+        var el = document.getElementById('panel-' + id);
+        if (el) el.classList.toggle('hidden', id !== tab);
+    });
+}
+</script>
+}

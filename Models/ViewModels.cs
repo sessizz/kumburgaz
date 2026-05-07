@@ -213,6 +213,7 @@ public class BankAccountFormViewModel
 
 public class CashBankListItemViewModel
 {
+    public int Id { get; set; }
     public string Type { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? Detail { get; set; }
@@ -226,4 +227,71 @@ public class CashBankIndexViewModel
     public decimal TotalBalance => Items.Sum(x => x.Balance);
     public CashBoxFormViewModel CashBoxForm { get; set; } = new();
     public BankAccountFormViewModel BankAccountForm { get; set; } = new();
+}
+
+public class CashBankDetailQuery
+{
+    public string? Q { get; set; }
+    public string? Type { get; set; } = "all";
+    public string? Range { get; set; } = "all";
+    public DateOnly? From { get; set; }
+    public DateOnly? To { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+}
+
+public enum TxKind { Tahsilat, Cikis, Transfer, Girdi }
+
+public class TxRow
+{
+    public int Id { get; set; }
+    public string Description { get; set; } = "";
+    public string? Subline { get; set; }
+    public TxKind Kind { get; set; }
+    public decimal Amount { get; set; }
+    public decimal RunningBalance { get; set; }
+    public DateTime Date { get; set; }
+}
+
+public class TxDayGroup
+{
+    public DateOnly Date { get; set; }
+    public decimal Net { get; set; }
+    public IReadOnlyList<TxRow> Items { get; set; } = Array.Empty<TxRow>();
+}
+
+public class AuditEntry
+{
+    public string Action { get; set; } = "";
+    public string Title { get; set; } = "";
+    public DateTime At { get; set; }
+    public string ByUserName { get; set; } = "";
+}
+
+public class CashBankDetailViewModel
+{
+    public string Kind { get; set; } = "bank";
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? Branch { get; set; }
+    public string? Iban { get; set; }
+    public bool IsActive { get; set; } = true;
+    public decimal OpeningBalance { get; set; }
+    public DateOnly OpeningDate { get; set; }
+    public decimal Balance { get; set; }
+    public DateTime? LastTransactionAt { get; set; }
+    public decimal MonthInflow { get; set; }
+    public int MonthInflowCount { get; set; }
+    public decimal MonthOutflow { get; set; }
+    public int MonthOutflowCount { get; set; }
+    public IReadOnlyList<int> Last14DaysActivity { get; set; } = Array.Empty<int>();
+    public CashBankDetailQuery Query { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int TahsilatCount { get; set; }
+    public int CikisCount { get; set; }
+    public int TransferCount { get; set; }
+    public IReadOnlyList<TxDayGroup> Groups { get; set; } = Array.Empty<TxDayGroup>();
+    public IReadOnlyList<AuditEntry> History { get; set; } = Array.Empty<AuditEntry>();
+    public int PendingCount { get; set; }
+    public string? Note { get; set; }
 }

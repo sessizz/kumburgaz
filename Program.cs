@@ -36,6 +36,7 @@ builder.Services.AddScoped<IDuesGenerationService, DuesGenerationService>();
 builder.Services.AddScoped<ICollectionService, CollectionService>();
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<CashBankDetailService>();
+builder.Services.AddScoped<UnitStatementService>();
 
 builder.Services.AddControllersWithViews();
 

@@ -116,8 +116,12 @@
                                 <input class="checkbox checkbox-sm unit-select" type="checkbox" name="selectedUnitIds" value="@item.Id" />
                             </td>
                             <td class="font-semibold">@item.Block?.Name</td>
-                            <td>@item.UnitNo</td>
-                            <td>@item.OwnerName</td>
+                            <td>
+                                <a class="link link-primary" asp-action="Detail" asp-route-id="@item.Id">@item.UnitNo</a>
+                            </td>
+                            <td>
+                                <a class="hover:underline" asp-action="Detail" asp-route-id="@item.Id">@item.OwnerName</a>
+                            </td>
                             <td>
                                 @if (item.IsCombined)
                                 {
@@ -180,6 +184,10 @@
                             </td>
                             <td>
                                 <div class="flex justify-end gap-1">
+                                    <a class="btn btn-xs btn-ghost" asp-action="Detail" asp-route-id="@item.Id">
+                                        <span class="material-symbols-outlined ms-sm">visibility</span>
+                                        Detay
+                                    </a>
                                     <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
                                         <span class="material-symbols-outlined ms-sm">edit</span>
                                         Düzenle

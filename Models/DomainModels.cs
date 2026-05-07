@@ -47,6 +47,12 @@ public class Unit
     [MaxLength(120)]
     public string? OwnerName { get; set; }
 
+    [MaxLength(40)]
+    public string? Phone { get; set; }
+
+    /// <summary>Malikin daireye giriş tarihi.</summary>
+    public DateTime? MoveInDate { get; set; }
+
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
 

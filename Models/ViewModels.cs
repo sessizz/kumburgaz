@@ -40,6 +40,11 @@ public class UnitFormViewModel
     [MaxLength(120)]
     public string? OwnerName { get; set; }
 
+    [MaxLength(40)]
+    public string? Phone { get; set; }
+
+    public DateTime? MoveInDate { get; set; }
+
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
     public decimal OpeningBalance { get; set; }
@@ -107,6 +112,39 @@ public class DuesIndexViewModel
     public List<Collection> Collections { get; set; } = [];
     public string Query { get; set; } = string.Empty;
     public string ActiveTab { get; set; } = "dues";
+}
+
+public enum StatementEntryKind
+{
+    OpeningBalance,
+    Debt,
+    Collection
+}
+
+public class StatementEntry
+{
+    public StatementEntryKind Kind { get; set; }
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    /// <summary>Pozitif = borç, negatif = tahsilat.</summary>
+    public decimal Amount { get; set; }
+    public decimal RunningBalance { get; set; }
+}
+
+public class UnitDetailViewModel
+{
+    public Unit Unit { get; set; } = null!;
+    public List<StatementEntry> RecentEntries { get; set; } = [];
+    /// <summary>Toplam borç (yapılacak tahsilat); negatif ise daire alacaklı.</summary>
+    public decimal Balance { get; set; }
+    public StatementEntry? LastDebt { get; set; }
+}
+
+public class UnitStatementViewModel
+{
+    public Unit Unit { get; set; } = null!;
+    public List<StatementEntry> Entries { get; set; } = [];
+    public decimal Balance { get; set; }
 }
 
 public class DuesInstallmentEditViewModel

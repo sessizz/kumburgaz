@@ -9,8 +9,47 @@ using Microsoft.EntityFrameworkCore;
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class UnitsController(ApplicationDbContext db) : Controller
+public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.UnitStatementService statementService) : Controller
 {
+    public async Task<IActionResult> Detail(int id)
+    {
+        var unit = await db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers).ThenInclude(x => x.ComponentUnit).ThenInclude(x => x!.Block)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (unit is null) return NotFound();
+
+        var entries = await statementService.BuildAsync(id);
+        var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
+        var lastDebt = entries.LastOrDefault(x => x.Kind != StatementEntryKind.Collection);
+
+        return View(new UnitDetailViewModel
+        {
+            Unit = unit,
+            RecentEntries = entries.Take(10).ToList(),
+            Balance = balance,
+            LastDebt = lastDebt
+        });
+    }
+
+    public async Task<IActionResult> Statement(int id)
+    {
+        var unit = await db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (unit is null) return NotFound();
+
+        var entries = await statementService.BuildAsync(id);
+        var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
+
+        return View(new UnitStatementViewModel
+        {
+            Unit = unit,
+            Entries = entries,
+            Balance = balance
+        });
+    }
+
     public async Task<IActionResult> Index()
     {
         var units = await db.Units.AsNoTracking()
@@ -700,6 +739,8 @@ public class UnitsController(ApplicationDbContext db) : Controller
             IsCombined = unit.IsCombined,
             OpeningBalance = unit.OpeningBalance,
             OpeningBalanceDate = unit.OpeningBalanceDate,
+            Phone = unit.Phone,
+            MoveInDate = unit.MoveInDate,
             ComponentUnitIds = unit.CombinedUnitMembers.Select(x => x.ComponentUnitId).ToList()
         };
     }
@@ -709,6 +750,10 @@ public class UnitsController(ApplicationDbContext db) : Controller
         unit.BlockId = model.BlockId;
         unit.UnitNo = model.UnitNo.Trim();
         unit.OwnerName = string.IsNullOrWhiteSpace(model.OwnerName) ? null : model.OwnerName.Trim();
+        unit.Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : model.Phone.Trim();
+        unit.MoveInDate = model.MoveInDate.HasValue
+            ? DateTime.SpecifyKind(model.MoveInDate.Value.Date, DateTimeKind.Utc)
+            : null;
         unit.Active = model.Active;
         unit.IsCombined = model.IsCombined;
         unit.OpeningBalance = model.OpeningBalance;

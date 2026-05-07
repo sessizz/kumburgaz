@@ -1,0 +1,123 @@
+@model Kumburgaz.Web.Models.UnitDetailViewModel
+@{
+    ViewData["Title"] = "Daire Detayı";
+    var u = Model.Unit;
+    var initials = string.IsNullOrWhiteSpace(u.OwnerName)
+        ? "?"
+        : string.Join("", u.OwnerName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0]));
+    var balance = Model.Balance;
+}
+
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Daire Detayı</h2>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <!-- Sol: özet + son hareket -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-start gap-4">
+                    <div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
+                        @initials
+                    </div>
+                    <div class="flex-1 grid grid-cols-1 md:grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm">
+                        <span class="text-gray-500">Hesap</span>
+                        <span class="font-bold text-lg">@(string.IsNullOrWhiteSpace(u.OwnerName) ? "—" : u.OwnerName)</span>
+
+                        <span class="text-gray-500">Daire</span>
+                        <span><span class="text-blue-600 font-medium">@u.Block?.Name Blok - No @u.UnitNo</span></span>
+
+                        <span class="text-gray-500">Telefon</span>
+                        <span>@(string.IsNullOrWhiteSpace(u.Phone) ? "-" : u.Phone)</span>
+
+                        <span class="text-gray-500">Giriş Tarihi</span>
+                        <span>@(u.MoveInDate.HasValue ? u.MoveInDate.Value.ToString("dd MMMM yyyy") : "—")</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th>Son Ödeme Tarihi</th>
+                            <th>Açıklama</th>
+                            <th class="text-end">Tutar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (Model.LastDebt is not null)
+                    {
+                        <tr>
+                            <td>
+                                <span class="material-symbols-outlined text-gray-400 align-middle text-base">description</span>
+                                @Model.LastDebt.Date.ToString("dd MMMM yyyy")
+                            </td>
+                            <td>
+                                @Model.LastDebt.Description
+                                @if (Model.LastDebt.Kind == StatementEntryKind.Debt)
+                                {
+                                    <span class="badge badge-info badge-soft ml-1">Aidat</span>
+                                }
+                                else if (Model.LastDebt.Kind == StatementEntryKind.OpeningBalance)
+                                {
+                                    <span class="badge badge-warning badge-soft ml-1">Devir</span>
+                                }
+                            </td>
+                            <td class="text-end font-bold">@Model.LastDebt.Amount.ToString("N2") ₺</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr><td colspan="3" class="text-center text-gray-400 py-6">Henüz hareket yok.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="border-t border-gray-200 px-6 py-3">
+                <a class="text-blue-600 hover:underline text-sm flex items-center gap-1"
+                   asp-action="Statement" asp-route-id="@u.Id">
+                    <span class="material-symbols-outlined text-base">history</span>
+                    Hesap geçmişini göster
+                </a>
+            </div>
+        </div>
+
+        <!-- Sağ: bakiye + tahsilat -->
+        <div class="space-y-4">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <a class="btn btn-sm" asp-controller="Units" asp-action="Edit" asp-route-id="@u.Id">
+                        <span class="material-symbols-outlined ms-sm">edit</span>
+                        Düzenle
+                    </a>
+                    <a class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
+                       asp-controller="Collections" asp-action="Create"
+                       asp-route-unitId="@u.Id">
+                        Tahsilat ekle
+                    </a>
+                </div>
+
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Yapılacak Tahsilat</span>
+                    <span class="font-semibold">@Math.Max(0, balance).ToString("N2") ₺</span>
+                </div>
+                <hr class="my-3 border-gray-100" />
+                <div class="flex justify-between items-baseline">
+                    <span class="text-amber-700 font-bold tracking-wider">BAKİYE</span>
+                    <div class="text-end">
+                        <div class="text-2xl font-extrabold @(balance > 0 ? "text-amber-700" : (balance < 0 ? "text-success" : "text-gray-700"))">
+                            @balance.ToString("N2") ₺
+                        </div>
+                        <div class="text-xs text-amber-600">@(balance > 0 ? "Tahsil edilecek" : (balance < 0 ? "Alacaklı" : "Bakiyesiz"))</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

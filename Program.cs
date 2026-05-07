@@ -62,6 +62,7 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await SeedIdentityAsync(roleManager, userManager);
+    await NormalizeBlockNamesAsync(db);
 }
 
 app.UseHttpsRedirection();
@@ -86,6 +87,23 @@ app.MapControllerRoute(
 app.MapRazorPages().WithStaticAssets();
 
 app.Run();
+
+// "A Blok" → "A", "B Blok" → "B" gibi " Blok" suffix'ini temizle (bir kerelik)
+static async Task NormalizeBlockNamesAsync(ApplicationDbContext db)
+{
+    var blocks = await db.Blocks.ToListAsync();
+    var changed = false;
+    foreach (var block in blocks)
+    {
+        var normalized = block.Name.TrimEnd();
+        if (normalized.EndsWith(" Blok", StringComparison.OrdinalIgnoreCase))
+        {
+            block.Name = normalized[..^5].Trim(); // " Blok" = 5 karakter
+            changed = true;
+        }
+    }
+    if (changed) await db.SaveChangesAsync();
+}
 
 static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {

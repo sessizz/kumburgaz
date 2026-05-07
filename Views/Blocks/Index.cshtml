@@ -1,0 +1,95 @@
+@model List<Kumburgaz.Web.Models.Block>
+@{
+    ViewData["Title"] = "Bloklar";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Bloklar</h2>
+            <p class="text-sm text-gray-400">Site blokları ve daire sayıları</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="createBlockModal.showModal()">
+            <span class="material-symbols-outlined ms-sm">add</span>
+            Yeni Blok
+        </button>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Blok Adı</th>
+                        <th class="text-center">Daire Sayısı</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td class="font-semibold">@item.Name</td>
+                        <td class="text-center">
+                            <span class="badge badge-ghost">@item.Units.Count daire</span>
+                        </td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                    Düzenle
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                                      onsubmit="return confirm('\'@item.Name\' bloğu silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Yeni Blok Modal -->
+<dialog id="createBlockModal" class="modal">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold mb-4">Yeni Blok</h3>
+        <form asp-action="Create" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Blok Adı</legend>
+                <input type="text" name="Name" class="input input-bordered w-full" placeholder="Örn: A, B, C Blok..." required maxlength="60" />
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="createBlockModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-symbols-outlined ms-sm">add</span>
+                    Ekle
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>

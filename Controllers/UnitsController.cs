@@ -351,15 +351,15 @@ public class UnitsController(ApplicationDbContext db) : Controller
             .GroupBy(x => NormalizeHeaderKey(x.Name))
             .ToDictionary(x => x.Key, x => x.First());
 
-        var existingKeys = await db.Units.AsNoTracking()
-            .Select(x => $"{x.BlockId}|{x.UnitNo.Trim().ToUpperInvariant()}")
-            .ToListAsync();
-        var seen = new HashSet<string>(existingKeys);
+        var existingUnitsMap = await db.Units.AsNoTracking()
+            .ToDictionaryAsync(x => $"{x.BlockId}|{x.UnitNo.Trim().ToUpperInvariant()}");
+        var seenInCsv = new HashSet<string>();
 
         var toAdd = new List<Unit>();
         var billingGroupAssignments = new List<CsvBillingGroupAssignment>();
         var skippedInactiveAssignments = 0;
         var skippedGroupAssignments = 0;
+        var skippedExistingUnits = 0;
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
@@ -379,24 +379,33 @@ public class UnitsController(ApplicationDbContext db) : Controller
             }
 
             var key = $"{blockId}|{unitNo.Trim().ToUpperInvariant()}";
-            if (!seen.Add(key))
+            if (!seenInCsv.Add(key))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Bu blokta ayni daire no zaten var ({unitNo}).";
+                TempData["ImportError"] = $"Satir {lineNo}: CSV'de ayni daire no tekrar ediyor ({unitNo}).";
                 return RedirectToAction(nameof(Index));
             }
 
             var ownerName = ReadValue(row, headers, "ownername");
             var active = ParseBool(ReadValue(row, headers, "active"), true);
 
-            var unit = new Unit
+            Unit unit;
+            if (existingUnitsMap.TryGetValue(key, out var existingUnit))
             {
-                BlockId = blockId,
-                UnitNo = unitNo.Trim(),
-                OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
-                Active = active
-            };
-
-            toAdd.Add(unit);
+                // Unit already exists in DB — skip insert, still process billing group below
+                skippedExistingUnits++;
+                unit = existingUnit;
+            }
+            else
+            {
+                unit = new Unit
+                {
+                    BlockId = blockId,
+                    UnitNo = unitNo.Trim(),
+                    OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
+                    Active = active
+                };
+                toAdd.Add(unit);
+            }
 
             var billingGroupName = ReadFirstValue(row, headers, "billinggroup", "billinggroupname", "aidatgrubu");
             if (string.IsNullOrWhiteSpace(billingGroupName))
@@ -431,9 +440,21 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
             var existingGroup = billingGroupsByName.GetValueOrDefault(billingGroupKey);
             int? duesTypeId = null;
-            if (TryResolveDuesTypeId(row, headers, duesTypeById, duesTypeByName, out var resolvedDuesTypeId, out _))
+
+            var duesTypeNameRaw = ReadFirstValue(row, headers, "duestype", "aidattipi");
+            var duesTypeIdRaw = ReadFirstValue(row, headers, "duestypeid", "aidattipiid");
+            bool duesTypeExplicit = !string.IsNullOrWhiteSpace(duesTypeNameRaw) || !string.IsNullOrWhiteSpace(duesTypeIdRaw);
+
+            if (TryResolveDuesTypeId(row, headers, duesTypeById, duesTypeByName, out var resolvedDuesTypeId, out var duesTypeError))
             {
                 duesTypeId = resolvedDuesTypeId;
+            }
+            else if (duesTypeExplicit)
+            {
+                // DuesType adı/ID'si CSV'de var ama DB'de bulunamadı — açık hata ver.
+                var nameHint = string.IsNullOrWhiteSpace(duesTypeNameRaw) ? duesTypeIdRaw : duesTypeNameRaw;
+                TempData["ImportError"] = $"Satir {lineNo}: '{nameHint.Trim()}' adlı aidat tipi sistemde bulunamadı. Önce Aidat Tipleri sayfasından ekleyin.";
+                return RedirectToAction(nameof(Index));
             }
             else if (existingGroup is null)
             {
@@ -507,6 +528,11 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var importMessage = billingGroupAssignments.Count == 0
             ? $"{toAdd.Count} daire CSV ile eklendi."
             : $"{toAdd.Count} daire CSV ile eklendi. {createdGroupCount} aidat grubu oluşturuldu, {linkedGroupCount} daire-grup bağlantısı kuruldu.";
+
+        if (skippedExistingUnits > 0)
+        {
+            importMessage += $" {skippedExistingUnits} zaten var olan daire atlandı (aidat grubu bağlantısı güncellendi).";
+        }
 
         if (skippedInactiveAssignments > 0)
         {

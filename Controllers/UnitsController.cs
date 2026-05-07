@@ -712,7 +712,9 @@ public class UnitsController(ApplicationDbContext db) : Controller
         unit.Active = model.Active;
         unit.IsCombined = model.IsCombined;
         unit.OpeningBalance = model.OpeningBalance;
-        unit.OpeningBalanceDate = model.OpeningBalanceDate;
+        unit.OpeningBalanceDate = model.OpeningBalanceDate.HasValue
+            ? DateTime.SpecifyKind(model.OpeningBalanceDate.Value.Date, DateTimeKind.Utc)
+            : null;
     }
 
     private async Task SaveCombinedMembersAsync(int unitId, UnitFormViewModel model)
@@ -868,9 +870,11 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var trimmed = value.Trim();
         // tr-TR (dd.MM.yyyy), ISO (yyyy-MM-dd), genel
         if (DateTime.TryParse(trimmed, System.Globalization.CultureInfo.GetCultureInfo("tr-TR"),
-            System.Globalization.DateTimeStyles.None, out var d1)) return d1;
+            System.Globalization.DateTimeStyles.None, out var d1))
+            return DateTime.SpecifyKind(d1.Date, DateTimeKind.Utc);
         if (DateTime.TryParse(trimmed, System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.None, out var d2)) return d2;
+            System.Globalization.DateTimeStyles.None, out var d2))
+            return DateTime.SpecifyKind(d2.Date, DateTimeKind.Utc);
         return null;
     }
 

@@ -63,15 +63,15 @@ public class OpeningBalancesController(ApplicationDbContext db) : Controller
                 continue;
             }
 
-            // Tarih (yyyy-MM-dd; HTML date input formatı)
+            // Tarih (yyyy-MM-dd; HTML date input formatı). PostgreSQL timestamptz UTC ister.
             DateTime? newDate = null;
             var rawDate = (dates[i] ?? string.Empty).Trim();
             if (!string.IsNullOrWhiteSpace(rawDate))
             {
                 if (DateTime.TryParse(rawDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-                    newDate = parsed.Date;
+                    newDate = DateTime.SpecifyKind(parsed.Date, DateTimeKind.Utc);
                 else if (DateTime.TryParse(rawDate, CultureInfo.GetCultureInfo("tr-TR"), DateTimeStyles.None, out var parsedTr))
-                    newDate = parsedTr.Date;
+                    newDate = DateTime.SpecifyKind(parsedTr.Date, DateTimeKind.Utc);
             }
 
             // Bakiye 0 ise tarih de temizlenir

@@ -43,6 +43,7 @@ public class UnitFormViewModel
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
     public decimal OpeningBalance { get; set; }
+    public DateTime? OpeningBalanceDate { get; set; }
     public List<int> ComponentUnitIds { get; set; } = [];
     public List<SelectListItem> BlockOptions { get; set; } = [];
     public List<SelectListItem> ComponentUnitOptions { get; set; } = [];

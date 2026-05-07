@@ -44,7 +44,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         var rows = new List<string[]>
         {
-            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "OpeningBalance", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
+            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "OpeningBalance", "OpeningBalanceDate", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
         };
 
         rows.AddRange(units.Select(x => new[]
@@ -60,6 +60,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
                 .Select(m => $"{m.ComponentUnit!.Block!.Name}-{m.ComponentUnit.UnitNo}")
                 .OrderBy(v => v)),
             x.OpeningBalance.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+            x.OpeningBalanceDate.HasValue ? x.OpeningBalanceDate.Value.ToString("yyyy-MM-dd") : string.Empty,
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.Name ?? string.Empty,
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.DuesType?.Name ?? string.Empty,
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.StartPeriod ?? string.Empty,
@@ -395,6 +396,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
             var active = ParseBool(ReadValue(row, headers, "active"), true);
             var isCombined = ParseBool(ReadFirstValue(row, headers, "iscombined", "birlesik"), false);
             var openingBalance = ParseDecimal(ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir"));
+            var openingBalanceDate = ParseNullableDate(ReadFirstValue(row, headers, "openingbalancedate", "devirtarihi", "devirbakiyesitarihi"));
 
             Unit unit;
             if (existingUnitsMap.TryGetValue(key, out var existingUnit))
@@ -403,13 +405,19 @@ public class UnitsController(ApplicationDbContext db) : Controller
                 skippedExistingUnits++;
                 unit = existingUnit;
 
-                // CSV'de devir bakiyesi açıkça verilmişse mevcut daireye uygula
+                // CSV'de devir bakiyesi/tarihi açıkça verilmişse mevcut daireye uygula
                 var rawOpening = ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir");
-                if (!string.IsNullOrWhiteSpace(rawOpening))
+                var rawOpeningDate = ReadFirstValue(row, headers, "openingbalancedate", "devirtarihi", "devirbakiyesitarihi");
+                if (!string.IsNullOrWhiteSpace(rawOpening) || !string.IsNullOrWhiteSpace(rawOpeningDate))
                 {
                     var tracked = await db.Units.FindAsync(unit.Id);
-                    if (tracked is not null && tracked.OpeningBalance != openingBalance)
-                        tracked.OpeningBalance = openingBalance;
+                    if (tracked is not null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(rawOpening) && tracked.OpeningBalance != openingBalance)
+                            tracked.OpeningBalance = openingBalance;
+                        if (!string.IsNullOrWhiteSpace(rawOpeningDate))
+                            tracked.OpeningBalanceDate = openingBalanceDate;
+                    }
                 }
             }
             else
@@ -421,7 +429,8 @@ public class UnitsController(ApplicationDbContext db) : Controller
                     OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
                     Active = active,
                     IsCombined = isCombined,
-                    OpeningBalance = openingBalance
+                    OpeningBalance = openingBalance,
+                    OpeningBalanceDate = openingBalanceDate
                 };
                 toAdd.Add(unit);
 
@@ -690,6 +699,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
             Active = unit.Active,
             IsCombined = unit.IsCombined,
             OpeningBalance = unit.OpeningBalance,
+            OpeningBalanceDate = unit.OpeningBalanceDate,
             ComponentUnitIds = unit.CombinedUnitMembers.Select(x => x.ComponentUnitId).ToList()
         };
     }
@@ -702,6 +712,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
         unit.Active = model.Active;
         unit.IsCombined = model.IsCombined;
         unit.OpeningBalance = model.OpeningBalance;
+        unit.OpeningBalanceDate = model.OpeningBalanceDate;
     }
 
     private async Task SaveCombinedMembersAsync(int unitId, UnitFormViewModel model)
@@ -849,6 +860,18 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         error = "yeni aidat grubu için DuesTypeId veya DuesType alanı zorunludur.";
         return false;
+    }
+
+    private static DateTime? ParseNullableDate(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        // tr-TR (dd.MM.yyyy), ISO (yyyy-MM-dd), genel
+        if (DateTime.TryParse(trimmed, System.Globalization.CultureInfo.GetCultureInfo("tr-TR"),
+            System.Globalization.DateTimeStyles.None, out var d1)) return d1;
+        if (DateTime.TryParse(trimmed, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var d2)) return d2;
+        return null;
     }
 
     private static decimal ParseDecimal(string value)

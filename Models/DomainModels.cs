@@ -57,6 +57,12 @@ public class Unit
     /// </summary>
     public decimal OpeningBalance { get; set; }
 
+    /// <summary>
+    /// Devir bakiyesinin geçerli olduğu tarih (önceki yönetim devir tarihi).
+    /// Null ise bakiye atanmamış demektir; raporlarda satır gösterilmez.
+    /// </summary>
+    public DateTime? OpeningBalanceDate { get; set; }
+
     public ICollection<BillingGroupUnit> BillingGroupUnits { get; set; } = new List<BillingGroupUnit>();
     public ICollection<CombinedUnitMember> CombinedUnitMembers { get; set; } = new List<CombinedUnitMember>();
     public ICollection<CombinedUnitMember> MemberOfCombinedUnits { get; set; } = new List<CombinedUnitMember>();

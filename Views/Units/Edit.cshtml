@@ -34,12 +34,19 @@
                     <input asp-for="OwnerName" class="input input-bordered w-full" />
                 </fieldset>
 
-                <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Devir Bakiyesi (TL)</legend>
-                    <input asp-for="OpeningBalance" class="input input-bordered w-full" placeholder="0,00" />
-                    <span class="text-xs text-gray-400">Pozitif = alacak (gelecek aidatlardan düşülür) · Negatif = devreden borç</span>
-                    <span asp-validation-for="OpeningBalance" class="text-error text-xs"></span>
-                </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Devir Bakiyesi (TL)</legend>
+                        <input asp-for="OpeningBalance" class="input input-bordered w-full" placeholder="0,00" />
+                        <span asp-validation-for="OpeningBalance" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Devir Tarihi</legend>
+                        <input asp-for="OpeningBalanceDate" type="date" class="input input-bordered w-full" />
+                        <span asp-validation-for="OpeningBalanceDate" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Pozitif = alacak (gelecek aidatlardan düşülür) · Negatif = devreden borç. Tarih, ekstrede satırın yer aldığı noktayı belirler.</p>
 
                 <label class="label cursor-pointer justify-start gap-3">
                     <input asp-for="Active" class="toggle toggle-primary" />

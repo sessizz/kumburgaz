@@ -35,9 +35,10 @@ public class OpeningBalancesController(ApplicationDbContext db) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(int[] unitIds, string[] balances, int? blockId = null)
+    public async Task<IActionResult> Save(int[] unitIds, string[] balances, string[] dates, int? blockId = null)
     {
-        if (unitIds is null || balances is null || unitIds.Length != balances.Length)
+        if (unitIds is null || balances is null || dates is null
+            || unitIds.Length != balances.Length || unitIds.Length != dates.Length)
         {
             TempData["ActionError"] = "Geçersiz form verisi.";
             return RedirectToAction(nameof(Index), new { blockId });
@@ -62,11 +63,24 @@ public class OpeningBalancesController(ApplicationDbContext db) : Controller
                 continue;
             }
 
-            if (unit.OpeningBalance != newValue)
+            // Tarih (yyyy-MM-dd; HTML date input formatı)
+            DateTime? newDate = null;
+            var rawDate = (dates[i] ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(rawDate))
             {
-                unit.OpeningBalance = newValue;
-                changedCount++;
+                if (DateTime.TryParse(rawDate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                    newDate = parsed.Date;
+                else if (DateTime.TryParse(rawDate, CultureInfo.GetCultureInfo("tr-TR"), DateTimeStyles.None, out var parsedTr))
+                    newDate = parsedTr.Date;
             }
+
+            // Bakiye 0 ise tarih de temizlenir
+            if (newValue == 0m) newDate = null;
+
+            var changed = false;
+            if (unit.OpeningBalance != newValue) { unit.OpeningBalance = newValue; changed = true; }
+            if (unit.OpeningBalanceDate != newDate) { unit.OpeningBalanceDate = newDate; changed = true; }
+            if (changed) changedCount++;
         }
 
         if (changedCount > 0)

@@ -123,14 +123,14 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         }
 
         // Devir bakiyesi (önceki yönetimden gelen alacak/borç) — daire bazında ek satır
-        // Pozitif = alacak (kalan -OpeningBalance, alacak), negatif = borç (kalan +|OpeningBalance|)
-        // Filtre: blok ya da hiç filtre yoksa tüm aktif daireler; aksi halde yalnızca o blok
+        // Pozitif = alacak (kalan negatif), negatif = borç (kalan pozitif)
+        // Sadece bakiyesi sıfır olmayan ve tarihi atanmış daireler eklenir.
         var openingUnits = await db.Units.AsNoTracking()
             .Include(x => x.Block)
             .Include(x => x.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
-            .Where(x => x.Active && x.OpeningBalance != 0m)
+            .Where(x => x.Active && x.OpeningBalance != 0m && x.OpeningBalanceDate != null)
             .Where(x => query.BlockId == null || x.BlockId == query.BlockId)
             .ToListAsync();
 
@@ -144,8 +144,8 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 BillingGroupName = "—",
                 DuesTypeName = "Devir Bakiyesi",
                 Period = "—",
-                AccrualDate = DateTime.Today,
-                Amount = -unit.OpeningBalance, // raporda pozitif borç → kalanı pozitif yapar
+                AccrualDate = unit.OpeningBalanceDate!.Value,
+                Amount = -unit.OpeningBalance, // pozitif bakiye → negatif borç (alacak)
                 RemainingAmount = -unit.OpeningBalance,
                 UnitsText = UnitDisplayHelper.Display(unit)
             });

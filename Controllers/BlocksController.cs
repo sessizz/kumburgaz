@@ -12,7 +12,7 @@ public class BlocksController(ApplicationDbContext db) : Controller
     public async Task<IActionResult> Index()
     {
         var blocks = await db.Blocks.AsNoTracking()
-            .Include(x => x.Units)
+            .Include(x => x.Units.Where(u => u.Active))
             .OrderBy(x => x.Name)
             .ToListAsync();
         return View(blocks);

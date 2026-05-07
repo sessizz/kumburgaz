@@ -71,7 +71,7 @@ public class DuesType
     [Required, MaxLength(80)]
     public string Name { get; set; } = string.Empty;
 
-    [Range(0, 999999999)]
+    [Range(0, 999999999, ErrorMessage = "Tutar 0 ile 999.999.999 arasında olmalıdır.")]
     public decimal Amount { get; set; }
 
     public bool Active { get; set; } = true;

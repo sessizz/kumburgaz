@@ -84,6 +84,7 @@ public class DuesDebtReportRow
 public class DuesListItemViewModel
 {
     public int Id { get; set; }
+    public int? UnitId { get; set; }
     public string Period { get; set; } = string.Empty;
     public string BlockName { get; set; } = string.Empty;
     public string UnitNo { get; set; } = string.Empty;
@@ -96,6 +97,8 @@ public class DuesListItemViewModel
     public bool IsOverdue { get; set; }
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
+    /// <summary>True ise bu satır bir aidat taksiti değil, devir bakiyesidir (Tahsilat butonu gizlenir).</summary>
+    public bool IsOpeningBalance { get; set; }
 }
 
 public class DuesIndexViewModel

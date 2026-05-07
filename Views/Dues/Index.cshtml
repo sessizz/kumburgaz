@@ -143,25 +143,42 @@
                 @foreach (var row in Model.DuesItems)
                 {
                     var dateText = row.PaymentOrDueDate.ToString("dd.MM.yyyy");
-                    var rowBg = row.IsPaid ? "bg-success/5" : "";
+                    var rowBg = row.IsOpeningBalance
+                        ? "bg-amber-50/60"
+                        : (row.IsPaid ? "bg-success/5" : "");
+                    var iconBg = row.IsOpeningBalance ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-400";
+                    var iconName = row.IsOpeningBalance ? "history" : "receipt_long";
+                    var titleText = row.IsOpeningBalance ? "Devir Bakiyesi" : $"{row.Period} — Aidatlar";
+                    var amountIsCredit = row.IsOpeningBalance && row.RemainingAmount < 0;
                     <li class="grid grid-cols-1 lg:grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_120px] gap-4 items-center px-5 py-4 @rowBg">
                         <div class="hidden lg:flex justify-center">
-                            <span class="material-symbols-outlined rounded-full bg-gray-100 p-2 text-gray-400">receipt_long</span>
+                            <span class="material-symbols-outlined rounded-full p-2 @iconBg">@iconName</span>
                         </div>
                         <div>
-                            <div class="font-bold">@row.Period — Aidatlar</div>
+                            <div class="font-bold">@titleText</div>
                             <div class="text-sm text-gray-400">@row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName)</div>
                         </div>
                         <div>
-                            <span class="badge badge-info badge-soft">@row.DuesTypeName</span>
+                            @if (row.IsOpeningBalance)
+                            {
+                                <span class="badge badge-warning badge-soft">@(amountIsCredit ? "Alacak" : "Devreden Borç")</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-info badge-soft">@row.DuesTypeName</span>
+                            }
                         </div>
                         <div class="text-sm">
-                            <div class="text-xs text-gray-400">Tahakkuk</div>
+                            <div class="text-xs text-gray-400">@(row.IsOpeningBalance ? "Devir Tarihi" : "Tahakkuk")</div>
                             <div class="font-medium">@row.AccrualDate.ToString("dd MMM yyyy")</div>
                         </div>
                         <div class="text-sm">
                             <div class="text-xs text-gray-400">@(row.IsPaid ? "Ödeme" : "Vade")</div>
-                            @if (row.IsPaid)
+                            @if (row.IsOpeningBalance)
+                            {
+                                <span class="text-gray-400">—</span>
+                            }
+                            else if (row.IsPaid)
                             {
                                 <span class="badge badge-success badge-soft">Ödendi · @dateText</span>
                             }
@@ -174,10 +191,10 @@
                                 <span class="font-medium">@dateText</span>
                             }
                         </div>
-                        <div class="text-end font-bold">@row.Amount.ToString("N2") TL</div>
-                        <div class="text-end font-bold @(row.IsPaid ? "text-success" : "")">@row.RemainingAmount.ToString("N2") TL</div>
+                        <div class="text-end font-bold @(amountIsCredit ? "text-success" : "")">@row.Amount.ToString("N2") TL</div>
+                        <div class="text-end font-bold @(row.IsPaid && !row.IsOpeningBalance ? "text-success" : "") @(amountIsCredit ? "text-success" : "")">@row.RemainingAmount.ToString("N2") TL</div>
                         <div class="text-end">
-                            @if (!row.IsPaid)
+                            @if (!row.IsPaid && !row.IsOpeningBalance)
                             {
                                 <a class="btn btn-sm btn-primary"
                                    asp-controller="Collections" asp-action="Create"

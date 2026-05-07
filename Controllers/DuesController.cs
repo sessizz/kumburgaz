@@ -47,6 +47,7 @@ public class DuesController(
                 return new DuesListItemViewModel
                 {
                     Id = x.Id,
+                    UnitId = x.UnitId ?? FirstActiveGroupUnit(x.BillingGroup)?.Id,
                     Period = x.Period,
                     BlockName = unit?.Block?.Name ?? FirstActiveGroupUnit(x.BillingGroup)?.Block?.Name ?? "-",
                     UnitNo = unit?.UnitNo ?? FirstActiveGroupUnit(x.BillingGroup)?.UnitNo ?? "-",
@@ -61,6 +62,12 @@ public class DuesController(
                     RemainingAmount = x.RemainingAmount
                 };
             })
+            .ToList();
+
+        // Devir bakiyelerini uygula
+        await ApplyOpeningBalancesAsync(rows);
+
+        rows = rows
             .Where(x => string.IsNullOrWhiteSpace(query) ||
                         x.Period.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         x.BlockName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -81,6 +88,77 @@ public class DuesController(
             Query = query ?? string.Empty,
             ActiveTab = string.Equals(tab, "collections", StringComparison.OrdinalIgnoreCase) ? "collections" : "dues"
         });
+    }
+
+    /// <summary>
+    /// Her dairenin OpeningBalance'ını aidat satırlarına yansıtır:
+    /// pozitif (alacak) → en eski taksitlerin RemainingAmount'unu azaltır,
+    /// negatif (borç) → ek bir "Devir Bakiyesi" satırı eklenir.
+    /// </summary>
+    private async Task ApplyOpeningBalancesAsync(List<DuesListItemViewModel> rows)
+    {
+        var units = await db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .Where(x => x.OpeningBalance != 0m)
+            .ToListAsync();
+        if (units.Count == 0) return;
+
+        foreach (var unit in units)
+        {
+            var unitRows = rows.Where(r => r.UnitId == unit.Id).ToList();
+
+            if (unit.OpeningBalance > 0)
+            {
+                // Alacak: ödenmemiş taksitlerin kalanından düş (en eski tarihten başla)
+                var credit = unit.OpeningBalance;
+                foreach (var row in unitRows.Where(r => !r.IsPaid).OrderBy(r => r.AccrualDate).ThenBy(r => r.PaymentOrDueDate))
+                {
+                    if (credit <= 0) break;
+                    var reduction = Math.Min(row.RemainingAmount, credit);
+                    row.RemainingAmount -= reduction;
+                    credit -= reduction;
+                    if (row.RemainingAmount <= 0)
+                    {
+                        row.IsPaid = true;
+                        row.RemainingAmount = 0;
+                    }
+                }
+                // Kullanılmayan kredi varsa ek bir bilgilendirme satırı (alacaklı)
+                if (credit > 0 && unit.OpeningBalanceDate.HasValue)
+                {
+                    rows.Add(BuildOpeningBalanceRow(unit, -credit));
+                }
+            }
+            else
+            {
+                // Borç: ek satır olarak ekle (sadece tarihi varsa)
+                if (unit.OpeningBalanceDate.HasValue)
+                    rows.Add(BuildOpeningBalanceRow(unit, -unit.OpeningBalance));
+            }
+        }
+    }
+
+    private static DuesListItemViewModel BuildOpeningBalanceRow(Unit unit, decimal remainingAmount)
+    {
+        var date = unit.OpeningBalanceDate ?? DateTime.Today;
+        return new DuesListItemViewModel
+        {
+            Id = 0,
+            UnitId = unit.Id,
+            Period = "Devir",
+            BlockName = unit.Block?.Name ?? "-",
+            UnitNo = unit.UnitNo,
+            OwnerName = unit.OwnerName ?? string.Empty,
+            UnitDisplay = UnitDisplayHelper.Display(unit),
+            DuesTypeName = "Devir Bakiyesi",
+            AccrualDate = date,
+            PaymentOrDueDate = date,
+            IsPaid = remainingAmount <= 0,
+            IsOverdue = false,
+            Amount = remainingAmount,
+            RemainingAmount = remainingAmount,
+            IsOpeningBalance = true
+        };
     }
 
     private static Unit? FirstActiveGroupUnit(BillingGroup? group)

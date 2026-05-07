@@ -359,6 +359,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var toAdd = new List<Unit>();
         var billingGroupAssignments = new List<CsvBillingGroupAssignment>();
         var skippedInactiveAssignments = 0;
+        var skippedGroupAssignments = 0;
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
@@ -430,14 +431,23 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
             var existingGroup = billingGroupsByName.GetValueOrDefault(billingGroupKey);
             int? duesTypeId = null;
-            if (TryResolveDuesTypeId(row, headers, duesTypeById, duesTypeByName, out var resolvedDuesTypeId, out var duesTypeError))
+            if (TryResolveDuesTypeId(row, headers, duesTypeById, duesTypeByName, out var resolvedDuesTypeId, out _))
             {
                 duesTypeId = resolvedDuesTypeId;
             }
             else if (existingGroup is null)
             {
-                TempData["ImportError"] = $"Satir {lineNo}: {duesTypeError}";
-                return RedirectToAction(nameof(Index));
+                // DuesType belirtilmemiş ve grup DB'de yok.
+                // Sistemde tek DuesType varsa onu kullan; yoksa bu satırın grup atamasını atla.
+                if (duesTypes.Count == 1)
+                {
+                    duesTypeId = duesTypes[0].Id;
+                }
+                else
+                {
+                    skippedGroupAssignments++;
+                    continue;
+                }
             }
 
             billingGroupAssignments.Add(new CsvBillingGroupAssignment(
@@ -501,6 +511,11 @@ public class UnitsController(ApplicationDbContext db) : Controller
         if (skippedInactiveAssignments > 0)
         {
             importMessage += $" {skippedInactiveAssignments} pasif daire aidat grubuna bağlanmadı.";
+        }
+
+        if (skippedGroupAssignments > 0)
+        {
+            importMessage += $" {skippedGroupAssignments} satırda aidat tipi bulunamadığı için grup ataması atlandı.";
         }
 
         TempData["ImportSuccess"] = importMessage;

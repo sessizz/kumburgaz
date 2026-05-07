@@ -102,6 +102,8 @@
                             <th>Malik</th>
                             <th>Tip</th>
                             <th>Bileşenler</th>
+                            <th>Aidat Grubu</th>
+                            <th>Aidat Tipi</th>
                             <th>Durum</th>
                             <th class="text-end">İşlem</th>
                         </tr>
@@ -135,6 +137,31 @@
                                         .Select(x => $"{x.ComponentUnit!.Block!.Name}-{x.ComponentUnit.UnitNo}")
                                         .OrderBy(x => x))
                                     </span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            @{
+                                var activeGroup = item.BillingGroupUnits
+                                    .OrderByDescending(g => g.StartPeriod)
+                                    .FirstOrDefault();
+                            }
+                            <td class="text-sm">
+                                @if (activeGroup?.BillingGroup is not null)
+                                {
+                                    <span>@activeGroup.BillingGroup.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            <td class="text-sm">
+                                @if (activeGroup?.BillingGroup?.DuesType is not null)
+                                {
+                                    <span class="badge badge-ghost badge-sm">@activeGroup.BillingGroup.DuesType.Name</span>
                                 }
                                 else
                                 {

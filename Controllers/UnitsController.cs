@@ -18,6 +18,9 @@ public class UnitsController(ApplicationDbContext db) : Controller
             .Include(x => x.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.BillingGroupUnits)
+            .ThenInclude(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
@@ -357,6 +360,8 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         var toAdd = new List<Unit>();
         var billingGroupAssignments = new List<CsvBillingGroupAssignment>();
+        // combined unit → component unit no listesi (aynı blok içinde)
+        var combinedMemberAssignments = new List<(Unit CombinedUnit, int BlockId, string[] ComponentNos)>();
         var skippedInactiveAssignments = 0;
         var skippedGroupAssignments = 0;
         var skippedExistingUnits = 0;
@@ -387,6 +392,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
             var ownerName = ReadValue(row, headers, "ownername");
             var active = ParseBool(ReadValue(row, headers, "active"), true);
+            var isCombined = ParseBool(ReadFirstValue(row, headers, "iscombined", "birlesik"), false);
 
             Unit unit;
             if (existingUnitsMap.TryGetValue(key, out var existingUnit))
@@ -402,9 +408,21 @@ public class UnitsController(ApplicationDbContext db) : Controller
                     BlockId = blockId,
                     UnitNo = unitNo.Trim(),
                     OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
-                    Active = active
+                    Active = active,
+                    IsCombined = isCombined
                 };
                 toAdd.Add(unit);
+
+                if (isCombined)
+                {
+                    // UnitNo "02+03" formatında — "+" ile bölerek bileşen daire nolarını bul
+                    var componentNos = unitNo.Trim().Split('+')
+                        .Select(x => x.Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .ToArray();
+                    if (componentNos.Length > 0)
+                        combinedMemberAssignments.Add((unit, blockId, componentNos));
+                }
             }
 
             var billingGroupName = ReadFirstValue(row, headers, "billinggroup", "billinggroupname", "aidatgrubu");
@@ -483,6 +501,41 @@ public class UnitsController(ApplicationDbContext db) : Controller
         db.Units.AddRange(toAdd);
         await db.SaveChangesAsync();
 
+        // Tüm birimlerin tam haritasını oluştur (mevcut + yeni eklenenler)
+        var allUnitsMap = new Dictionary<string, Unit>(existingUnitsMap);
+        foreach (var u in toAdd)
+            allUnitsMap[$"{u.BlockId}|{u.UnitNo.Trim().ToUpperInvariant()}"] = u;
+
+        // Birleşik daire üyelerini kaydet
+        var createdCombinedMemberCount = 0;
+        var existingCombinedMembers = await db.CombinedUnitMembers.AsNoTracking().ToListAsync();
+        var existingCombinedMemberSet = existingCombinedMembers
+            .Select(x => (x.CombinedUnitId, x.ComponentUnitId))
+            .ToHashSet();
+
+        foreach (var (combinedUnit, blkId, componentNos) in combinedMemberAssignments)
+        {
+            foreach (var componentNo in componentNos)
+            {
+                var componentKey = $"{blkId}|{componentNo.ToUpperInvariant()}";
+                if (!allUnitsMap.TryGetValue(componentKey, out var componentUnit))
+                    continue; // bileşen bulunamadı, atla
+
+                if (existingCombinedMemberSet.Contains((combinedUnit.Id, componentUnit.Id)))
+                    continue; // zaten kayıtlı
+
+                db.CombinedUnitMembers.Add(new CombinedUnitMember
+                {
+                    CombinedUnitId = combinedUnit.Id,
+                    ComponentUnitId = componentUnit.Id
+                });
+                existingCombinedMemberSet.Add((combinedUnit.Id, componentUnit.Id));
+                createdCombinedMemberCount++;
+            }
+        }
+        if (createdCombinedMemberCount > 0)
+            await db.SaveChangesAsync();
+
         var createdGroupCount = 0;
         var linkedGroupCount = 0;
         foreach (var assignment in billingGroupAssignments)
@@ -528,6 +581,11 @@ public class UnitsController(ApplicationDbContext db) : Controller
         var importMessage = billingGroupAssignments.Count == 0
             ? $"{toAdd.Count} daire CSV ile eklendi."
             : $"{toAdd.Count} daire CSV ile eklendi. {createdGroupCount} aidat grubu oluşturuldu, {linkedGroupCount} daire-grup bağlantısı kuruldu.";
+
+        if (createdCombinedMemberCount > 0)
+        {
+            importMessage += $" {createdCombinedMemberCount} birleşik daire bileşeni bağlandı.";
+        }
 
         if (skippedExistingUnits > 0)
         {

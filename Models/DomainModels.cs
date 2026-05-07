@@ -50,6 +50,13 @@ public class Unit
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
 
+    /// <summary>
+    /// Önceki yönetimden devreden bakiye.
+    /// Pozitif = daire alacaklı (gelecek aidatlardan düşülür).
+    /// Negatif = daire borçlu (devreden borç).
+    /// </summary>
+    public decimal OpeningBalance { get; set; }
+
     public ICollection<BillingGroupUnit> BillingGroupUnits { get; set; } = new List<BillingGroupUnit>();
     public ICollection<CombinedUnitMember> CombinedUnitMembers { get; set; } = new List<CombinedUnitMember>();
     public ICollection<CombinedUnitMember> MemberOfCombinedUnits { get; set; } = new List<CombinedUnitMember>();

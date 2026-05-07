@@ -4,7 +4,7 @@
     string IsActive(string controller) =>
         controller.Equals(currentController, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
 
-    bool IsSettings() => new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories", "Blocks" }
+    bool IsSettings() => new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories", "Blocks", "OpeningBalances" }
         .Contains(currentController, StringComparer.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
@@ -135,6 +135,10 @@
             <a class="nav-item @IsActive("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
                 <span class="nav-icon material-symbols-outlined" style="color:#64748b">category</span>
                 Gelir/Gider Kategorileri
+            </a>
+            <a class="nav-item @IsActive("OpeningBalances")" asp-controller="OpeningBalances" asp-action="Index">
+                <span class="nav-icon material-symbols-outlined" style="color:#64748b">account_balance</span>
+                Devir Bakiyeleri
             </a>
             <a class="nav-item @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt">
                 <span class="nav-icon material-symbols-outlined" style="color:#ec4899">bar_chart</span>

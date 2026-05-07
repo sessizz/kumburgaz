@@ -1,0 +1,81 @@
+using System.Globalization;
+using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Kumburgaz.Web.Controllers;
+
+[Authorize]
+public class OpeningBalancesController(ApplicationDbContext db) : Controller
+{
+    public async Task<IActionResult> Index(int? blockId = null)
+    {
+        var blocks = await db.Blocks.AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        var unitsQuery = db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .Where(x => x.Active);
+
+        if (blockId.HasValue)
+            unitsQuery = unitsQuery.Where(x => x.BlockId == blockId.Value);
+
+        var units = await unitsQuery
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        ViewBag.Blocks = blocks;
+        ViewBag.SelectedBlockId = blockId;
+        return View(units);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Save(int[] unitIds, string[] balances, int? blockId = null)
+    {
+        if (unitIds is null || balances is null || unitIds.Length != balances.Length)
+        {
+            TempData["ActionError"] = "Geçersiz form verisi.";
+            return RedirectToAction(nameof(Index), new { blockId });
+        }
+
+        var ids = unitIds.ToList();
+        var units = await db.Units.Where(x => ids.Contains(x.Id)).ToListAsync();
+        var unitMap = units.ToDictionary(x => x.Id);
+
+        var changedCount = 0;
+        var invalidCount = 0;
+        for (var i = 0; i < unitIds.Length; i++)
+        {
+            if (!unitMap.TryGetValue(unitIds[i], out var unit)) continue;
+
+            var raw = (balances[i] ?? string.Empty).Trim().Replace(',', '.');
+            if (string.IsNullOrWhiteSpace(raw)) raw = "0";
+
+            if (!decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var newValue))
+            {
+                invalidCount++;
+                continue;
+            }
+
+            if (unit.OpeningBalance != newValue)
+            {
+                unit.OpeningBalance = newValue;
+                changedCount++;
+            }
+        }
+
+        if (changedCount > 0)
+            await db.SaveChangesAsync();
+
+        var msg = $"{changedCount} dairenin devir bakiyesi güncellendi.";
+        if (invalidCount > 0)
+            msg += $" {invalidCount} satırda geçersiz tutar atlandı.";
+        TempData["ActionSuccess"] = msg;
+        return RedirectToAction(nameof(Index), new { blockId });
+    }
+}

@@ -44,7 +44,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         var rows = new List<string[]>
         {
-            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
+            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "OpeningBalance", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
         };
 
         rows.AddRange(units.Select(x => new[]
@@ -59,6 +59,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
                 .Where(m => m.ComponentUnit?.Block is not null)
                 .Select(m => $"{m.ComponentUnit!.Block!.Name}-{m.ComponentUnit.UnitNo}")
                 .OrderBy(v => v)),
+            x.OpeningBalance.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.Name ?? string.Empty,
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.BillingGroup?.DuesType?.Name ?? string.Empty,
             x.BillingGroupUnits.OrderByDescending(g => g.StartPeriod).FirstOrDefault()?.StartPeriod ?? string.Empty,
@@ -393,6 +394,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
             var ownerName = ReadValue(row, headers, "ownername");
             var active = ParseBool(ReadValue(row, headers, "active"), true);
             var isCombined = ParseBool(ReadFirstValue(row, headers, "iscombined", "birlesik"), false);
+            var openingBalance = ParseDecimal(ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir"));
 
             Unit unit;
             if (existingUnitsMap.TryGetValue(key, out var existingUnit))
@@ -400,6 +402,15 @@ public class UnitsController(ApplicationDbContext db) : Controller
                 // Unit already exists in DB — skip insert, still process billing group below
                 skippedExistingUnits++;
                 unit = existingUnit;
+
+                // CSV'de devir bakiyesi açıkça verilmişse mevcut daireye uygula
+                var rawOpening = ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir");
+                if (!string.IsNullOrWhiteSpace(rawOpening))
+                {
+                    var tracked = await db.Units.FindAsync(unit.Id);
+                    if (tracked is not null && tracked.OpeningBalance != openingBalance)
+                        tracked.OpeningBalance = openingBalance;
+                }
             }
             else
             {
@@ -409,7 +420,8 @@ public class UnitsController(ApplicationDbContext db) : Controller
                     UnitNo = unitNo.Trim(),
                     OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
                     Active = active,
-                    IsCombined = isCombined
+                    IsCombined = isCombined,
+                    OpeningBalance = openingBalance
                 };
                 toAdd.Add(unit);
 
@@ -677,6 +689,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
             OwnerName = unit.OwnerName,
             Active = unit.Active,
             IsCombined = unit.IsCombined,
+            OpeningBalance = unit.OpeningBalance,
             ComponentUnitIds = unit.CombinedUnitMembers.Select(x => x.ComponentUnitId).ToList()
         };
     }
@@ -688,6 +701,7 @@ public class UnitsController(ApplicationDbContext db) : Controller
         unit.OwnerName = string.IsNullOrWhiteSpace(model.OwnerName) ? null : model.OwnerName.Trim();
         unit.Active = model.Active;
         unit.IsCombined = model.IsCombined;
+        unit.OpeningBalance = model.OpeningBalance;
     }
 
     private async Task SaveCombinedMembersAsync(int unitId, UnitFormViewModel model)
@@ -835,6 +849,16 @@ public class UnitsController(ApplicationDbContext db) : Controller
 
         error = "yeni aidat grubu için DuesTypeId veya DuesType alanı zorunludur.";
         return false;
+    }
+
+    private static decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0m;
+        var normalized = value.Trim().Replace(',', '.');
+        return decimal.TryParse(normalized, System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var result)
+            ? result
+            : 0m;
     }
 
     private static bool ParseBool(string value, bool fallback)

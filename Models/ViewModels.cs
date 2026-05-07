@@ -147,6 +147,14 @@ public class UnitStatementViewModel
     public decimal Balance { get; set; }
 }
 
+public class AddCollectionModalModel
+{
+    public int UnitId { get; set; }
+    public decimal SuggestedAmount { get; set; }
+    public string ReturnUrl { get; set; } = string.Empty;
+    public List<SelectListItem> AccountOptions { get; set; } = [];
+}
+
 public class DuesInstallmentEditViewModel
 {
     public int Id { get; set; }

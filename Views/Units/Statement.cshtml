@@ -8,6 +8,8 @@
     var balance = Model.Balance;
     // En yeni satır en üstte gösterilecek
     var orderedDesc = Model.Entries.OrderByDescending(x => x.Date).ThenByDescending(x => x.Kind == StatementEntryKind.Debt ? 0 : 1).ToList();
+    var accountOptions = ViewBag.AccountOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var suggested = balance > 0 ? balance : 0m;
 }
 
 <div class="space-y-4">
@@ -17,6 +19,21 @@
         </a>
         <h2 class="text-2xl font-extrabold">Hesap Ekstresi</h2>
     </div>
+
+    @if (TempData["ActionSuccess"] is string okMsg)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@okMsg</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string errMsg)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errMsg</span>
+        </div>
+    }
 
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
         <!-- Sol -->
@@ -109,11 +126,10 @@
                         <span class="material-symbols-outlined ms-sm">arrow_back</span>
                         Detaya Dön
                     </a>
-                    <a class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
-                       asp-controller="Collections" asp-action="Create"
-                       asp-route-unitId="@u.Id">
+                    <button type="button" class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
+                            onclick="document.getElementById('addCollectionModal').showModal()">
                         Tahsilat ekle
-                    </a>
+                    </button>
                 </div>
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Yapılacak Tahsilat</span>
@@ -133,3 +149,5 @@
         </div>
     </div>
 </div>
+
+<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, AccountOptions = accountOptions, ReturnUrl = Url.Action("Statement", "Units", new { id = u.Id }) ?? string.Empty })" />

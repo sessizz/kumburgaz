@@ -6,6 +6,8 @@
         ? "?"
         : string.Join("", u.OwnerName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0]));
     var balance = Model.Balance;
+    var accountOptions = ViewBag.AccountOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var suggested = balance > 0 ? balance : 0m;
 }
 
 <div class="space-y-4">
@@ -15,6 +17,21 @@
         </a>
         <h2 class="text-2xl font-extrabold">Daire Detayı</h2>
     </div>
+
+    @if (TempData["ActionSuccess"] is string okMsg)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@okMsg</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string errMsg)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errMsg</span>
+        </div>
+    }
 
     <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
         <!-- Sol: özet + son hareket -->
@@ -96,11 +113,10 @@
                         <span class="material-symbols-outlined ms-sm">edit</span>
                         Düzenle
                     </a>
-                    <a class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
-                       asp-controller="Collections" asp-action="Create"
-                       asp-route-unitId="@u.Id">
+                    <button type="button" class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
+                            onclick="document.getElementById('addCollectionModal').showModal()">
                         Tahsilat ekle
-                    </a>
+                    </button>
                 </div>
 
                 <div class="flex justify-between text-sm">
@@ -121,3 +137,5 @@
         </div>
     </div>
 </div>
+
+<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, AccountOptions = accountOptions, ReturnUrl = Url.Action("Detail", "Units", new { id = u.Id }) ?? string.Empty })" />

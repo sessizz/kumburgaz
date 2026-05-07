@@ -42,15 +42,94 @@ public class CollectionsController(
         return File(bytes, "text/csv; charset=utf-8", "tahsilatlar.csv");
     }
 
-    public async Task<IActionResult> Create(int? duesInstallmentId = null, string? returnUrl = null)
+    public async Task<IActionResult> Create(int? duesInstallmentId = null, int? unitId = null, string? returnUrl = null)
     {
-        return View(await BuildFormAsync(new CollectionCreateViewModel
+        var model = new CollectionCreateViewModel
         {
             DuesInstallmentId = duesInstallmentId,
             Date = DateTime.Today,
             PaymentChannel = PaymentChannel.Bank,
             ReturnUrl = returnUrl
-        }));
+        };
+
+        // Daire seçildiyse ve henüz taksit belirtilmediyse, dairenin en eski açık taksitini seç
+        if (unitId.HasValue && !duesInstallmentId.HasValue)
+        {
+            var openInstallment = await db.DuesInstallments.AsNoTracking()
+                .Where(x => x.UnitId == unitId.Value && x.RemainingAmount > 0)
+                .OrderBy(x => x.AccrualDate)
+                .ThenBy(x => x.DueDate)
+                .FirstOrDefaultAsync();
+            if (openInstallment is not null)
+            {
+                model.DuesInstallmentId = openInstallment.Id;
+            }
+        }
+
+        return View(await BuildFormAsync(model));
+    }
+
+    /// <summary>
+    /// Daire detay/ekstre sayfasındaki "Tahsilat ekle" modalı için POST endpoint.
+    /// BillingGroupId'yi dairenin en güncel grubundan otomatik çözer.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateForUnit(int unitId, string amount, DateTime date,
+        string? accountKey, string? note, string? returnUrl)
+    {
+        try
+        {
+            // Türkçe virgüllü tutarı destekle
+            var rawAmount = (amount ?? "0").Trim().Replace(',', '.');
+            if (!decimal.TryParse(rawAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedAmount) || parsedAmount <= 0)
+            {
+                TempData["ActionError"] = "Geçerli bir tutar giriniz.";
+                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+            }
+            var billingGroupId = await ResolveUnitBillingGroupIdAsync(unitId);
+            if (billingGroupId is null)
+            {
+                TempData["ActionError"] = "Bu daire için aktif bir aidat grubu bulunamadı.";
+                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+            }
+
+            // Dairenin en eski açık taksitine yönlendir (varsa)
+            var targetInstallment = await db.DuesInstallments.AsNoTracking()
+                .Where(x => x.UnitId == unitId && x.RemainingAmount > 0)
+                .OrderBy(x => x.AccrualDate)
+                .ThenBy(x => x.DueDate)
+                .FirstOrDefaultAsync();
+
+            var model = new CollectionCreateViewModel
+            {
+                BillingGroupId = billingGroupId.Value,
+                DuesInstallmentId = targetInstallment?.Id,
+                Date = date,
+                Amount = parsedAmount,
+                PaymentChannel = FinancialAccountHelper.TryParse(accountKey, out var ch, out _, out _) ? ch : PaymentChannel.Bank,
+                AccountKey = accountKey,
+                Note = note
+            };
+
+            await collectionService.CreateAsync(model);
+            TempData["ActionSuccess"] = $"{parsedAmount:N2} TL tahsilat kaydedildi.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
+        return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+    }
+
+    private async Task<int?> ResolveUnitBillingGroupIdAsync(int unitId)
+    {
+        var assignment = await db.BillingGroupUnits.AsNoTracking()
+            .Where(x => x.UnitId == unitId && x.BillingGroup != null && x.BillingGroup.Active)
+            .OrderByDescending(x => x.StartPeriod)
+            .FirstOrDefaultAsync();
+        return assignment?.BillingGroupId;
     }
 
     [HttpPost]

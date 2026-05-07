@@ -23,6 +23,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
         var lastDebt = entries.LastOrDefault(x => x.Kind != StatementEntryKind.Collection);
 
+        ViewBag.AccountOptions = await Kumburgaz.Web.Services.FinancialAccountHelper.BuildOptionsAsync(db, null);
+
         return View(new UnitDetailViewModel
         {
             Unit = unit,
@@ -41,6 +43,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
 
         var entries = await statementService.BuildAsync(id);
         var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
+
+        ViewBag.AccountOptions = await Kumburgaz.Web.Services.FinancialAccountHelper.BuildOptionsAsync(db, null);
 
         return View(new UnitStatementViewModel
         {

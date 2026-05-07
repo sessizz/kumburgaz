@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Kumburgaz.Web.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Kumburgaz.Web.Areas.Identity.Pages.Account;
 
-public class LoginModel(SignInManager<IdentityUser> signInManager) : PageModel
+public class LoginModel(SignInManager<ApplicationUser> signInManager) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();

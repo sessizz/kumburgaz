@@ -291,7 +291,7 @@ public class CashBankDetailQuery
     public int PageSize { get; set; } = 25;
 }
 
-public enum TxKind { Tahsilat, Cikis, Transfer, Girdi }
+public enum TxKind { Tahsilat, Cikis, Transfer, Girdi, Acilis }
 
 public class TxRow
 {

@@ -43,6 +43,7 @@ body {
 .ttype-cikis    .dot { background:#ef4444; }
 .ttype-transfer .dot { background:#6366f1; }
 .ttype-girdi    .dot { background:#0ea5e9; }
+.ttype-acilis   .dot { background:#f59e0b; }
 .amount-pos { color:#047857; }
 .amount-neg { color:#b91c1c; }
 .spark { display:flex; align-items:flex-end; gap:3px; height:36px; }

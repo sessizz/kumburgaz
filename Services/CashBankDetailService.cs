@@ -74,9 +74,23 @@ public class CashBankDetailService(ApplicationDbContext db)
             });
         }
 
-        // 4. Tarih sırala, running balance hesapla
+        // 4. Tarih sırala, açılış bakiyesini ilk satır olarak ekle, running balance hesapla
         allRows = allRows.OrderBy(r => r.Date).ThenBy(r => r.Id).ToList();
-        decimal running = openingBalance;
+
+        if (openingBalance != 0m)
+        {
+            allRows.Insert(0, new TxRow
+            {
+                Id = 0,
+                Description = kind == "bank" ? "Banka açılış bakiyesi" : "Kasa açılış bakiyesi",
+                Subline = "Devir",
+                Kind = TxKind.Acilis,
+                Amount = openingBalance,
+                Date = openingDate
+            });
+        }
+
+        decimal running = 0m;
         foreach (var r in allRows)
         {
             running += r.Amount;
@@ -85,22 +99,22 @@ public class CashBankDetailService(ApplicationDbContext db)
         decimal balance = running;
         var lastTx = allRows.Any() ? allRows.Max(r => r.Date) : (DateTime?)null;
 
-        // 5. Bu ay stat
+        // 5. Bu ay stat (açılış satırı hariç)
         var now = DateTime.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var monthRows = allRows.Where(r => r.Date >= monthStart).ToList();
+        var monthRows = allRows.Where(r => r.Kind != TxKind.Acilis && r.Date >= monthStart).ToList();
         var monthInflow = monthRows.Where(r => r.Amount > 0).Sum(r => r.Amount);
         var monthInflowCount = monthRows.Count(r => r.Amount > 0);
         var monthOutflow = monthRows.Where(r => r.Amount < 0).Sum(r => Math.Abs(r.Amount));
         var monthOutflowCount = monthRows.Count(r => r.Amount < 0);
 
-        // 6. Son 14 gün activity (işlem sayısı)
+        // 6. Son 14 gün activity (işlem sayısı, açılış hariç)
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var last14 = new int[14];
         for (int i = 0; i < 14; i++)
         {
             var day = today.AddDays(-(13 - i));
-            last14[i] = allRows.Count(r => DateOnly.FromDateTime(r.Date) == day);
+            last14[i] = allRows.Count(r => r.Kind != TxKind.Acilis && DateOnly.FromDateTime(r.Date) == day);
         }
 
         // 7. Filtrele

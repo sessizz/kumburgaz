@@ -6,12 +6,14 @@
         Kumburgaz.Web.Models.TxKind.Tahsilat => "ttype-tahsilat",
         Kumburgaz.Web.Models.TxKind.Cikis => "ttype-cikis",
         Kumburgaz.Web.Models.TxKind.Transfer => "ttype-transfer",
+        Kumburgaz.Web.Models.TxKind.Acilis => "ttype-acilis",
         _ => "ttype-girdi"
     };
     var kindLabel = Model.Kind switch {
         Kumburgaz.Web.Models.TxKind.Tahsilat => "Tahsilat",
         Kumburgaz.Web.Models.TxKind.Cikis => "Para Çıkışı",
         Kumburgaz.Web.Models.TxKind.Transfer => "Transfer",
+        Kumburgaz.Web.Models.TxKind.Acilis => "Açılış",
         _ => "Girdi"
     };
     var isPos = Model.Amount >= 0;

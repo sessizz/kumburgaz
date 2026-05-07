@@ -1,4 +1,5 @@
 using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
 using Microsoft.AspNetCore.Identity;
@@ -19,7 +20,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
         options.Password.RequireDigit = true;
@@ -58,7 +59,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await SeedIdentityAsync(roleManager, userManager);
 }
 
@@ -85,7 +86,7 @@ app.MapRazorPages().WithStaticAssets();
 
 app.Run();
 
-static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserManager<IdentityUser> userManager)
+static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {
     var roles = new[] { "SistemYonetici", "SiteYonetici", "MuhasebeGorevli" };
     foreach (var role in roles)
@@ -100,11 +101,13 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
     var admin = await userManager.FindByEmailAsync(adminEmail);
     if (admin is null)
     {
-        admin = new IdentityUser
+        admin = new ApplicationUser
         {
             UserName = adminEmail,
             Email = adminEmail,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            FullName = "Sistem Yöneticisi",
+            Title = "Site Yöneticisi"
         };
 
         var createResult = await userManager.CreateAsync(admin, "Admin123!");

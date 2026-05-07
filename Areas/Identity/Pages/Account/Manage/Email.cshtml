@@ -1,0 +1,80 @@
+@page
+@model EmailModel
+@{
+    ViewData["Title"] = "E-posta";
+}
+
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-gray-700">Ana Sayfa</a>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Hesabımı Yönet</span>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">E-posta</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        <partial name="_ManageNav" />
+
+        <div class="space-y-6">
+            <partial name="_StatusMessage" model="Model.StatusMessage" />
+
+            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 class="text-lg font-semibold text-gray-900">E-posta Adresi</h1>
+                        <p class="text-sm text-gray-500 mt-0.5">E-posta adresinizi güncelleyin</p>
+                    </div>
+                    @if (Model.IsEmailConfirmed)
+                    {
+                        <span class="pill pill-ok">
+                            <span class="material-symbols-outlined" style="font-size:14px">check_circle</span>
+                            Doğrulandı
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="pill pill-warn">
+                            <span class="material-symbols-outlined" style="font-size:14px">warning</span>
+                            Doğrulanmadı
+                        </span>
+                    }
+                </div>
+
+                <form method="post" asp-page-handler="ChangeEmail">
+                    <div asp-validation-summary="ModelOnly" class="text-red-600 text-sm mb-4"></div>
+
+                    <div class="space-y-5">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text font-medium text-gray-700">Mevcut E-posta</span>
+                            </label>
+                            <input type="email" value="@Model.Email" disabled
+                                   class="input input-bordered bg-gray-50 text-gray-500 cursor-not-allowed w-full" />
+                        </div>
+
+                        <div class="form-control">
+                            <label asp-for="Input.NewEmail" class="label">
+                                <span class="label-text font-medium text-gray-700">Yeni E-posta</span>
+                            </label>
+                            <input asp-for="Input.NewEmail" type="email" class="input input-bordered w-full"
+                                   placeholder="yeni@email.com" />
+                            <span asp-validation-for="Input.NewEmail" class="label-text-alt text-red-500 mt-1 block"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end mt-6">
+                        <button type="submit" class="btn btn-primary gap-2">
+                            <span class="material-symbols-outlined" style="font-size:18px">mark_email_read</span>
+                            Güncelle
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

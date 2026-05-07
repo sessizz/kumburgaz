@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext(options)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Block> Blocks => Set<Block>();

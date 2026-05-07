@@ -1,0 +1,9 @@
+@model string
+@if (!string.IsNullOrEmpty(Model))
+{
+    var isError = Model.StartsWith("Hata");
+    <div class="alert @(isError ? "alert-error" : "alert-success") mb-4">
+        <span class="material-symbols-outlined">@(isError ? "error" : "check_circle")</span>
+        <span>@Model</span>
+    </div>
+}

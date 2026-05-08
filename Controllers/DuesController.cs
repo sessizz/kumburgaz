@@ -56,6 +56,7 @@ public class DuesController(
                     DuesTypeName = x.BillingGroup?.DuesType?.Name ?? "Aidat",
                     AccrualDate = x.AccrualDate,
                     PaymentOrDueDate = isPaid && paidDate.HasValue ? paidDate.Value : x.DueDate,
+                    LastPaymentDate = paidDate,
                     IsPaid = isPaid,
                     IsOverdue = !isPaid && x.DueDate.Date < DateTime.Today,
                     Amount = x.Amount,
@@ -121,6 +122,11 @@ public class DuesController(
                     {
                         row.IsPaid = true;
                         row.RemainingAmount = 0;
+                        // Ödendi rozetinde gerçek son tahsilat tarihini göster (varsa);
+                        // hiç tahsilat yoksa devir bakiyesi tarihi, o da yoksa DueDate.
+                        row.PaymentOrDueDate = row.LastPaymentDate
+                            ?? unit.OpeningBalanceDate
+                            ?? row.PaymentOrDueDate;
                     }
                 }
                 // Kullanılmayan kredi varsa ek bir bilgilendirme satırı (alacaklı)

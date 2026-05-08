@@ -98,6 +98,8 @@ public class DuesListItemViewModel
     public string DuesTypeName { get; set; } = string.Empty;
     public DateTime AccrualDate { get; set; }
     public DateTime PaymentOrDueDate { get; set; }
+    /// <summary>Bu taksite tahsis edilmiş gerçek son tahsilat tarihi (varsa).</summary>
+    public DateTime? LastPaymentDate { get; set; }
     public bool IsPaid { get; set; }
     public bool IsOverdue { get; set; }
     public decimal Amount { get; set; }

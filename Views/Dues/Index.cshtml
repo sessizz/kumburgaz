@@ -173,9 +173,9 @@
                             <div class="font-medium">@row.AccrualDate.ToString("dd MMM yyyy")</div>
                         </div>
                         <div class="text-sm">
-                            <div class="text-xs text-gray-400">@(row.IsPaid ? "Ödeme" : "Vade")</div>
                             @if (row.IsOpeningBalance)
                             {
+                                <div class="text-xs text-gray-400">—</div>
                                 <span class="text-gray-400">—</span>
                             }
                             else if (row.IsPaid)
@@ -184,10 +184,12 @@
                             }
                             else if (row.IsOverdue)
                             {
+                                <div class="text-xs text-gray-400">Vade</div>
                                 <span class="badge badge-error badge-soft">Gecikti · @dateText</span>
                             }
                             else
                             {
+                                <div class="text-xs text-gray-400">Vade</div>
                                 <span class="font-medium">@dateText</span>
                             }
                         </div>

@@ -4,6 +4,7 @@
     var totalDebt        = ViewBag.TotalDebt        is decimal d  ? d  : 0m;
     var totalGenerated   = ViewBag.TotalGenerated   is decimal g  ? g  : 0m;
     var totalCollections = ViewBag.TotalCollections is decimal c  ? c  : 0m;
+    var openingNet       = ViewBag.OpeningBalanceNet is decimal ob ? ob : 0m;
     var activeUnits      = ViewBag.ActiveUnits      is int     u  ? u  : 0;
     var combinedUnits    = ViewBag.CombinedUnits    is int     cu ? cu : 0;
     var openInstallments = ViewBag.OpenInstallments is int     oi ? oi : 0;
@@ -67,6 +68,19 @@
                             <span class="text-gray-500">Geciken</span>
                         </div>
                         <div class="ml-5 font-semibold text-gray-900">@totalDebt.ToString("N2") ₺</div>
+                        @if (openingNet != 0m)
+                        {
+                            <div class="ml-5 text-xs text-gray-400 mt-0.5">
+                                @if (openingNet > 0)
+                                {
+                                    <span>Devir alacak: −@openingNet.ToString("N2") ₺ uygulandı</span>
+                                }
+                                else
+                                {
+                                    <span>Devreden borç: +@(Math.Abs(openingNet).ToString("N2")) ₺ eklendi</span>
+                                }
+                            </div>
+                        }
                     </div>
                 </div>
             </div>

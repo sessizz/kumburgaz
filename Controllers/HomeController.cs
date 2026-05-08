@@ -10,7 +10,16 @@ public class HomeController(ApplicationDbContext db) : Controller
 {
     public IActionResult Index()
     {
-        ViewBag.TotalDebt = db.DuesInstallments.Sum(x => x.RemainingAmount);
+        var installmentDebt = db.DuesInstallments.Sum(x => x.RemainingAmount);
+
+        // Aktif dairelerin devir bakiyeleri net etkiyi belirler:
+        // pozitif (alacak) → borçtan düşülür, negatif (borç) → borca eklenir.
+        var openingNet = db.Units.Where(x => x.Active).Sum(x => x.OpeningBalance);
+
+        // Net kalan borç = aidat kalanı − devir alacakları + devir borçları
+        // = installmentDebt − openingNet
+        ViewBag.TotalDebt = installmentDebt - openingNet;
+        ViewBag.OpeningBalanceNet = openingNet;
         ViewBag.TotalGenerated = db.DuesInstallments.Sum(x => x.Amount);
         ViewBag.TotalCollections = db.Collections.Sum(x => x.Amount);
         ViewBag.BillingGroups = db.BillingGroups.Count(x => x.Active);

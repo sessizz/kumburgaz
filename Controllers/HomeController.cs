@@ -20,30 +20,20 @@ public class HomeController(ApplicationDbContext db) : Controller
             .Where(x => x.RemainingAmount > 0 && x.DueDate >= todayUtc)
             .Sum(x => (decimal?)x.RemainingAmount) ?? 0m;
 
-        // Aktif dairelerin devir bakiyeleri net etkiyi belirler:
-        // pozitif (alacak) → en önce gecikmişten düşülür, kalan varsa vadesi gelmemişten
-        // negatif (borç)   → gecikmişe eklenir
-        var openingNet = db.Units.Where(x => x.Active).Sum(x => x.OpeningBalance);
+        // Devir alacakları (pozitif) → Tahsilat'a eklenir
+        // Devir borçları  (negatif) → Geciken'e eklenir
+        var openingCredit = db.Units.Where(x => x.Active && x.OpeningBalance > 0).Sum(x => (decimal?)x.OpeningBalance) ?? 0m;
+        var openingDebt   = db.Units.Where(x => x.Active && x.OpeningBalance < 0).Sum(x => (decimal?)(-x.OpeningBalance)) ?? 0m;
 
-        decimal adjOverdue, adjPending;
-        if (openingNet >= 0)
-        {
-            var credit = openingNet;
-            adjOverdue = Math.Max(0m, overdueRemaining - credit);
-            credit     = Math.Max(0m, credit - overdueRemaining);
-            adjPending = Math.Max(0m, pendingRemaining - credit);
-        }
-        else
-        {
-            adjOverdue = overdueRemaining + Math.Abs(openingNet);
-            adjPending = pendingRemaining;
-        }
+        var actualCollections = db.Collections.Sum(x => (decimal?)x.Amount) ?? 0m;
 
-        ViewBag.TotalDebt    = adjOverdue;   // Geciken (vadesi geçmiş)
-        ViewBag.PendingDebt  = adjPending;   // Vadesi gelmemiş (gerçek taksitler, devirsiz)
-        ViewBag.OpeningBalanceNet = openingNet;
+        ViewBag.TotalDebt        = overdueRemaining + openingDebt;   // Geciken
+        ViewBag.PendingDebt      = pendingRemaining;                  // Vadesi gelmemiş
+        ViewBag.TotalCollections = actualCollections + openingCredit; // Tahsilat (devir alacak dahil)
+        ViewBag.OpeningCredit    = openingCredit;
+        ViewBag.OpeningDebt      = openingDebt;
+        ViewBag.OpeningBalanceNet = openingCredit - openingDebt;      // (bilgi notu için)
         ViewBag.TotalGenerated = db.DuesInstallments.Sum(x => x.Amount);
-        ViewBag.TotalCollections = db.Collections.Sum(x => x.Amount);
         ViewBag.BillingGroups = db.BillingGroups.Count(x => x.Active);
         ViewBag.ActiveUnits = db.Units.Count(x => x.Active);
         ViewBag.CombinedUnits = db.Units.Count(x => x.Active && x.IsCombined);

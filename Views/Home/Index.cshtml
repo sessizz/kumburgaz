@@ -5,6 +5,8 @@
     var pendingDebt      = ViewBag.PendingDebt      is decimal pd ? pd : 0m;
     var totalGenerated   = ViewBag.TotalGenerated   is decimal g  ? g  : 0m;
     var totalCollections = ViewBag.TotalCollections is decimal c  ? c  : 0m;
+    var openingCredit    = ViewBag.OpeningCredit    is decimal oc ? oc : 0m;
+    var openingDebt      = ViewBag.OpeningDebt      is decimal od ? od : 0m;
     var openingNet       = ViewBag.OpeningBalanceNet is decimal ob ? ob : 0m;
     var activeUnits      = ViewBag.ActiveUnits      is int     u  ? u  : 0;
     var combinedUnits    = ViewBag.CombinedUnits    is int     cu ? cu : 0;
@@ -55,6 +57,10 @@
                             <span class="text-gray-500">Tahsilat</span>
                         </div>
                         <div class="ml-5 font-semibold text-gray-900">@totalCollections.ToString("N2") ₺</div>
+                        @if (openingCredit > 0)
+                        {
+                            <div class="ml-5 text-xs text-gray-400 mt-0.5">Devir alacak: +@openingCredit.ToString("N2") ₺ dahil</div>
+                        }
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
@@ -69,18 +75,9 @@
                             <span class="text-gray-500">Geciken</span>
                         </div>
                         <div class="ml-5 font-semibold text-gray-900">@totalDebt.ToString("N2") ₺</div>
-                        @if (openingNet != 0m)
+                        @if (openingDebt > 0)
                         {
-                            <div class="ml-5 text-xs text-gray-400 mt-0.5">
-                                @if (openingNet > 0)
-                                {
-                                    <span>Devir alacak: −@openingNet.ToString("N2") ₺ uygulandı</span>
-                                }
-                                else
-                                {
-                                    <span>Devreden borç: +@(Math.Abs(openingNet).ToString("N2")) ₺ eklendi</span>
-                                }
-                            </div>
+                            <div class="ml-5 text-xs text-gray-400 mt-0.5">Devreden borç: +@openingDebt.ToString("N2") ₺ dahil</div>
                         }
                     </div>
                 </div>

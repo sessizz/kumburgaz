@@ -10,15 +10,37 @@ public class HomeController(ApplicationDbContext db) : Controller
 {
     public IActionResult Index()
     {
-        var installmentDebt = db.DuesInstallments.Sum(x => x.RemainingAmount);
+        var todayUtc = DateTime.UtcNow.Date;
+
+        // Vadesi geçmiş taksitler (DueDate < bugün) ve henüz vadesi gelmemiş taksitler ayrı ayrı
+        var overdueRemaining = db.DuesInstallments
+            .Where(x => x.RemainingAmount > 0 && x.DueDate < todayUtc)
+            .Sum(x => (decimal?)x.RemainingAmount) ?? 0m;
+        var pendingRemaining = db.DuesInstallments
+            .Where(x => x.RemainingAmount > 0 && x.DueDate >= todayUtc)
+            .Sum(x => (decimal?)x.RemainingAmount) ?? 0m;
 
         // Aktif dairelerin devir bakiyeleri net etkiyi belirler:
-        // pozitif (alacak) → borçtan düşülür, negatif (borç) → borca eklenir.
+        // pozitif (alacak) → en önce gecikmişten düşülür, kalan varsa vadesi gelmemişten
+        // negatif (borç)   → gecikmişe eklenir
         var openingNet = db.Units.Where(x => x.Active).Sum(x => x.OpeningBalance);
 
-        // Net kalan borç = aidat kalanı − devir alacakları + devir borçları
-        // = installmentDebt − openingNet
-        ViewBag.TotalDebt = installmentDebt - openingNet;
+        decimal adjOverdue, adjPending;
+        if (openingNet >= 0)
+        {
+            var credit = openingNet;
+            adjOverdue = Math.Max(0m, overdueRemaining - credit);
+            credit     = Math.Max(0m, credit - overdueRemaining);
+            adjPending = Math.Max(0m, pendingRemaining - credit);
+        }
+        else
+        {
+            adjOverdue = overdueRemaining + Math.Abs(openingNet);
+            adjPending = pendingRemaining;
+        }
+
+        ViewBag.TotalDebt    = adjOverdue;   // Geciken (vadesi geçmiş)
+        ViewBag.PendingDebt  = adjPending;   // Vadesi gelmemiş (gerçek taksitler, devirsiz)
         ViewBag.OpeningBalanceNet = openingNet;
         ViewBag.TotalGenerated = db.DuesInstallments.Sum(x => x.Amount);
         ViewBag.TotalCollections = db.Collections.Sum(x => x.Amount);

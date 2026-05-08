@@ -2,6 +2,7 @@
     ViewData["Title"] = "Genel Bakış";
 
     var totalDebt        = ViewBag.TotalDebt        is decimal d  ? d  : 0m;
+    var pendingDebt      = ViewBag.PendingDebt      is decimal pd ? pd : 0m;
     var totalGenerated   = ViewBag.TotalGenerated   is decimal g  ? g  : 0m;
     var totalCollections = ViewBag.TotalCollections is decimal c  ? c  : 0m;
     var openingNet       = ViewBag.OpeningBalanceNet is decimal ob ? ob : 0m;
@@ -12,7 +13,7 @@
     var ledgerIncome     = ViewBag.LedgerIncome     is decimal li ? li : 0m;
     var ledgerExpense    = ViewBag.LedgerExpense    is decimal le ? le : 0m;
 
-    var netBalance   = totalCollections + ledgerIncome - totalDebt - ledgerExpense;
+    var netBalance   = totalCollections + ledgerIncome - totalDebt - pendingDebt - ledgerExpense;
     var installTotal = openInstallments + paidInstallments;
     var paidPct      = installTotal > 0 ? (double)paidInstallments / installTotal * 100 : 0;
     var collPct      = totalGenerated > 0 ? (double)(totalCollections / totalGenerated * 100m) : 0;
@@ -60,7 +61,7 @@
                             <span class="w-3 h-3 rounded-sm bg-amber-400 shrink-0"></span>
                             <span class="text-gray-500">Vadesi Gelmemiş</span>
                         </div>
-                        <div class="ml-5 font-semibold text-gray-900">@(Math.Max(0m, totalGenerated - totalCollections - totalDebt).ToString("N2")) ₺</div>
+                        <div class="ml-5 font-semibold text-gray-900">@pendingDebt.ToString("N2") ₺</div>
                     </div>
                     <div>
                         <div class="flex items-center gap-2">

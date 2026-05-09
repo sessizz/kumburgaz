@@ -1,0 +1,25 @@
+@model Kumburgaz.Web.Models.ServiceRequest
+@{
+    var isEdit = Model.Id > 0;
+    var unitOptions = ViewBag.UnitOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
+}
+<div class="max-w-3xl">
+    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+        @Html.AntiForgeryToken()
+        <input asp-for="Id" type="hidden" />
+        <div class="flex items-center justify-between"><h1 class="text-2xl font-extrabold text-gray-900">@(isEdit ? "Talep Düzenle" : "Yeni Talep")</h1><a class="btn btn-ghost btn-sm" asp-action="Index">Geri</a></div>
+        <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
+        <fieldset class="fieldset"><legend class="fieldset-legend">Başlık</legend><input asp-for="Title" class="input input-bordered w-full" /></fieldset>
+        <fieldset class="fieldset"><legend class="fieldset-legend">Açıklama</legend><textarea asp-for="Description" class="textarea textarea-bordered w-full min-h-32"></textarea></fieldset>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset class="fieldset"><legend class="fieldset-legend">Daire</legend><select asp-for="UnitId" asp-items="unitOptions" class="select select-bordered w-full"><option value="">Ortak alan / genel</option></select></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Atanan</legend><input asp-for="AssignedTo" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Öncelik</legend><select asp-for="Priority" asp-items="Html.GetEnumSelectList<ServiceRequestPriority>()" class="select select-bordered w-full"></select></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Durum</legend><select asp-for="Status" asp-items="Html.GetEnumSelectList<ServiceRequestStatus>()" class="select select-bordered w-full"></select></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Oluşturma Tarihi</legend><input asp-for="CreatedAt" type="date" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Hedef Tarih</legend><input asp-for="DueDate" type="date" class="input input-bordered w-full" /></fieldset>
+        </div>
+        <div class="flex justify-end gap-2"><a class="btn btn-ghost" asp-action="Index">Vazgeç</a><button class="btn btn-primary"><span class="material-symbols-outlined ms-sm">save</span>Kaydet</button></div>
+    </form>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

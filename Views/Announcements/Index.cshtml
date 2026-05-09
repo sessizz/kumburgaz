@@ -1,0 +1,46 @@
+@model List<Kumburgaz.Web.Models.Announcement>
+@{
+    ViewData["Title"] = "Duyurular";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-extrabold text-gray-900">Duyurular</h1>
+            <p class="text-sm text-gray-400">Site sakinlerine gönderilen duyurular</p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create"><span class="material-symbols-outlined ms-sm">add</span>Yeni Duyuru</a>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string success) { <div class="alert alert-success"><span class="material-symbols-outlined">check_circle</span><span>@success</span></div> }
+    @if (TempData["ActionError"] is string error) { <div class="alert alert-error"><span class="material-symbols-outlined">error</span><span>@error</span></div> }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <table class="table table-zebra">
+            <thead><tr><th>Başlık</th><th>Öncelik</th><th>Yayın Tarihi</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model)
+            {
+                <tr>
+                    <td>
+                        <div class="font-semibold">@item.Title</div>
+                        <div class="text-xs text-gray-500 line-clamp-1">@item.Body</div>
+                    </td>
+                    <td><span class="pill @(item.Priority == "Normal" ? "pill-muted" : "pill-warn")">@item.Priority</span></td>
+                    <td>@item.PublishDate.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td><span class="pill @(item.IsPublished ? "pill-ok" : "pill-muted")">@(item.IsPublished ? "Yayında" : "Taslak")</span></td>
+                    <td>
+                        <div class="flex justify-end gap-1">
+                            <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id"><span class="material-symbols-outlined ms-sm">edit</span></a>
+                            <form method="post" asp-action="Delete" asp-route-id="@item.Id" onsubmit="return confirm('Bu duyuru silinsin mi?');">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-xs btn-ghost text-error"><span class="material-symbols-outlined ms-sm">delete</span></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

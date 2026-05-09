@@ -348,3 +348,74 @@ public class CashBankDetailViewModel
     public int PendingCount { get; set; }
     public string? Note { get; set; }
 }
+
+public class DashboardMetricViewModel
+{
+    public string Label { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
+    public string Subtext { get; set; } = string.Empty;
+    public string Icon { get; set; } = "monitoring";
+    public string Tone { get; set; } = "blue";
+}
+
+public class ExpenseForecastItem
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public decimal Percent { get; set; }
+    public string Color { get; set; } = "#3b82f6";
+}
+
+public class DashboardOverdueItem
+{
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string OwnerName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public int Days { get; set; }
+}
+
+public class DashboardUpcomingExpense
+{
+    public string Name { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    public decimal Amount { get; set; }
+    public string Status { get; set; } = "Bekliyor";
+}
+
+public class DashboardCashflowMonth
+{
+    public string Month { get; set; } = string.Empty;
+    public decimal Income { get; set; }
+    public decimal Expense { get; set; }
+    public decimal Net => Income - Expense;
+}
+
+public class DashboardCalendarDay
+{
+    public string Weekday { get; set; } = string.Empty;
+    public int Day { get; set; }
+    public string Marker { get; set; } = "b";
+    public bool IsToday { get; set; }
+}
+
+public class DashboardViewModel
+{
+    public decimal CollectionRate { get; set; }
+    public decimal TotalGenerated { get; set; }
+    public decimal OverdueDebt { get; set; }
+    public int OverdueUnitCount { get; set; }
+    public decimal ForecastExpense { get; set; }
+    public decimal MonthCollections { get; set; }
+    public int MonthCollectionCount { get; set; }
+    public decimal CashBankBalance { get; set; }
+    public decimal NetPosition { get; set; }
+    public int ActiveUnits { get; set; }
+    public int OpenRequestCount { get; set; }
+    public List<ExpenseForecastItem> ExpenseForecast { get; set; } = [];
+    public List<DashboardCashflowMonth> Cashflow { get; set; } = [];
+    public List<DashboardOverdueItem> OverdueItems { get; set; } = [];
+    public List<DashboardUpcomingExpense> UpcomingExpenses { get; set; } = [];
+    public List<ServiceRequest> RecentRequests { get; set; } = [];
+    public List<Announcement> RecentAnnouncements { get; set; } = [];
+    public List<DashboardCalendarDay> CalendarDays { get; set; } = [];
+}

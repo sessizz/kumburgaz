@@ -20,6 +20,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();
     public DbSet<CashBox> CashBoxes => Set<CashBox>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
+    public DbSet<DocumentRecord> DocumentRecords => Set<DocumentRecord>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -113,6 +116,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(x => x.OpeningBalance)
             .HasPrecision(18, 2);
 
+        builder.Entity<Announcement>()
+            .HasIndex(x => x.PublishDate);
+
+        builder.Entity<ServiceRequest>()
+            .HasIndex(x => new { x.Status, x.Priority, x.CreatedAt });
+
+        builder.Entity<ServiceRequest>()
+            .HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<DocumentRecord>()
+            .HasIndex(x => new { x.Category, x.DocumentDate });
+
         Seed(builder);
     }
 
@@ -177,5 +195,73 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             OpeningBalanceDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Active = true
         });
+
+        builder.Entity<Announcement>().HasData(
+            new Announcement
+            {
+                Id = 1,
+                Title = "Havuz Bakım Çalışması",
+                Body = "26 Mayıs Pazar günü havuzumuz bakım nedeniyle kapalı olacaktır.",
+                Priority = "Önemli",
+                PublishDate = new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc),
+                IsPublished = true
+            },
+            new Announcement
+            {
+                Id = 2,
+                Title = "Ortak Alan Aydınlatmaları",
+                Body = "Ortak alan aydınlatmalarında yenileme çalışmaları başlamıştır.",
+                Priority = "Normal",
+                PublishDate = new DateTime(2026, 5, 3, 9, 0, 0, DateTimeKind.Utc),
+                IsPublished = true
+            }
+        );
+
+        builder.Entity<ServiceRequest>().HasData(
+            new ServiceRequest
+            {
+                Id = 1,
+                Title = "Asansör arızası - A Blok",
+                Description = "A Blok asansörü katta kalıyor.",
+                UnitId = 1,
+                Status = ServiceRequestStatus.Open,
+                Priority = ServiceRequestPriority.Urgent,
+                AssignedTo = "Teknik Servis",
+                CreatedAt = new DateTime(2026, 5, 7, 8, 30, 0, DateTimeKind.Utc),
+                DueDate = new DateTime(2026, 5, 10, 18, 0, 0, DateTimeKind.Utc)
+            },
+            new ServiceRequest
+            {
+                Id = 2,
+                Title = "Bahçe aydınlatması",
+                Description = "Ortak bahçe aydınlatması kontrol edilecek.",
+                UnitId = null,
+                Status = ServiceRequestStatus.InProgress,
+                Priority = ServiceRequestPriority.Normal,
+                AssignedTo = "Site Görevlisi",
+                CreatedAt = new DateTime(2026, 5, 6, 11, 0, 0, DateTimeKind.Utc)
+            }
+        );
+
+        builder.Entity<DocumentRecord>().HasData(
+            new DocumentRecord
+            {
+                Id = 1,
+                Title = "2026 Genel Kurul Tutanağı",
+                Category = "Toplantı",
+                Url = "",
+                Note = "Genel kurul karar özeti.",
+                DocumentDate = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new DocumentRecord
+            {
+                Id = 2,
+                Title = "Güvenlik Hizmeti Sözleşmesi",
+                Category = "Sözleşme",
+                Url = "",
+                Note = "Yıllık güvenlik hizmet sözleşmesi.",
+                DocumentDate = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
     }
 }

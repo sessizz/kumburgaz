@@ -250,3 +250,79 @@ public class CashBox
     public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
     public bool Active { get; set; } = true;
 }
+
+public class Announcement
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(140)]
+    public string Title { get; set; } = string.Empty;
+
+    [Required, MaxLength(2000)]
+    public string Body { get; set; } = string.Empty;
+
+    [MaxLength(20)]
+    public string Priority { get; set; } = "Normal";
+
+    public DateTime PublishDate { get; set; } = DateTime.UtcNow;
+    public bool IsPublished { get; set; } = true;
+}
+
+public enum ServiceRequestStatus
+{
+    Open = 1,
+    InProgress = 2,
+    Resolved = 3,
+    Closed = 4
+}
+
+public enum ServiceRequestPriority
+{
+    Low = 1,
+    Normal = 2,
+    High = 3,
+    Urgent = 4
+}
+
+public class ServiceRequest
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(140)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    public int? UnitId { get; set; }
+    public Unit? Unit { get; set; }
+
+    public ServiceRequestStatus Status { get; set; } = ServiceRequestStatus.Open;
+    public ServiceRequestPriority Priority { get; set; } = ServiceRequestPriority.Normal;
+
+    [MaxLength(120)]
+    public string? AssignedTo { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? DueDate { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+}
+
+public class DocumentRecord
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(160)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(80)]
+    public string Category { get; set; } = "Genel";
+
+    [MaxLength(500)]
+    public string? Url { get; set; }
+
+    [MaxLength(2000)]
+    public string? Note { get; set; }
+
+    public DateTime DocumentDate { get; set; } = DateTime.UtcNow;
+}

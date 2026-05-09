@@ -1,22 +1,21 @@
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var settingsControllers = new[] { "Settings", "DuesTypes", "BillingGroups", "IncomeExpenseCategories", "Blocks", "OpeningBalances" };
 
-    string IsActive(string controller) =>
-        controller.Equals(currentController, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+    string IsActive(params string[] controllers) =>
+        controllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : string.Empty;
 
-    bool IsSettings() => new[] { "DuesTypes", "BillingGroups", "IncomeExpenseCategories", "Blocks", "OpeningBalances" }
-        .Contains(currentController, StringComparer.OrdinalIgnoreCase);
+    string PageTitle() => ViewData["Title"]?.ToString() ?? "Kumburgaz Yönetim";
 }
 <!DOCTYPE html>
 <html lang="tr" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
+    <title>@PageTitle() - Kumburgaz Yönetim</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="/css/site.css" />
@@ -31,143 +30,134 @@
     <style>
         * { font-family: "Inter", system-ui, sans-serif; }
         .material-symbols-outlined {
-            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 22;
-            vertical-align: middle;
+            font-family: 'Material Symbols Outlined' !important;
+            font-weight: normal;
+            font-style: normal;
             font-size: 20px;
             line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+            font-feature-settings: 'liga';
+            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 22;
+            vertical-align: middle;
         }
 
-        /* Sidebar nav item */
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 9px 12px;
-            border-radius: 6px;
-            color: #4b5563;
-            font-size: 14px;
-            font-weight: 500;
-            text-decoration: none;
-            transition: background 0.15s, color 0.15s;
-            cursor: pointer;
-        }
-        .nav-item:hover { background: #f3f4f6; color: #111827; }
-        .nav-item.active { color: #2563eb; font-weight: 600; }
-        .nav-item.active .nav-icon { color: #2563eb; }
-
-        .nav-icon { font-size: 20px; width: 24px; text-align: center; }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+        .dk-side { background:#0b1437; color:#cbd5e1; }
+        .dk-nav { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; color:#cbd5e1; font-size:14px; font-weight:500; cursor:pointer; transition:background .15s, color .15s; text-decoration:none; }
+        .dk-nav:hover { background:#172554; color:#fff; }
+        .dk-nav.active { background:#2563eb; color:#fff; font-weight:600; box-shadow:0 4px 14px -4px rgba(37,99,235,.45); }
+        .dk-nav .mi { font-size:20px; width:22px; text-align:center; }
+        .dk-section { color:#94a3b8; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:14px 14px 5px; }
+        .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+        .pill-ok { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+        .pill-warn { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
+        .pill-info { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+        .pill-muted { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
+        .pill-neg { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+        .ico { width:44px; height:44px; border-radius:999px; display:flex; align-items:center; justify-content:center; flex:none; }
+        .day { text-align:center; padding:8px 0; border-radius:10px; cursor:pointer; transition:background .12s; }
+        .day:hover { background:#f3f4f6; }
+        .day .lbl { font-size:11px; color:#9ca3af; font-weight:500; }
+        .day .num { font-size:18px; color:#111827; font-weight:600; margin-top:2px; }
+        .day .marker { width:6px; height:6px; border-radius:999px; margin:6px auto 0; background:#e5e7eb; }
+        .day .marker.r { background:#ef4444; }
+        .day .marker.b { background:#3b82f6; }
+        .day .marker.g { background:#10b981; }
+        .day.is-today { background:#2563eb; }
+        .day.is-today .lbl { color:rgba(255,255,255,.85); }
+        .day.is-today .num { background:#fff; color:#2563eb; width:32px; height:32px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+        .day.is-today .marker { background:rgba(255,255,255,.85); }
+        .hbar-track { height:8px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
+        .hbar-fill { height:100%; border-radius:999px; }
+        .tbl-row { display:grid; align-items:center; padding:8px 0; }
+        .tbl-row + .tbl-row { border-top:1px solid #f3f4f6; }
+        .tbl-h { color:#9ca3af; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+        .ms-sm { font-size:18px; }
+        ::-webkit-scrollbar { width:5px; height:5px; }
+        ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
     </style>
 </head>
 <body style="background:#f3f4f6; min-height:100vh; display:flex;">
-
-    <!-- Mobile overlay -->
     <input type="checkbox" id="sidebar-toggle" class="hidden peer/sidebar" />
 
-    <!-- Sidebar -->
-    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 flex flex-col bg-white border-r border-gray-200 w-56 shrink-0 transition-transform -translate-x-full lg:translate-x-0 peer-checked/sidebar:translate-x-0">
-        <!-- Logo -->
-        <div class="flex items-center gap-2 px-4 py-4 border-b border-gray-100">
-            <label for="sidebar-toggle" class="lg:hidden cursor-pointer text-gray-500 hover:text-gray-800 mr-1">
+    <aside class="dk-side fixed lg:static inset-y-0 left-0 z-40 flex flex-col w-60 shrink-0 min-h-screen transition-transform -translate-x-full lg:translate-x-0 peer-checked/sidebar:translate-x-0">
+        <div class="flex items-center gap-2 px-5 py-4 border-b border-white/5">
+            <label for="sidebar-toggle" class="lg:hidden cursor-pointer text-white/60 hover:text-white mr-1">
                 <span class="material-symbols-outlined">close</span>
             </label>
-            <span class="material-symbols-outlined text-blue-600" style="font-size:22px;">apartment</span>
-            <span class="text-base font-bold text-gray-900 tracking-tight">kumburgaz</span>
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white" style="font-size:20px;">apartment</span>
+            </div>
+            <span class="text-base font-bold text-white tracking-tight">kumburgaz</span>
         </div>
 
-        <!-- Site badge -->
-        <div class="px-3 py-2 border-b border-gray-100">
-            <div class="text-xs font-semibold tracking-widest text-gray-400 uppercase px-2 py-1.5 bg-gray-50 rounded border border-gray-200 text-center select-none">
-                Kumburgaz Site
-            </div>
-        </div>
-
-        <!-- Nav -->
-        <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-            <a class="nav-item @IsActive("Home")" asp-controller="Home" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#3b82f6">dashboard</span>
-                Genel Bakış
-            </a>
-            <a class="nav-item @IsActive("Dues")" asp-controller="Dues" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#14b8a6">receipt_long</span>
-                Aidatlar
-            </a>
-            <a class="nav-item @IsActive("Ledger")" asp-controller="Ledger" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#f59e0b">payments</span>
-                Giderler
-            </a>
-            <a class="nav-item @IsActive("Units")" asp-controller="Units" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#8b5cf6">apartment</span>
-                Daireler
-            </a>
-            <a class="nav-item @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#10b981">account_balance_wallet</span>
-                Kasa, Banka
-            </a>
-
-            <!-- Yönetim group -->
-            <div class="pt-3 pb-1">
-                <span class="text-xs font-semibold tracking-widest uppercase text-gray-400 px-2">Yönetim</span>
-            </div>
-            <a class="nav-item @IsActive("DuesGeneration")" asp-controller="DuesGeneration" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#6366f1">event_repeat</span>
-                Dönem Üretimi
-            </a>
-            <!-- Ayarlar group -->
-            <div class="pt-2 pb-1">
-                <span class="text-xs font-semibold tracking-widest uppercase text-gray-400 px-2">Ayarlar</span>
-            </div>
-            <a class="nav-item @IsActive("Blocks")" asp-controller="Blocks" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">domain</span>
-                Bloklar
-            </a>
-            <a class="nav-item @IsActive("BillingGroups")" asp-controller="BillingGroups" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">group_work</span>
-                Aidat Grupları
-            </a>
-            <a class="nav-item @IsActive("DuesTypes")" asp-controller="DuesTypes" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">sell</span>
-                Aidat Tipleri
-            </a>
-            <a class="nav-item @IsActive("IncomeExpenseCategories")" asp-controller="IncomeExpenseCategories" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">category</span>
-                Gelir/Gider Kategorileri
-            </a>
-            <a class="nav-item @IsActive("OpeningBalances")" asp-controller="OpeningBalances" asp-action="Index">
-                <span class="nav-icon material-symbols-outlined" style="color:#64748b">account_balance</span>
-                Devir Bakiyeleri
-            </a>
-            <a class="nav-item @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt">
-                <span class="nav-icon material-symbols-outlined" style="color:#ec4899">bar_chart</span>
-                Raporlar
-            </a>
+        <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+            <a class="dk-nav @IsActive("Home")" asp-controller="Home" asp-action="Index"><span class="mi material-symbols-outlined">dashboard</span>Genel Bakış</a>
+            <div class="dk-section">Yönetim</div>
+            <a class="dk-nav @IsActive("Units")" asp-controller="Units" asp-action="Index"><span class="mi material-symbols-outlined">apartment</span>Daireler</a>
+            <a class="dk-nav @IsActive("Units")" asp-controller="Units" asp-action="Index"><span class="mi material-symbols-outlined">person</span>Malikler</a>
+            <a class="dk-nav @IsActive("Units")" asp-controller="Units" asp-action="Index"><span class="mi material-symbols-outlined">key</span>Kiracılar</a>
+            <div class="dk-section">Finans</div>
+            <a class="dk-nav @IsActive("Dues", "Collections", "DuesGeneration")" asp-controller="Dues" asp-action="Index"><span class="mi material-symbols-outlined">receipt_long</span>Aidatlar</a>
+            <a class="dk-nav @IsActive("Ledger")" asp-controller="Ledger" asp-action="Index"><span class="mi material-symbols-outlined">payments</span>Giderler</a>
+            <a class="dk-nav @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index"><span class="mi material-symbols-outlined">account_balance_wallet</span>Kasa &amp; Banka</a>
+            <div class="dk-section">İşlemler</div>
+            <a class="dk-nav @IsActive("Announcements")" asp-controller="Announcements" asp-action="Index"><span class="mi material-symbols-outlined">campaign</span>Duyurular</a>
+            <a class="dk-nav @IsActive("Requests")" asp-controller="Requests" asp-action="Index"><span class="mi material-symbols-outlined">support_agent</span>Talepler</a>
+            <div class="dk-section">Arşiv &amp; Raporlar</div>
+            <a class="dk-nav @IsActive("Documents")" asp-controller="Documents" asp-action="Index"><span class="mi material-symbols-outlined">folder</span>Belgeler</a>
+            <a class="dk-nav @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt"><span class="mi material-symbols-outlined">bar_chart</span>Raporlar</a>
+            <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
         </nav>
 
-        <!-- Footer -->
-        <div class="px-4 py-3 border-t border-gray-100 text-xs text-gray-400">
-            v2026.05
-        </div>
+        <a class="mx-3 mb-3 rounded-xl bg-white/[.06] hover:bg-white/[.09] p-3 flex items-center gap-3 text-sm text-white/80"
+           asp-area="Identity" asp-page="/Account/Login">
+            <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-blue-600 font-extrabold">G</div>
+            <div class="min-w-0">
+                <div class="text-white text-xs font-semibold">@(User.Identity?.IsAuthenticated == true ? "Google ile giriş bağlı" : "Google ile giriş")</div>
+                <div class="text-[11px] text-white/50 truncate">@(User.Identity?.IsAuthenticated == true ? User.Identity.Name : "Hesabınızı bağlayın")</div>
+            </div>
+            <span class="material-symbols-outlined @(User.Identity?.IsAuthenticated == true ? "text-emerald-400" : "text-white/40") ml-auto" style="font-size:16px;">@(User.Identity?.IsAuthenticated == true ? "check_circle" : "login")</span>
+        </a>
     </aside>
 
-    <!-- Main -->
     <div class="flex-1 flex flex-col min-h-screen min-w-0">
-        <!-- Topbar -->
-        <header class="sticky top-0 z-30 bg-white border-b border-gray-200 flex items-center gap-4 px-4 lg:px-6 h-14">
+        <header class="sticky top-0 z-30 bg-white border-b border-gray-200 flex items-center gap-3 px-5 h-16">
             <label for="sidebar-toggle" class="lg:hidden cursor-pointer text-gray-500 hover:text-gray-800">
                 <span class="material-symbols-outlined">menu</span>
             </label>
-            <h1 class="text-base font-semibold text-gray-900 flex-1">@ViewData["Title"]</h1>
-            <div class="flex items-center gap-3">
+            <div class="hidden md:flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700">
+                <span class="material-symbols-outlined text-gray-500">apartment</span>
+                Kumburgaz Sitesi
+                <span class="material-symbols-outlined text-gray-400">expand_more</span>
+            </div>
+            <div class="flex-1 max-w-xl">
+                <label class="flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-gray-50/60 hover:bg-white hover:border-gray-300 transition">
+                    <span class="material-symbols-outlined text-gray-400">search</span>
+                    <input class="grow bg-transparent text-sm outline-none placeholder:text-gray-400" placeholder="Ara (Ctrl+K)" />
+                    <kbd class="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5">⌘K</kbd>
+                </label>
+            </div>
+            <button class="relative w-10 h-10 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-600">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">7</span>
+            </button>
+            <button class="hidden sm:flex w-10 h-10 rounded-lg hover:bg-gray-100 items-center justify-center text-gray-600">
+                <span class="material-symbols-outlined">help</span>
+            </button>
+            <div class="ml-1 flex items-center gap-3 pl-3 border-l border-gray-200 h-10">
                 <partial name="_LoginPartial" />
             </div>
         </header>
 
-        <!-- Content -->
-        <main class="flex-1 p-4 lg:p-6">
-            <div class="max-w-7xl mx-auto">
+        <main class="flex-1 p-5 lg:p-6">
+            <div class="max-w-[1400px] mx-auto">
                 @RenderBody()
             </div>
         </main>

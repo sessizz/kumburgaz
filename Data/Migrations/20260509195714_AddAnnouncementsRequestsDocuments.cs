@@ -98,7 +98,7 @@ namespace Kumburgaz.Web.Data.Migrations
                 columns: new[] { "Id", "AssignedTo", "CreatedAt", "Description", "DueDate", "Priority", "ResolvedAt", "Status", "Title", "UnitId" },
                 values: new object[,]
                 {
-                    { 1, "Teknik Servis", new DateTime(2026, 5, 7, 8, 30, 0, 0, DateTimeKind.Utc), "A Blok asansörü katta kalıyor.", new DateTime(2026, 5, 10, 18, 0, 0, 0, DateTimeKind.Utc), 4, null, 1, "Asansör arızası - A Blok", 1 },
+                    { 1, "Teknik Servis", new DateTime(2026, 5, 7, 8, 30, 0, 0, DateTimeKind.Utc), "A Blok asansörü katta kalıyor.", new DateTime(2026, 5, 10, 18, 0, 0, 0, DateTimeKind.Utc), 4, null, 1, "Asansör arızası - A Blok", null },
                     { 2, "Site Görevlisi", new DateTime(2026, 5, 6, 11, 0, 0, 0, DateTimeKind.Utc), "Ortak bahçe aydınlatması kontrol edilecek.", null, 2, null, 2, "Bahçe aydınlatması", null }
                 });
 

@@ -778,8 +778,7 @@ namespace Kumburgaz.Web.Data.Migrations
                             DueDate = new DateTime(2026, 5, 10, 18, 0, 0, 0, DateTimeKind.Utc),
                             Priority = 4,
                             Status = 1,
-                            Title = "Asansör arızası - A Blok",
-                            UnitId = 1
+                            Title = "Asansör arızası - A Blok"
                         },
                         new
                         {

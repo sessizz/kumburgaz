@@ -223,7 +223,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 Id = 1,
                 Title = "Asansör arızası - A Blok",
                 Description = "A Blok asansörü katta kalıyor.",
-                UnitId = 1,
+                UnitId = null,
                 Status = ServiceRequestStatus.Open,
                 Priority = ServiceRequestPriority.Urgent,
                 AssignedTo = "Teknik Servis",

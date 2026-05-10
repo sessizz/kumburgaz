@@ -50,11 +50,25 @@
                 <span>@successMessage</span>
             </div>
         }
+        @if (TempData["Success"] is string success)
+        {
+            <div class="alert alert-success m-4">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span>@success</span>
+            </div>
+        }
         @if (TempData["ImportError"] is string errorMessage)
         {
             <div class="alert alert-error m-4">
                 <span class="material-symbols-outlined">error</span>
                 <span>@errorMessage</span>
+            </div>
+        }
+        @if (TempData["Error"] is string error)
+        {
+            <div class="alert alert-error m-4">
+                <span class="material-symbols-outlined">error</span>
+                <span>@error</span>
             </div>
         }
 
@@ -129,7 +143,7 @@
         }
         else
         {
-            <div class="hidden lg:grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500">
+            <div class="hidden lg:grid grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_170px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 <div></div>
                 <div>Daire / Dönem</div>
                 <div>Aidat Tipi</div>
@@ -150,7 +164,7 @@
                     var iconName = row.IsOpeningBalance ? "history" : "receipt_long";
                     var titleText = row.IsOpeningBalance ? "Devir Bakiyesi" : $"{row.Period} — Aidatlar";
                     var amountIsCredit = row.IsOpeningBalance && row.RemainingAmount < 0;
-                    <li class="grid grid-cols-1 lg:grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_120px] gap-4 items-center px-5 py-4 @rowBg">
+                    <li class="grid grid-cols-1 lg:grid-cols-[44px_1.8fr_0.7fr_0.85fr_0.85fr_0.7fr_0.7fr_170px] gap-4 items-center px-5 py-4 @rowBg">
                         <div class="hidden lg:flex justify-center">
                             <span class="material-symbols-outlined rounded-full p-2 @iconBg">@iconName</span>
                         </div>
@@ -195,13 +209,24 @@
                         </div>
                         <div class="text-end font-bold @(amountIsCredit ? "text-success" : "")">@row.Amount.ToString("N2") TL</div>
                         <div class="text-end font-bold @(row.IsPaid && !row.IsOpeningBalance ? "text-success" : "") @(amountIsCredit ? "text-success" : "")">@row.RemainingAmount.ToString("N2") TL</div>
-                        <div class="text-end">
-                            @if (!row.IsPaid && !row.IsOpeningBalance)
+                        <div class="flex justify-end gap-1">
+                            @if (!row.IsOpeningBalance)
                             {
-                                <a class="btn btn-sm btn-primary"
-                                   asp-controller="Collections" asp-action="Create"
-                                   asp-route-duesInstallmentId="@row.Id"
-                                   asp-route-returnUrl="@returnUrl">Tahsilat</a>
+                                <a class="btn btn-sm btn-ghost"
+                                   asp-controller="Reports" asp-action="EditInstallment"
+                                   asp-route-id="@row.Id"
+                                   asp-route-returnUrl="@returnUrl"
+                                   title="Aidatı düzenle">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                </a>
+
+                                @if (!row.IsPaid)
+                                {
+                                    <a class="btn btn-sm btn-primary"
+                                       asp-controller="Collections" asp-action="Create"
+                                       asp-route-duesInstallmentId="@row.Id"
+                                       asp-route-returnUrl="@returnUrl">Tahsilat</a>
+                                }
                             }
                         </div>
                     </li>

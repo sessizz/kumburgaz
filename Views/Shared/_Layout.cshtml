@@ -116,15 +116,6 @@
             <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
         </nav>
 
-        <a class="mx-3 mb-3 rounded-xl bg-white/[.06] hover:bg-white/[.09] p-3 flex items-center gap-3 text-sm text-white/80"
-           asp-area="Identity" asp-page="/Account/Login">
-            <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-blue-600 font-extrabold">YK</div>
-            <div class="min-w-0">
-                <div class="text-white text-xs font-semibold">@(User.Identity?.IsAuthenticated == true ? "Oturum açık" : "Giriş yap")</div>
-                <div class="text-[11px] text-white/50 truncate">@(User.Identity?.IsAuthenticated == true ? User.Identity.Name : "Kullanıcı adı ve şifre")</div>
-            </div>
-            <span class="material-symbols-outlined @(User.Identity?.IsAuthenticated == true ? "text-emerald-400" : "text-white/40") ml-auto" style="font-size:16px;">@(User.Identity?.IsAuthenticated == true ? "check_circle" : "login")</span>
-        </a>
     </aside>
 
     <div class="flex-1 flex flex-col min-h-screen min-w-0">

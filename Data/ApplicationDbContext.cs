@@ -9,6 +9,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Block> Blocks => Set<Block>();
     public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<UnitAccount> UnitAccounts => Set<UnitAccount>();
     public DbSet<CombinedUnitMember> CombinedUnitMembers => Set<CombinedUnitMember>();
     public DbSet<DuesType> DuesTypes => Set<DuesType>();
     public DbSet<BillingGroup> BillingGroups => Set<BillingGroup>();
@@ -35,6 +37,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Unit>()
             .HasIndex(x => new { x.BlockId, x.UnitNo })
             .IsUnique();
+
+        builder.Entity<Account>()
+            .HasIndex(x => new { x.AccountType, x.Name });
+
+        builder.Entity<UnitAccount>()
+            .HasIndex(x => new { x.UnitId, x.Role, x.Active });
+
+        builder.Entity<UnitAccount>()
+            .HasOne(x => x.Unit)
+            .WithMany(x => x.UnitAccounts)
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<UnitAccount>()
+            .HasOne(x => x.Account)
+            .WithMany(x => x.UnitAccounts)
+            .HasForeignKey(x => x.AccountId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<CombinedUnitMember>()
             .HasIndex(x => new { x.CombinedUnitId, x.ComponentUnitId })
@@ -63,6 +83,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<DuesInstallment>()
             .HasIndex(x => new { x.BillingGroupId, x.Period, x.UnitId })
             .IsUnique();
+
+        builder.Entity<DuesInstallment>()
+            .HasOne(x => x.ResponsibleAccount)
+            .WithMany(x => x.DuesInstallments)
+            .HasForeignKey(x => x.ResponsibleAccountId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.Entity<DuesInstallment>()
             .Property(x => x.Amount)

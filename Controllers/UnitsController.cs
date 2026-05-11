@@ -15,6 +15,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     {
         var unit = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.UnitAccounts).ThenInclude(x => x.Account)
             .Include(x => x.CombinedUnitMembers).ThenInclude(x => x.ComponentUnit).ThenInclude(x => x!.Block)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (unit is null) return NotFound();
@@ -58,6 +59,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     {
         var units = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Account)
             .Include(x => x.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
@@ -75,6 +78,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     {
         var units = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Account)
             .Include(x => x.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
@@ -134,6 +139,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         db.Units.Add(unit);
         await db.SaveChangesAsync();
 
+        await SaveUnitAccountsAsync(unit, model);
         await SaveCombinedMembersAsync(unit.Id, model);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
@@ -143,6 +149,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     {
         var unit = await db.Units
             .Include(x => x.CombinedUnitMembers)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Account)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (unit is null)
         {
@@ -169,6 +177,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
 
         var unit = await db.Units
             .Include(x => x.CombinedUnitMembers)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Account)
             .FirstOrDefaultAsync(x => x.Id == model.Id.Value);
 
         if (unit is null)
@@ -177,6 +187,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         }
 
         ApplyModel(unit, model);
+        await SaveUnitAccountsAsync(unit, model);
         await SaveCombinedMembersAsync(unit.Id, model);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
@@ -194,6 +205,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         }
 
         var hasRelations = await db.BillingGroupUnits.AnyAsync(x => x.UnitId == id)
+            || await db.UnitAccounts.AnyAsync(x => x.UnitId == id)
             || await db.Collections.AnyAsync(x => x.UnitId == id)
             || await db.DuesInstallments.AnyAsync(x => x.UnitId == id)
             || await db.CombinedUnitMembers.AnyAsync(x => x.ComponentUnitId == id);
@@ -224,6 +236,11 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         var relatedUnitIds = new HashSet<int>();
 
         relatedUnitIds.UnionWith(await db.BillingGroupUnits
+            .Where(x => selectedUnitIds.Contains(x.UnitId))
+            .Select(x => x.UnitId)
+            .ToListAsync());
+
+        relatedUnitIds.UnionWith(await db.UnitAccounts
             .Where(x => selectedUnitIds.Contains(x.UnitId))
             .Select(x => x.UnitId)
             .ToListAsync());
@@ -677,6 +694,18 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
             .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
             .ToListAsync();
 
+        model.OwnerAccountOptions = await db.Accounts.AsNoTracking()
+            .Where(x => x.AccountType == AccountType.Owner && (x.Active || x.Id == model.OwnerAccountId))
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), x.Id == model.OwnerAccountId))
+            .ToListAsync();
+
+        model.TenantAccountOptions = await db.Accounts.AsNoTracking()
+            .Where(x => x.AccountType == AccountType.Tenant && (x.Active || x.Id == model.TenantAccountId))
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), x.Id == model.TenantAccountId))
+            .ToListAsync();
+
         model.ComponentUnitOptions = await db.Units.AsNoTracking()
             .Where(x => !x.IsCombined && x.Id != model.Id)
             .Include(x => x.Block)
@@ -691,6 +720,26 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     private async Task ValidateUnitFormAsync(UnitFormViewModel model)
     {
         model.ComponentUnitIds = model.ComponentUnitIds.Distinct().ToList();
+
+        if (model.OwnerAccountId.HasValue)
+        {
+            var ownerValid = await db.Accounts.AsNoTracking()
+                .AnyAsync(x => x.Id == model.OwnerAccountId.Value && x.AccountType == AccountType.Owner);
+            if (!ownerValid)
+            {
+                ModelState.AddModelError(nameof(model.OwnerAccountId), "Malik için yalnızca Malik tipindeki hesaplar seçilebilir.");
+            }
+        }
+
+        if (model.TenantAccountId.HasValue)
+        {
+            var tenantValid = await db.Accounts.AsNoTracking()
+                .AnyAsync(x => x.Id == model.TenantAccountId.Value && x.AccountType == AccountType.Tenant);
+            if (!tenantValid)
+            {
+                ModelState.AddModelError(nameof(model.TenantAccountId), "Kiracı için yalnızca Kiracı tipindeki hesaplar seçilebilir.");
+            }
+        }
 
         if (!model.IsCombined)
         {
@@ -733,12 +782,16 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
 
     private static UnitFormViewModel ToFormModel(Unit unit)
     {
+        var owner = AccountAssignmentService.ActiveOwner(unit);
+        var tenant = AccountAssignmentService.ActiveTenant(unit);
         return new UnitFormViewModel
         {
             Id = unit.Id,
             BlockId = unit.BlockId,
             UnitNo = unit.UnitNo,
             OwnerName = unit.OwnerName,
+            OwnerAccountId = owner?.Id,
+            TenantAccountId = tenant?.Id,
             Active = unit.Active,
             IsCombined = unit.IsCombined,
             OpeningBalance = unit.OpeningBalance,
@@ -753,7 +806,6 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
     {
         unit.BlockId = model.BlockId;
         unit.UnitNo = model.UnitNo.Trim();
-        unit.OwnerName = string.IsNullOrWhiteSpace(model.OwnerName) ? null : model.OwnerName.Trim();
         unit.Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : model.Phone.Trim();
         unit.MoveInDate = model.MoveInDate.HasValue
             ? DateTime.SpecifyKind(model.MoveInDate.Value.Date, DateTimeKind.Utc)
@@ -764,6 +816,60 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         unit.OpeningBalanceDate = model.OpeningBalanceDate.HasValue
             ? DateTime.SpecifyKind(model.OpeningBalanceDate.Value.Date, DateTimeKind.Utc)
             : null;
+    }
+
+    private async Task SaveUnitAccountsAsync(Unit unit, UnitFormViewModel model)
+    {
+        var existing = await db.UnitAccounts
+            .Where(x => x.UnitId == unit.Id &&
+                        (x.Role == UnitAccountRole.Owner || x.Role == UnitAccountRole.Tenant))
+            .ToListAsync();
+
+        db.UnitAccounts.RemoveRange(existing);
+
+        Account? owner = null;
+        if (model.OwnerAccountId.HasValue)
+        {
+            owner = await db.Accounts.FirstOrDefaultAsync(x =>
+                x.Id == model.OwnerAccountId.Value &&
+                x.AccountType == AccountType.Owner);
+
+            if (owner is not null)
+            {
+                db.UnitAccounts.Add(new UnitAccount
+                {
+                    UnitId = unit.Id,
+                    AccountId = owner.Id,
+                    Role = UnitAccountRole.Owner,
+                    Active = true,
+                    StartDate = unit.MoveInDate
+                });
+            }
+        }
+
+        if (model.TenantAccountId.HasValue)
+        {
+            var tenant = await db.Accounts.FirstOrDefaultAsync(x =>
+                x.Id == model.TenantAccountId.Value &&
+                x.AccountType == AccountType.Tenant);
+
+            if (tenant is not null)
+            {
+                db.UnitAccounts.Add(new UnitAccount
+                {
+                    UnitId = unit.Id,
+                    AccountId = tenant.Id,
+                    Role = UnitAccountRole.Tenant,
+                    Active = true
+                });
+            }
+        }
+
+        unit.OwnerName = owner?.Name ?? (string.IsNullOrWhiteSpace(model.OwnerName) ? null : model.OwnerName.Trim());
+        if (owner is not null && string.IsNullOrWhiteSpace(unit.Phone))
+        {
+            unit.Phone = owner.Phone;
+        }
     }
 
     private async Task SaveCombinedMembersAsync(int unitId, UnitFormViewModel model)

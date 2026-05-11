@@ -1,0 +1,61 @@
+@model Kumburgaz.Web.Models.AccountFormViewModel
+@using Kumburgaz.Web.Models
+@using Kumburgaz.Web.Services
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="p-6">
+        <form method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input asp-for="Id" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Hesap Tipi</legend>
+                <select asp-for="AccountType" class="select select-bordered w-full">
+                    @foreach (var type in Enum.GetValues<AccountType>())
+                    {
+                        <option value="@((int)type)">@AccountDisplayHelper.TypeLabel(type)</option>
+                    }
+                </select>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Ad Soyad / Ünvan</legend>
+                <input asp-for="Name" class="input input-bordered w-full" />
+                <span asp-validation-for="Name" class="text-error text-xs"></span>
+            </fieldset>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Telefon</legend>
+                    <input asp-for="Phone" class="input input-bordered w-full" />
+                    <span asp-validation-for="Phone" class="text-error text-xs"></span>
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">E-posta</legend>
+                    <input asp-for="Email" class="input input-bordered w-full" />
+                    <span asp-validation-for="Email" class="text-error text-xs"></span>
+                </fieldset>
+            </div>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Not</legend>
+                <textarea asp-for="Note" class="textarea textarea-bordered w-full" rows="3"></textarea>
+                <span asp-validation-for="Note" class="text-error text-xs"></span>
+            </fieldset>
+
+            <label class="label cursor-pointer justify-start gap-3">
+                <input asp-for="Active" class="toggle toggle-primary" />
+                <span class="label-text">Aktif</span>
+            </label>
+
+            <div class="flex gap-2 justify-end pt-2">
+                <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                <button class="btn btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">save</span>
+                    Kaydet
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

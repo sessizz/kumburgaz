@@ -89,6 +89,7 @@
                         <th>Dönem</th>
                         <th>Tahakkuk</th>
                         <th>Daire/Birleşik</th>
+                        <th>Sorumlu Hesap</th>
                         <th>Aidat Tipi</th>
                         <th>Aidat Grubu</th>
                         <th class="text-end">Tutar</th>
@@ -103,6 +104,7 @@
                         <td><span class="badge badge-ghost">@row.Period</span></td>
                         <td>@row.AccrualDate.ToString("dd.MM.yyyy")</td>
                         <td class="font-medium">@row.UnitDisplay</td>
+                        <td class="text-sm">@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "—" : row.ResponsibleAccountName)</td>
                         <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
                         <td>@row.BillingGroupName</td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>

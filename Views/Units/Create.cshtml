@@ -28,10 +28,23 @@
                     <span asp-validation-for="UnitNo" class="text-error text-xs"></span>
                 </fieldset>
 
-                <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Malik</legend>
-                    <input asp-for="OwnerName" class="input input-bordered w-full" />
-                </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Malik Hesabı</legend>
+                        <select asp-for="OwnerAccountId" asp-items="Model.OwnerAccountOptions" class="select select-bordered w-full">
+                            <option value="">Malik seçiniz</option>
+                        </select>
+                        <span asp-validation-for="OwnerAccountId" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Kiracı Hesabı</legend>
+                        <select asp-for="TenantAccountId" asp-items="Model.TenantAccountOptions" class="select select-bordered w-full">
+                            <option value="">Kiracı yok</option>
+                        </select>
+                        <span asp-validation-for="TenantAccountId" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Malik ve kiracı kayıtları Hesaplar menüsünden oluşturulur.</p>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <fieldset class="fieldset">

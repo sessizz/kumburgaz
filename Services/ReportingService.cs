@@ -32,6 +32,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ThenInclude(x => x!.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
             .Where(x => query.Period == null || x.Period == query.Period)
             .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
             .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
@@ -50,6 +51,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                     : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
                 BillingGroupName = x.BillingGroup!.Name,
                 DuesTypeName = x.BillingGroup.DuesType!.Name,
+                ResponsibleAccountName = x.ResponsibleAccount?.Name ?? string.Empty,
                 Period = x.Period,
                 AccrualDate = x.AccrualDate,
                 Amount = x.Amount,
@@ -112,6 +114,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                         UnitDisplay = anchor.UnitDisplay,
                         BillingGroupName = anchor.BillingGroupName,
                         DuesTypeName = "Fazla Ödeme",
+                        ResponsibleAccountName = anchor.ResponsibleAccountName,
                         Period = anchor.Period,
                         AccrualDate = anchor.AccrualDate,
                         Amount = 0,
@@ -143,6 +146,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 UnitDisplay = UnitDisplayHelper.Display(unit),
                 BillingGroupName = "—",
                 DuesTypeName = "Devir Bakiyesi",
+                ResponsibleAccountName = unit.OwnerName ?? string.Empty,
                 Period = "—",
                 AccrualDate = unit.OpeningBalanceDate!.Value,
                 Amount = -unit.OpeningBalance, // pozitif bakiye → negatif borç (alacak)
@@ -166,8 +170,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         ws.Cell(1, 3).Value = "Daire/Birleşik";
         ws.Cell(1, 4).Value = "Aidat Tipi";
         ws.Cell(1, 5).Value = "Aidat Grubu";
-        ws.Cell(1, 6).Value = "Tutar";
-        ws.Cell(1, 7).Value = "Kalan";
+        ws.Cell(1, 6).Value = "Sorumlu Hesap";
+        ws.Cell(1, 7).Value = "Tutar";
+        ws.Cell(1, 8).Value = "Kalan";
 
         var rowIndex = 2;
         foreach (var row in rows)
@@ -178,8 +183,9 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             ws.Cell(rowIndex, 3).Value = row.UnitDisplay;
             ws.Cell(rowIndex, 4).Value = row.DuesTypeName;
             ws.Cell(rowIndex, 5).Value = row.BillingGroupName;
-            ws.Cell(rowIndex, 6).Value = row.Amount;
-            ws.Cell(rowIndex, 7).Value = row.RemainingAmount;
+            ws.Cell(rowIndex, 6).Value = row.ResponsibleAccountName;
+            ws.Cell(rowIndex, 7).Value = row.Amount;
+            ws.Cell(rowIndex, 8).Value = row.RemainingAmount;
             rowIndex++;
         }
 
@@ -208,6 +214,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                         c.RelativeColumn(2);
                         c.RelativeColumn(2);
                         c.RelativeColumn(3);
+                        c.RelativeColumn(2);
                         c.RelativeColumn(1);
                         c.RelativeColumn(1);
                     });
@@ -219,6 +226,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                         header.Cell().Text("Daire/Birleşik");
                         header.Cell().Text("Tip");
                         header.Cell().Text("Aidat Grubu");
+                        header.Cell().Text("Sorumlu");
                         header.Cell().Text("Tutar");
                         header.Cell().Text("Kalan");
                     });
@@ -230,6 +238,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                         table.Cell().Text(row.UnitDisplay);
                         table.Cell().Text(row.DuesTypeName);
                         table.Cell().Text(row.BillingGroupName);
+                        table.Cell().Text(row.ResponsibleAccountName);
                         table.Cell().Text(row.Amount.ToString("N2"));
                         table.Cell().Text(row.RemainingAmount.ToString("N2"));
                     }

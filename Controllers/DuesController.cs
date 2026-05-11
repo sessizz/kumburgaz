@@ -10,7 +10,8 @@ namespace Kumburgaz.Web.Controllers;
 [Authorize]
 public class DuesController(
     ApplicationDbContext db,
-    ICollectionService collectionService) : Controller
+    ICollectionService collectionService,
+    AccountAssignmentService accountAssignmentService) : Controller
 {
     public async Task<IActionResult> Index(string? q = null, string? tab = null)
     {
@@ -30,6 +31,7 @@ public class DuesController(
             .ThenInclude(x => x!.Block)
             .Include(x => x.Allocations)
             .ThenInclude(x => x.Collection)
+            .Include(x => x.ResponsibleAccount)
             .ToListAsync();
 
         var query = q?.Trim();
@@ -52,6 +54,7 @@ public class DuesController(
                     BlockName = unit?.Block?.Name ?? FirstActiveGroupUnit(x.BillingGroup)?.Block?.Name ?? "-",
                     UnitNo = unit?.UnitNo ?? FirstActiveGroupUnit(x.BillingGroup)?.UnitNo ?? "-",
                     OwnerName = unit?.OwnerName ?? FirstActiveGroupUnit(x.BillingGroup)?.OwnerName ?? string.Empty,
+                    ResponsibleAccountName = x.ResponsibleAccount?.Name ?? string.Empty,
                     UnitDisplay = unit is not null ? UnitDisplayHelper.Display(unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
                     DuesTypeName = x.BillingGroup?.DuesType?.Name ?? "Aidat",
                     AccrualDate = x.AccrualDate,
@@ -74,6 +77,7 @@ public class DuesController(
                         x.BlockName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         x.UnitNo.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         x.OwnerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        x.ResponsibleAccountName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         x.UnitDisplay.Contains(query, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.IsPaid)
             .ThenBy(x => x.PaymentOrDueDate)
@@ -89,6 +93,114 @@ public class DuesController(
             Query = query ?? string.Empty,
             ActiveTab = string.Equals(tab, "collections", StringComparison.OrdinalIgnoreCase) ? "collections" : "dues"
         });
+    }
+
+    public async Task<IActionResult> CreateInstallment()
+    {
+        var period = PeriodHelper.CurrentFiscalPeriod(DateTime.Today);
+        var startYear = int.Parse(period[..4]);
+        var model = new DuesInstallmentCreateViewModel
+        {
+            Period = period,
+            AccrualDate = new DateTime(startYear, 7, 1),
+            DueDate = new DateTime(startYear, 7, 31),
+            PayerType = DuesPayerType.Owner
+        };
+
+        return View(await BuildInstallmentFormAsync(model));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateInstallment(DuesInstallmentCreateViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(await BuildInstallmentFormAsync(model));
+        }
+
+        var group = await db.BillingGroups
+            .AsNoTracking()
+            .Include(x => x.DuesType)
+            .FirstOrDefaultAsync(x => x.Id == model.BillingGroupId && x.Active);
+        if (group is null)
+        {
+            ModelState.AddModelError(nameof(model.BillingGroupId), "Aktif aidat grubu bulunamadı.");
+            return View(await BuildInstallmentFormAsync(model));
+        }
+
+        var unitExists = await db.Units.AsNoTracking().AnyAsync(x => x.Id == model.UnitId && x.Active);
+        if (!unitExists)
+        {
+            ModelState.AddModelError(nameof(model.UnitId), "Aktif daire bulunamadı.");
+            return View(await BuildInstallmentFormAsync(model));
+        }
+
+        if (model.Amount <= 0)
+        {
+            model.Amount = group.DuesType?.Amount ?? 0m;
+        }
+
+        var exists = await db.DuesInstallments.AnyAsync(x =>
+            x.BillingGroupId == model.BillingGroupId &&
+            x.UnitId == model.UnitId &&
+            x.Period == model.Period);
+        if (exists)
+        {
+            ModelState.AddModelError(string.Empty, "Bu daire ve dönem için aidat borcu zaten var.");
+            return View(await BuildInstallmentFormAsync(model));
+        }
+
+        var responsibleAccountId = await accountAssignmentService.ResolveResponsibleAccountIdAsync(model.UnitId, model.PayerType);
+        db.DuesInstallments.Add(new DuesInstallment
+        {
+            BillingGroupId = model.BillingGroupId,
+            UnitId = model.UnitId,
+            ResponsibleAccountId = responsibleAccountId,
+            Period = model.Period,
+            AccrualDate = DateTimeHelper.EnsureUtc(model.AccrualDate),
+            DueDate = DateTimeHelper.EnsureUtc(model.DueDate),
+            Amount = model.Amount,
+            RemainingAmount = model.Amount,
+            Status = InstallmentStatus.Open
+        });
+
+        await db.SaveChangesAsync();
+        TempData["Success"] = "Aidat borcu eklendi.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<DuesInstallmentCreateViewModel> BuildInstallmentFormAsync(DuesInstallmentCreateViewModel model)
+    {
+        var groups = await db.BillingGroups.AsNoTracking()
+            .Where(x => x.Active)
+            .Include(x => x.DuesType)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        model.BillingGroupOptions = groups
+            .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(
+                $"{x.Name} ({x.DuesType?.Name ?? "Aidat"} - {(x.DuesType?.Amount ?? 0m):N2} TL)",
+                x.Id.ToString(),
+                x.Id == model.BillingGroupId))
+            .ToList();
+
+        var units = await db.Units.AsNoTracking()
+            .Where(x => x.Active)
+            .Include(x => x.Block)
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        model.UnitOptions = units
+            .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem(
+                $"{x.Block?.Name ?? "-"}-{x.UnitNo}",
+                x.Id.ToString(),
+                x.Id == model.UnitId))
+            .ToList();
+
+        model.PayerTypeOptions = AccountDisplayHelper.PayerTypeOptions(model.PayerType);
+        return model;
     }
 
     /// <summary>

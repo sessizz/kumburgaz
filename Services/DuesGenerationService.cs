@@ -4,8 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
-public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationService
+public class DuesGenerationService : IDuesGenerationService
 {
+    private readonly ApplicationDbContext db;
+    private readonly AccountAssignmentService accountAssignmentService;
+
+    public DuesGenerationService(ApplicationDbContext db)
+        : this(db, new AccountAssignmentService(db))
+    {
+    }
+
+    public DuesGenerationService(ApplicationDbContext db, AccountAssignmentService accountAssignmentService)
+    {
+        this.db = db;
+        this.accountAssignmentService = accountAssignmentService;
+    }
+
     public async Task<List<DuesGenerationPreviewItem>> PreviewAsync(string period)
     {
         ValidatePeriod(period);
@@ -45,7 +59,12 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
         return filtered;
     }
 
-    public async Task GenerateForPeriodAsync(string period, DateTime accrualDate, DateTime dueDate)
+    public Task GenerateForPeriodAsync(string period, DateTime accrualDate, DateTime dueDate)
+    {
+        return GenerateForPeriodAsync(period, accrualDate, dueDate, DuesPayerType.Owner);
+    }
+
+    public async Task GenerateForPeriodAsync(string period, DateTime accrualDate, DateTime dueDate, DuesPayerType payerType)
     {
         ValidatePeriod(period);
         accrualDate = DateTimeHelper.EnsureUtc(accrualDate);
@@ -56,6 +75,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
             .Include(x => x.DuesType)
             .Include(x => x.Units)
             .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
             .Where(x => x.Active)
             .ToListAsync();
 
@@ -76,10 +96,24 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                     continue;
                 }
 
-                var exists = await db.DuesInstallments.AnyAsync(x =>
+                var representativeUnitId = group.Units
+                    .Where(u => u.Unit is { Active: true })
+                    .OrderBy(u => u.Unit!.Block!.Name)
+                    .ThenBy(u => u.Unit!.UnitNo)
+                    .Select(u => (int?)u.UnitId)
+                    .FirstOrDefault();
+                var responsibleAccountId = representativeUnitId.HasValue
+                    ? await accountAssignmentService.ResolveResponsibleAccountIdAsync(representativeUnitId.Value, payerType)
+                    : null;
+
+                var existing = await db.DuesInstallments.FirstOrDefaultAsync(x =>
                     x.BillingGroupId == group.Id && x.Period == period && x.UnitId == null);
-                if (exists)
+                if (existing is not null)
                 {
+                    if (existing.ResponsibleAccountId is null && responsibleAccountId.HasValue)
+                    {
+                        existing.ResponsibleAccountId = responsibleAccountId;
+                    }
                     continue;
                 }
 
@@ -87,6 +121,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 {
                     BillingGroupId = group.Id,
                     UnitId = null,
+                    ResponsibleAccountId = responsibleAccountId,
                     Period = period,
                     AccrualDate = accrualDate,
                     DueDate = dueDate,
@@ -104,10 +139,15 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 .ToList();
             foreach (var unitId in unitIds)
             {
-                var exists = await db.DuesInstallments.AnyAsync(x =>
+                var responsibleAccountId = await accountAssignmentService.ResolveResponsibleAccountIdAsync(unitId, payerType);
+                var existing = await db.DuesInstallments.FirstOrDefaultAsync(x =>
                     x.BillingGroupId == group.Id && x.Period == period && x.UnitId == unitId);
-                if (exists)
+                if (existing is not null)
                 {
+                    if (existing.ResponsibleAccountId is null && responsibleAccountId.HasValue)
+                    {
+                        existing.ResponsibleAccountId = responsibleAccountId;
+                    }
                     continue;
                 }
 
@@ -115,6 +155,7 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 {
                     BillingGroupId = group.Id,
                     UnitId = unitId,
+                    ResponsibleAccountId = responsibleAccountId,
                     Period = period,
                     AccrualDate = accrualDate,
                     DueDate = dueDate,
@@ -169,6 +210,8 @@ public class DuesGenerationService(ApplicationDbContext db) : IDuesGenerationSer
                 });
             }
         }
+
+        await db.SaveChangesAsync();
     }
 
     public async Task DeleteForPeriodAsync(string period)

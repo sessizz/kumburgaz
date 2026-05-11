@@ -15,6 +15,26 @@ public enum InstallmentStatus
     Paid = 3
 }
 
+public enum AccountType
+{
+    Owner = 1,
+    Tenant = 2,
+    Personnel = 3,
+    Supplier = 4
+}
+
+public enum UnitAccountRole
+{
+    Owner = 1,
+    Tenant = 2
+}
+
+public enum DuesPayerType
+{
+    Owner = 1,
+    Tenant = 2
+}
+
 public class Site
 {
     public int Id { get; set; }
@@ -70,8 +90,46 @@ public class Unit
     public DateTime? OpeningBalanceDate { get; set; }
 
     public ICollection<BillingGroupUnit> BillingGroupUnits { get; set; } = new List<BillingGroupUnit>();
+    public ICollection<UnitAccount> UnitAccounts { get; set; } = new List<UnitAccount>();
     public ICollection<CombinedUnitMember> CombinedUnitMembers { get; set; } = new List<CombinedUnitMember>();
     public ICollection<CombinedUnitMember> MemberOfCombinedUnits { get; set; } = new List<CombinedUnitMember>();
+}
+
+public class Account
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(160)]
+    public string Name { get; set; } = string.Empty;
+
+    public AccountType AccountType { get; set; }
+
+    [MaxLength(40)]
+    public string? Phone { get; set; }
+
+    [MaxLength(160), EmailAddress]
+    public string? Email { get; set; }
+
+    [MaxLength(500)]
+    public string? Note { get; set; }
+
+    public bool Active { get; set; } = true;
+
+    public ICollection<UnitAccount> UnitAccounts { get; set; } = new List<UnitAccount>();
+    public ICollection<DuesInstallment> DuesInstallments { get; set; } = new List<DuesInstallment>();
+}
+
+public class UnitAccount
+{
+    public int Id { get; set; }
+    public int UnitId { get; set; }
+    public Unit? Unit { get; set; }
+    public int AccountId { get; set; }
+    public Account? Account { get; set; }
+    public UnitAccountRole Role { get; set; }
+    public bool Active { get; set; } = true;
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
 }
 
 public class CombinedUnitMember
@@ -144,6 +202,8 @@ public class DuesInstallment
     public BillingGroup? BillingGroup { get; set; }
     public int? UnitId { get; set; }
     public Unit? Unit { get; set; }
+    public int? ResponsibleAccountId { get; set; }
+    public Account? ResponsibleAccount { get; set; }
 
     [Required, MaxLength(9)]
     public string Period { get; set; } = string.Empty; // YYYY-YYYY

@@ -1,0 +1,127 @@
+@model List<Kumburgaz.Web.Models.Account>
+@using Kumburgaz.Web.Models
+@using Kumburgaz.Web.Services
+@{
+    ViewData["Title"] = "Hesaplar";
+    var currentType = ViewBag.Type as AccountType?;
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Hesaplar</h2>
+            <p class="text-sm text-gray-400">Malik, kiracı, personel ve tedarikçi hesapları</p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">
+            <span class="material-symbols-outlined ms-sm">add</span>
+            Yeni Hesap
+        </a>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <form method="get" class="flex flex-wrap gap-3 items-end">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Arama</legend>
+                <input class="input input-bordered" name="q" value="@ViewBag.Query" placeholder="Ad, telefon, e-posta" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Hesap Tipi</legend>
+                <select class="select select-bordered" name="type">
+                    <option value="">Tüm</option>
+                    @foreach (var type in Enum.GetValues<AccountType>())
+                    {
+                        if (currentType == type)
+                        {
+                            <option value="@((int)type)" selected>@AccountDisplayHelper.TypeLabel(type)</option>
+                        }
+                        else
+                        {
+                            <option value="@((int)type)">@AccountDisplayHelper.TypeLabel(type)</option>
+                        }
+                    }
+                </select>
+            </fieldset>
+            <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">search</span>
+                Ara
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Hesap</th>
+                        <th>Tip</th>
+                        <th>Telefon</th>
+                        <th>E-posta</th>
+                        <th>Bağlı Daireler</th>
+                        <th>Durum</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var account in Model)
+                {
+                    var unitLinks = account.UnitAccounts
+                        .Where(x => x.Active && x.Unit?.Block is not null)
+                        .OrderBy(x => x.Unit!.Block!.Name)
+                        .ThenBy(x => x.Unit!.UnitNo)
+                        .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo} ({AccountDisplayHelper.RoleLabel(x.Role)})")
+                        .ToList();
+                    <tr>
+                        <td class="font-semibold">@account.Name</td>
+                        <td><span class="badge badge-info badge-soft">@AccountDisplayHelper.TypeLabel(account.AccountType)</span></td>
+                        <td class="text-sm">@account.Phone</td>
+                        <td class="text-sm">@account.Email</td>
+                        <td class="text-sm">@(unitLinks.Count == 0 ? "—" : string.Join(", ", unitLinks))</td>
+                        <td>
+                            @if (account.Active)
+                            {
+                                <span class="badge badge-success badge-soft">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-ghost">Pasif</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@account.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                    Düzenle
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@account.Id" method="post"
+                                      onsubmit="return confirm('Bu hesap silinsin mi? Bağlı kayıt varsa pasife alınır.');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

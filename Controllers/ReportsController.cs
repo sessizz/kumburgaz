@@ -56,6 +56,7 @@ public class ReportsController(
             .ThenInclude(x => x!.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
             .Include(x => x.Allocations)
             .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -78,6 +79,7 @@ public class ReportsController(
                 ? UnitDisplayHelper.Display(installment.Unit)
                 : BillingGroupDisplayHelper.UnitDisplay(installment.BillingGroup),
             BillingGroupName = installment.BillingGroup?.Name ?? "-",
+            ResponsibleAccountName = installment.ResponsibleAccount?.Name ?? "-",
             ReturnUrl = returnUrl
         };
 
@@ -110,6 +112,7 @@ public class ReportsController(
             .ThenInclude(x => x!.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
             .Include(x => x.Allocations)
             .FirstOrDefaultAsync(x => x.Id == model.Id);
 
@@ -142,6 +145,7 @@ public class ReportsController(
                 ? UnitDisplayHelper.Display(installment.Unit)
                 : BillingGroupDisplayHelper.UnitDisplay(installment.BillingGroup);
             model.BillingGroupName = installment.BillingGroup?.Name ?? "-";
+            model.ResponsibleAccountName = installment.ResponsibleAccount?.Name ?? "-";
             return View(model);
         }
     }

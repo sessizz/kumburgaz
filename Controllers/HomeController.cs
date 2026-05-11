@@ -76,13 +76,14 @@ public class HomeController(ApplicationDbContext db) : Controller
 
         var overdueItems = await db.DuesInstallments.AsNoTracking()
             .Include(x => x.Unit).ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
             .Where(x => x.RemainingAmount > 0 && x.DueDate < todayUtc)
             .OrderBy(x => x.DueDate)
             .Take(5)
             .Select(x => new DashboardOverdueItem
             {
                 UnitDisplay = x.Unit == null ? x.BillingGroup!.Name : (x.Unit.Block!.Name + " No " + x.Unit.UnitNo),
-                OwnerName = x.Unit == null ? "" : (x.Unit.OwnerName ?? ""),
+                OwnerName = x.ResponsibleAccount != null ? x.ResponsibleAccount.Name : (x.Unit == null ? "" : (x.Unit.OwnerName ?? "")),
                 Amount = x.RemainingAmount,
                 Days = Math.Max(1, (int)(todayUtc - x.DueDate.Date).TotalDays)
             })

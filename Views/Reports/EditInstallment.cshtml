@@ -24,6 +24,10 @@
                     <div class="stat-value text-base">@Model.BillingGroupName</div>
                 </div>
                 <div class="stat">
+                    <div class="stat-title">Sorumlu Hesap</div>
+                    <div class="stat-value text-base">@Model.ResponsibleAccountName</div>
+                </div>
+                <div class="stat">
                     <div class="stat-title">Ödenmiş</div>
                     <div class="stat-value text-base text-success">@Model.PaidAmount.ToString("N2")</div>
                 </div>
@@ -44,6 +48,7 @@
                 <input asp-for="PaidAmount" type="hidden" />
                 <input asp-for="UnitDisplay" type="hidden" />
                 <input asp-for="BillingGroupName" type="hidden" />
+                <input asp-for="ResponsibleAccountName" type="hidden" />
                 <input asp-for="RemainingAmount" type="hidden" />
 
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>

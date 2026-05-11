@@ -44,6 +44,8 @@ public class UnitFormViewModel
     public string? Phone { get; set; }
 
     public DateTime? MoveInDate { get; set; }
+    public int? OwnerAccountId { get; set; }
+    public int? TenantAccountId { get; set; }
 
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
@@ -51,7 +53,31 @@ public class UnitFormViewModel
     public DateTime? OpeningBalanceDate { get; set; }
     public List<int> ComponentUnitIds { get; set; } = [];
     public List<SelectListItem> BlockOptions { get; set; } = [];
+    public List<SelectListItem> OwnerAccountOptions { get; set; } = [];
+    public List<SelectListItem> TenantAccountOptions { get; set; } = [];
     public List<SelectListItem> ComponentUnitOptions { get; set; } = [];
+}
+
+public class AccountFormViewModel
+{
+    public int? Id { get; set; }
+
+    [Required, MaxLength(160)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    public AccountType AccountType { get; set; } = AccountType.Owner;
+
+    [MaxLength(40)]
+    public string? Phone { get; set; }
+
+    [MaxLength(160), EmailAddress]
+    public string? Email { get; set; }
+
+    [MaxLength(500)]
+    public string? Note { get; set; }
+
+    public bool Active { get; set; } = true;
 }
 
 public class DuesGenerationPreviewItem
@@ -79,6 +105,7 @@ public class DuesDebtReportRow
     public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
+    public string ResponsibleAccountName { get; set; } = string.Empty;
     public string Period { get; set; } = string.Empty;
     public DateTime AccrualDate { get; set; }
     public decimal Amount { get; set; }
@@ -94,6 +121,7 @@ public class DuesListItemViewModel
     public string BlockName { get; set; } = string.Empty;
     public string UnitNo { get; set; } = string.Empty;
     public string OwnerName { get; set; } = string.Empty;
+    public string ResponsibleAccountName { get; set; } = string.Empty;
     public string UnitDisplay { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
     public DateTime AccrualDate { get; set; }
@@ -180,7 +208,39 @@ public class DuesInstallmentEditViewModel
     public decimal RemainingAmount { get; set; }
     public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;
+    public string ResponsibleAccountName { get; set; } = string.Empty;
     public string? ReturnUrl { get; set; }
+}
+
+public class DuesInstallmentCreateViewModel
+{
+    [Required]
+    public int BillingGroupId { get; set; }
+
+    [Required]
+    public int UnitId { get; set; }
+
+    [Required]
+    public DuesPayerType PayerType { get; set; } = DuesPayerType.Owner;
+
+    [Required]
+    [RegularExpression(@"^\d{4}-\d{4}$")]
+    public string Period { get; set; } = string.Empty;
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime AccrualDate { get; set; } = DateTime.Today;
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime DueDate { get; set; } = DateTime.Today;
+
+    [Range(0.01, 999999999)]
+    public decimal Amount { get; set; }
+
+    public List<SelectListItem> BillingGroupOptions { get; set; } = [];
+    public List<SelectListItem> UnitOptions { get; set; } = [];
+    public List<SelectListItem> PayerTypeOptions { get; set; } = [];
 }
 
 public class CollectionCreateViewModel

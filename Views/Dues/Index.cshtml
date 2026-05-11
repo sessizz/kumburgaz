@@ -21,6 +21,10 @@
                 </form>
             </div>
             <div class="flex flex-wrap gap-2">
+                <a class="btn btn-outline btn-sm" asp-controller="Dues" asp-action="CreateInstallment">
+                    <span class="material-symbols-outlined ms-sm">add</span>
+                    Aidat Borcu Ekle
+                </a>
                 <a class="btn btn-outline btn-sm" asp-controller="Collections" asp-action="Create" asp-route-returnUrl="@returnUrl">
                     <span class="material-symbols-outlined ms-sm">add</span>
                     Tahsilat Ekle
@@ -170,7 +174,9 @@
                         </div>
                         <div>
                             <div class="font-bold">@titleText</div>
-                            <div class="text-sm text-gray-400">@row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName)</div>
+                            <div class="text-sm text-gray-400">
+                                @row.BlockName No @row.UnitNo · @(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? (string.IsNullOrWhiteSpace(row.OwnerName) ? "—" : row.OwnerName) : row.ResponsibleAccountName)
+                            </div>
                         </div>
                         <div>
                             @if (row.IsOpeningBalance)

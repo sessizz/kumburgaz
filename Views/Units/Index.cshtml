@@ -1,4 +1,5 @@
 @model List<Kumburgaz.Web.Models.Unit>
+@using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Daireler";
 }
@@ -100,6 +101,7 @@
                             <th>Blok</th>
                             <th>Daire No</th>
                             <th>Malik</th>
+                            <th>Kiracı</th>
                             <th>Tip</th>
                             <th>Bileşenler</th>
                             <th>Aidat Grubu</th>
@@ -111,6 +113,8 @@
                     <tbody>
                     @foreach (var item in Model)
                     {
+                        var owner = AccountAssignmentService.ActiveOwner(item);
+                        var tenant = AccountAssignmentService.ActiveTenant(item);
                         <tr>
                             <td>
                                 <input class="checkbox checkbox-sm unit-select" type="checkbox" name="selectedUnitIds" value="@item.Id" />
@@ -120,7 +124,17 @@
                                 <a class="link link-primary" asp-action="Detail" asp-route-id="@item.Id">@item.UnitNo</a>
                             </td>
                             <td>
-                                <a class="hover:underline" asp-action="Detail" asp-route-id="@item.Id">@item.OwnerName</a>
+                                <a class="hover:underline" asp-action="Detail" asp-route-id="@item.Id">@(owner?.Name ?? item.OwnerName ?? "—")</a>
+                            </td>
+                            <td>
+                                @if (tenant is not null)
+                                {
+                                    <span>@tenant.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
                             </td>
                             <td>
                                 @if (item.IsCombined)

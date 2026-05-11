@@ -324,6 +324,7 @@ public class CollectionsController(
             .ThenInclude(x => x!.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
             .Where(x => x.Unit == null || x.Unit.Active)
             .Where(x => x.RemainingAmount > 0 || (model.DuesInstallmentId.HasValue && x.Id == model.DuesInstallmentId.Value))
             .OrderBy(x => x.Period)
@@ -337,7 +338,8 @@ public class CollectionsController(
             {
                 var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup);
                 var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
-                var text = $"{x.Period} / {unitText} / {duesType} / Kalan {x.RemainingAmount:N2} TL";
+                var responsible = string.IsNullOrWhiteSpace(x.ResponsibleAccount?.Name) ? "" : $" / {x.ResponsibleAccount.Name}";
+                var text = $"{x.Period} / {unitText}{responsible} / {duesType} / Kalan {x.RemainingAmount:N2} TL";
                 return new SelectListItem(text, x.Id.ToString(), model.DuesInstallmentId == x.Id);
             })
             .ToList();

@@ -1,0 +1,19 @@
+@model Kumburgaz.Web.Models.AccountFormViewModel
+@{
+    ViewData["Title"] = "Hesap Düzenle";
+}
+
+<div class="max-w-2xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Hesap Düzenle</h2>
+    </div>
+
+    <partial name="_Form" model="Model" />
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

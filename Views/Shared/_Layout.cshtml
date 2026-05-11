@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
-    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/css/site.css" asp-append-version="true" />
 
     <style type="text/tailwindcss">
         @@theme {
@@ -81,6 +81,43 @@
         .ms-sm { font-size:18px; }
         ::-webkit-scrollbar { width:5px; height:5px; }
         ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:99px; }
+
+        html[data-theme="light"] body .badge {
+            background-color:#334155 !important;
+            border-color:#1e293b !important;
+            color:#f8fafc !important;
+            font-weight:600;
+        }
+        html[data-theme="light"] body .badge.badge-success {
+            background-color:#047857 !important;
+            border-color:#065f46 !important;
+            color:#ecfdf5 !important;
+        }
+        html[data-theme="light"] body .badge.badge-info {
+            background-color:#1d4ed8 !important;
+            border-color:#1e40af !important;
+            color:#eff6ff !important;
+        }
+        html[data-theme="light"] body .badge.badge-warning {
+            background-color:#92400e !important;
+            border-color:#78350f !important;
+            color:#fffbeb !important;
+        }
+        html[data-theme="light"] body .badge.badge-error {
+            background-color:#b91c1c !important;
+            border-color:#991b1b !important;
+            color:#fef2f2 !important;
+        }
+        html[data-theme="light"] body .badge.badge-primary {
+            background-color:#1d4ed8 !important;
+            border-color:#1e40af !important;
+            color:#eff6ff !important;
+        }
+        html[data-theme="light"] body .badge.badge-ghost {
+            background-color:#475569 !important;
+            border-color:#334155 !important;
+            color:#f8fafc !important;
+        }
     </style>
 </head>
 <body style="background:#f3f4f6; min-height:100vh; display:flex;">

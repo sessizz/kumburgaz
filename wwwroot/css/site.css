@@ -66,3 +66,41 @@ body {
 .acct-tab.active .acct-icon { color:#2563eb; }
 .acct-tab .chev { margin-left:auto; color:#d1d5db; font-size:18px; }
 .acct-tab.active .chev { color:#2563eb; }
+
+/* App-wide badges: dark fill with light text, including daisyUI soft badges. */
+.badge {
+  background-color:#334155 !important;
+  border-color:#1e293b !important;
+  color:#f8fafc !important;
+  font-weight:600;
+}
+.badge-success {
+  background-color:#047857 !important;
+  border-color:#065f46 !important;
+  color:#ecfdf5 !important;
+}
+.badge-info {
+  background-color:#1d4ed8 !important;
+  border-color:#1e40af !important;
+  color:#eff6ff !important;
+}
+.badge-warning {
+  background-color:#92400e !important;
+  border-color:#78350f !important;
+  color:#fffbeb !important;
+}
+.badge-error {
+  background-color:#b91c1c !important;
+  border-color:#991b1b !important;
+  color:#fef2f2 !important;
+}
+.badge-primary {
+  background-color:#1d4ed8 !important;
+  border-color:#1e40af !important;
+  color:#eff6ff !important;
+}
+.badge-ghost {
+  background-color:#475569 !important;
+  border-color:#334155 !important;
+  color:#f8fafc !important;
+}

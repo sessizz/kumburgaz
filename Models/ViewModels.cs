@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Models;
@@ -51,10 +52,15 @@ public class UnitFormViewModel
     public bool IsCombined { get; set; }
     public decimal OpeningBalance { get; set; }
     public DateTime? OpeningBalanceDate { get; set; }
+    [ValidateNever]
     public List<int> ComponentUnitIds { get; set; } = [];
+    [ValidateNever]
     public List<SelectListItem> BlockOptions { get; set; } = [];
+    [ValidateNever]
     public List<SelectListItem> OwnerAccountOptions { get; set; } = [];
+    [ValidateNever]
     public List<SelectListItem> TenantAccountOptions { get; set; } = [];
+    [ValidateNever]
     public List<SelectListItem> ComponentUnitOptions { get; set; } = [];
 }
 

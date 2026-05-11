@@ -50,6 +50,7 @@ public class UnitFormViewModel
 
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
+    public DuesPayerType DuesPayerType { get; set; } = DuesPayerType.Owner;
     public decimal OpeningBalance { get; set; }
     public DateTime? OpeningBalanceDate { get; set; }
     [ValidateNever]
@@ -60,6 +61,8 @@ public class UnitFormViewModel
     public List<SelectListItem> OwnerAccountOptions { get; set; } = [];
     [ValidateNever]
     public List<SelectListItem> TenantAccountOptions { get; set; } = [];
+    [ValidateNever]
+    public List<SelectListItem> DuesPayerTypeOptions { get; set; } = [];
     [ValidateNever]
     public List<SelectListItem> ComponentUnitOptions { get; set; } = [];
 }

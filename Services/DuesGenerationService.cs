@@ -96,14 +96,16 @@ public class DuesGenerationService : IDuesGenerationService
                     continue;
                 }
 
-                var representativeUnitId = group.Units
+                var representativeUnit = group.Units
                     .Where(u => u.Unit is { Active: true })
                     .OrderBy(u => u.Unit!.Block!.Name)
                     .ThenBy(u => u.Unit!.UnitNo)
-                    .Select(u => (int?)u.UnitId)
+                    .Select(u => u.Unit)
                     .FirstOrDefault();
-                var responsibleAccountId = representativeUnitId.HasValue
-                    ? await accountAssignmentService.ResolveResponsibleAccountIdAsync(representativeUnitId.Value, payerType)
+                var responsibleAccountId = representativeUnit is not null
+                    ? await accountAssignmentService.ResolveResponsibleAccountIdAsync(
+                        representativeUnit.Id,
+                        representativeUnit.DuesPayerType)
                     : null;
 
                 var existing = await db.DuesInstallments.FirstOrDefaultAsync(x =>
@@ -132,16 +134,19 @@ public class DuesGenerationService : IDuesGenerationService
                 continue;
             }
 
-            var unitIds = group.Units
+            var units = group.Units
                 .Where(u => u.Unit is { Active: true })
-                .Select(u => u.UnitId)
-                .Distinct()
+                .Select(u => u.Unit!)
+                .GroupBy(u => u.Id)
+                .Select(g => g.First())
                 .ToList();
-            foreach (var unitId in unitIds)
+            foreach (var unit in units)
             {
-                var responsibleAccountId = await accountAssignmentService.ResolveResponsibleAccountIdAsync(unitId, payerType);
+                var responsibleAccountId = await accountAssignmentService.ResolveResponsibleAccountIdAsync(
+                    unit.Id,
+                    unit.DuesPayerType);
                 var existing = await db.DuesInstallments.FirstOrDefaultAsync(x =>
-                    x.BillingGroupId == group.Id && x.Period == period && x.UnitId == unitId);
+                    x.BillingGroupId == group.Id && x.Period == period && x.UnitId == unit.Id);
                 if (existing is not null)
                 {
                     if (existing.ResponsibleAccountId is null && responsibleAccountId.HasValue)
@@ -154,7 +159,7 @@ public class DuesGenerationService : IDuesGenerationService
                 db.DuesInstallments.Add(new DuesInstallment
                 {
                     BillingGroupId = group.Id,
-                    UnitId = unitId,
+                    UnitId = unit.Id,
                     ResponsibleAccountId = responsibleAccountId,
                     Period = period,
                     AccrualDate = accrualDate,

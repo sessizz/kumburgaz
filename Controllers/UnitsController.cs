@@ -9,7 +9,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Kumburgaz.Web.Controllers;
 
 [Authorize]
-public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.UnitStatementService statementService) : Controller
+public class UnitsController(
+    ApplicationDbContext db,
+    UnitStatementService statementService,
+    AccountAssignmentService accountAssignmentService) : Controller
 {
     public async Task<IActionResult> Detail(int id)
     {
@@ -189,6 +192,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         ApplyModel(unit, model);
         await SaveUnitAccountsAsync(unit, model);
         await SaveCombinedMembersAsync(unit.Id, model);
+        await db.SaveChangesAsync();
+        await RefreshOpenDuesResponsibleAccountsAsync(unit.Id, unit.DuesPayerType);
         await db.SaveChangesAsync();
         return RedirectToAction(nameof(Index));
     }
@@ -706,6 +711,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
             .Select(x => new SelectListItem(x.Name, x.Id.ToString(), x.Id == model.TenantAccountId))
             .ToListAsync();
 
+        model.DuesPayerTypeOptions = AccountDisplayHelper.PayerTypeOptions(model.DuesPayerType);
+
         model.ComponentUnitOptions = await db.Units.AsNoTracking()
             .Where(x => !x.IsCombined && x.Id != model.Id)
             .Include(x => x.Block)
@@ -794,6 +801,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
             TenantAccountId = tenant?.Id,
             Active = unit.Active,
             IsCombined = unit.IsCombined,
+            DuesPayerType = unit.DuesPayerType,
             OpeningBalance = unit.OpeningBalance,
             OpeningBalanceDate = unit.OpeningBalanceDate,
             Phone = unit.Phone,
@@ -812,6 +820,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
             : null;
         unit.Active = model.Active;
         unit.IsCombined = model.IsCombined;
+        unit.DuesPayerType = model.DuesPayerType;
         unit.OpeningBalance = model.OpeningBalance;
         unit.OpeningBalanceDate = model.OpeningBalanceDate.HasValue
             ? DateTime.SpecifyKind(model.OpeningBalanceDate.Value.Date, DateTimeKind.Utc)
@@ -902,6 +911,25 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         foreach (var componentUnit in componentUnits)
         {
             componentUnit.Active = false;
+        }
+    }
+
+    private async Task RefreshOpenDuesResponsibleAccountsAsync(int unitId, DuesPayerType payerType)
+    {
+        var responsibleAccountId = await accountAssignmentService.ResolveResponsibleAccountIdAsync(unitId, payerType);
+        var installments = await db.DuesInstallments
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.Units)
+            .Where(x => x.RemainingAmount > 0 &&
+                        (x.UnitId == unitId ||
+                         (x.UnitId == null &&
+                          x.BillingGroup != null &&
+                          x.BillingGroup.Units.Any(u => u.UnitId == unitId))))
+            .ToListAsync();
+
+        foreach (var installment in installments)
+        {
+            installment.ResponsibleAccountId = responsibleAccountId;
         }
     }
 

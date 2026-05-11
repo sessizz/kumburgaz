@@ -47,6 +47,13 @@
                 </div>
                 <p class="text-xs text-gray-400 -mt-2">Malik ve kiracı kayıtları Hesaplar menüsünden oluşturulur.</p>
 
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Aidatı Kim Ödeyecek?</legend>
+                    <select asp-for="DuesPayerType" asp-items="Model.DuesPayerTypeOptions" class="select select-bordered w-full"></select>
+                    <span asp-validation-for="DuesPayerType" class="text-error text-xs"></span>
+                    <p class="text-xs text-gray-400 mt-1">Güncellenince bu dairenin açık tahakkuklarında sorumlu hesap da bu seçime göre yenilenir.</p>
+                </fieldset>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Telefon</legend>

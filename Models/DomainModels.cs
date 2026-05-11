@@ -75,6 +75,7 @@ public class Unit
 
     public bool Active { get; set; } = true;
     public bool IsCombined { get; set; }
+    public DuesPayerType DuesPayerType { get; set; } = DuesPayerType.Owner;
 
     /// <summary>
     /// Önceki yönetimden devreden bakiye.

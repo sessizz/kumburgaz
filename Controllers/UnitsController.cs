@@ -719,7 +719,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
 
     private async Task ValidateUnitFormAsync(UnitFormViewModel model)
     {
-        model.ComponentUnitIds = model.ComponentUnitIds.Distinct().ToList();
+        model.ComponentUnitIds = model.ComponentUnitIds?.Distinct().ToList() ?? [];
 
         if (model.OwnerAccountId.HasValue)
         {
@@ -885,7 +885,8 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
             return;
         }
 
-        foreach (var componentUnitId in model.ComponentUnitIds.Distinct())
+        var componentUnitIds = model.ComponentUnitIds ?? [];
+        foreach (var componentUnitId in componentUnitIds.Distinct())
         {
             db.CombinedUnitMembers.Add(new CombinedUnitMember
             {
@@ -895,7 +896,7 @@ public class UnitsController(ApplicationDbContext db, Kumburgaz.Web.Services.Uni
         }
 
         var componentUnits = await db.Units
-            .Where(x => model.ComponentUnitIds.Contains(x.Id))
+            .Where(x => componentUnitIds.Contains(x.Id))
             .ToListAsync();
 
         foreach (var componentUnit in componentUnits)

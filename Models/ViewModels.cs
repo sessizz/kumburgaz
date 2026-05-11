@@ -53,7 +53,7 @@ public class UnitFormViewModel
     public decimal OpeningBalance { get; set; }
     public DateTime? OpeningBalanceDate { get; set; }
     [ValidateNever]
-    public List<int> ComponentUnitIds { get; set; } = [];
+    public List<int>? ComponentUnitIds { get; set; }
     [ValidateNever]
     public List<SelectListItem> BlockOptions { get; set; } = [];
     [ValidateNever]

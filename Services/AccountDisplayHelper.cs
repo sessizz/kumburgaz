@@ -14,6 +14,15 @@ public static class AccountDisplayHelper
         _ => type.ToString()
     };
 
+    public static string TypeBadgeClass(AccountType type) => type switch
+    {
+        AccountType.Owner => "badge-success badge-soft",
+        AccountType.Tenant => "badge-info badge-soft",
+        AccountType.Personnel => "badge-warning badge-soft",
+        AccountType.Supplier => "badge-ghost",
+        _ => "badge-ghost"
+    };
+
     public static string RoleLabel(UnitAccountRole role) => role switch
     {
         UnitAccountRole.Owner => "Malik",

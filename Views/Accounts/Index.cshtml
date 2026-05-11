@@ -88,7 +88,7 @@
                         .ToList();
                     <tr>
                         <td class="font-semibold">@account.Name</td>
-                        <td><span class="badge badge-info badge-soft">@AccountDisplayHelper.TypeLabel(account.AccountType)</span></td>
+                        <td><span class="badge @AccountDisplayHelper.TypeBadgeClass(account.AccountType)">@AccountDisplayHelper.TypeLabel(account.AccountType)</span></td>
                         <td class="text-sm">@account.Phone</td>
                         <td class="text-sm">@account.Email</td>
                         <td class="text-sm">@(unitLinks.Count == 0 ? "—" : string.Join(", ", unitLinks))</td>

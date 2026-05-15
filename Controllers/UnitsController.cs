@@ -58,6 +58,40 @@ public class UnitsController(
         });
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Search(string? term)
+    {
+        term = term?.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            return Json(Array.Empty<object>());
+        }
+
+        var units = await db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .Where(x => x.UnitNo.Contains(term)
+                || (x.Block != null && x.Block.Name.Contains(term))
+                || (x.OwnerName != null && x.OwnerName.Contains(term)))
+            .OrderBy(x => x.UnitNo == term ? 0 : 1)
+            .ThenBy(x => x.Block == null ? string.Empty : x.Block.Name)
+            .ThenBy(x => x.UnitNo)
+            .Take(12)
+            .ToListAsync();
+
+        var results = units.Select(x => new
+        {
+            id = x.Id,
+            label = x.Block is null ? x.UnitNo : $"{x.Block.Name}-{x.UnitNo}",
+            unitNo = x.UnitNo,
+            blockName = x.Block?.Name ?? string.Empty,
+            ownerName = x.OwnerName ?? string.Empty,
+            active = x.Active,
+            url = Url.Action(nameof(Detail), "Units", new { id = x.Id })
+        });
+
+        return Json(results);
+    }
+
     public async Task<IActionResult> Index()
     {
         var units = await db.Units.AsNoTracking()

@@ -4,34 +4,47 @@ namespace Kumburgaz.Web.Models;
 
 public enum PaymentChannel
 {
+    [Display(Name = "Nakit")]
     Cash = 1,
+    [Display(Name = "Banka")]
     Bank = 2
 }
 
 public enum InstallmentStatus
 {
+    [Display(Name = "Açık")]
     Open = 1,
+    [Display(Name = "Kısmi Ödendi")]
     PartiallyPaid = 2,
+    [Display(Name = "Ödendi")]
     Paid = 3
 }
 
 public enum AccountType
 {
+    [Display(Name = "Malik")]
     Owner = 1,
+    [Display(Name = "Kiracı")]
     Tenant = 2,
+    [Display(Name = "Personel")]
     Personnel = 3,
+    [Display(Name = "Tedarikçi")]
     Supplier = 4
 }
 
 public enum UnitAccountRole
 {
+    [Display(Name = "Malik")]
     Owner = 1,
+    [Display(Name = "Kiracı")]
     Tenant = 2
 }
 
 public enum DuesPayerType
 {
+    [Display(Name = "Malik")]
     Owner = 1,
+    [Display(Name = "Kiracı varsa kiracı, yoksa malik")]
     Tenant = 2
 }
 
@@ -331,17 +344,25 @@ public class Announcement
 
 public enum ServiceRequestStatus
 {
+    [Display(Name = "Açık")]
     Open = 1,
+    [Display(Name = "İşlemde")]
     InProgress = 2,
+    [Display(Name = "Çözüldü")]
     Resolved = 3,
+    [Display(Name = "Kapalı")]
     Closed = 4
 }
 
 public enum ServiceRequestPriority
 {
+    [Display(Name = "Düşük")]
     Low = 1,
+    [Display(Name = "Normal")]
     Normal = 2,
+    [Display(Name = "Yüksek")]
     High = 3,
+    [Display(Name = "Acil")]
     Urgent = 4
 }
 

@@ -58,7 +58,7 @@
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Gider CSV dosyası</legend>
                     <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" />
-                    <p class="label text-xs">Kolonlar: IncomeExpenseCategoryId, Date, Amount, PaymentChannel, Description</p>
+                    <p class="label text-xs">Kolonlar: GiderKategoriId, Tarih, Tutar, OdemeKanali, Aciklama</p>
                 </fieldset>
                 <button type="submit" class="btn btn-outline btn-primary">
                     <span class="material-symbols-outlined ms-sm">upload</span>
@@ -90,7 +90,7 @@
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
                         <td>
                             <span class="badge badge-ghost">
-                                @(row.CashBox?.Name ?? row.BankAccount?.Name ?? row.PaymentChannel.ToString())
+                                @(row.CashBox?.Name ?? row.BankAccount?.Name ?? EnumDisplayHelper.Display(row.PaymentChannel))
                             </span>
                         </td>
                         <td class="text-sm text-gray-500">@row.Description</td>

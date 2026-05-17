@@ -39,7 +39,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
         var csvRows = new List<string[]>
         {
-            new[] { "IncomeExpenseCategoryId", "CategoryType", "CategoryName", "Date", "Amount", "PaymentChannel", "Description" }
+            new[] { "GiderKategoriId", "KategoriTipi", "KategoriAdi", "Tarih", "Tutar", "OdemeKanali", "Aciklama" }
         };
 
         csvRows.AddRange(rows.Select(x => new[]
@@ -49,7 +49,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
             x.IncomeExpenseCategory?.Name ?? string.Empty,
             x.Date.ToString("yyyy-MM-dd"),
             x.Amount.ToString(CultureInfo.InvariantCulture),
-            x.PaymentChannel.ToString(),
+            EnumDisplayHelper.Display(x.PaymentChannel),
             x.Description ?? string.Empty
         }));
 
@@ -171,9 +171,11 @@ public class LedgerController(ApplicationDbContext db) : Controller
         }
 
         var headers = BuildHeaders(rows[0]);
-        if (!headers.ContainsKey("incomeexpensecategoryid") || !headers.ContainsKey("date") || !headers.ContainsKey("amount"))
+        if (!HasAnyHeader(headers, "incomeexpensecategoryid", "giderkategoriid") ||
+            !HasAnyHeader(headers, "date", "tarih") ||
+            !HasAnyHeader(headers, "amount", "tutar"))
         {
-            TempData["ImportError"] = "Zorunlu alanlar: IncomeExpenseCategoryId, Date, Amount.";
+            TempData["ImportError"] = "Zorunlu alanlar: GiderKategoriId, Tarih, Tutar.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -190,28 +192,28 @@ public class LedgerController(ApplicationDbContext db) : Controller
             var row = rows[i];
             var lineNo = i + 1;
 
-            var categoryIdText = ReadValue(row, headers, "incomeexpensecategoryid");
+            var categoryIdText = ReadFirstValue(row, headers, "incomeexpensecategoryid", "giderkategoriid");
             if (!int.TryParse(categoryIdText, out var categoryId) || !categorySet.Contains(categoryId))
             {
                 TempData["ImportError"] = $"Satir {lineNo}: geçerli gider kategorisi bulunamadı.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParseDate(ReadValue(row, headers, "date"), out var date))
+            if (!TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out var date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Date alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Tarih alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParseAmount(ReadValue(row, headers, "amount"), out var amount) || amount <= 0)
+            if (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out var amount) || amount <= 0)
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Amount alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Tutar alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParsePaymentChannel(ReadValue(row, headers, "paymentchannel"), out var paymentChannel))
+            if (!TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out var paymentChannel))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: OdemeKanali alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -221,7 +223,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
                 IncomeExpenseCategoryId = categoryId,
                 Amount = amount,
                 PaymentChannel = paymentChannel,
-                Description = NullIfWhiteSpace(ReadValue(row, headers, "description"))
+                Description = NullIfWhiteSpace(ReadFirstValue(row, headers, "description", "aciklama"))
             });
         }
 
@@ -282,6 +284,23 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
         return row[idx].Trim();
     }
+
+    private static string ReadFirstValue(string[] row, Dictionary<string, int> headers, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = ReadValue(row, headers, key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static bool HasAnyHeader(Dictionary<string, int> headers, params string[] keys) =>
+        keys.Any(headers.ContainsKey);
 
     private static string NormalizeHeaderKey(string value)
     {

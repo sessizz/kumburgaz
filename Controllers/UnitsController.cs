@@ -129,7 +129,7 @@ public class UnitsController(
 
         var rows = new List<string[]>
         {
-            new[] { "BlockId", "Block", "UnitNo", "OwnerName", "Active", "IsCombined", "Components", "OpeningBalance", "OpeningBalanceDate", "BillingGroup", "DuesType", "EffectiveStartPeriod", "EffectiveEndPeriod" }
+            new[] { "BlokId", "Blok", "DaireNo", "MalikAdi", "Aktif", "Birlesik", "Bilesenler", "DevirBakiyesi", "DevirTarihi", "AidatGrubu", "AidatTipi", "BaslangicDonemi", "BitisDonemi" }
         };
 
         rows.AddRange(units.Select(x => new[]
@@ -138,8 +138,8 @@ public class UnitsController(
             x.Block?.Name ?? string.Empty,
             x.UnitNo,
             x.OwnerName ?? string.Empty,
-            x.Active ? "true" : "false",
-            x.IsCombined ? "true" : "false",
+            x.Active ? "Evet" : "Hayır",
+            x.IsCombined ? "Evet" : "Hayır",
             string.Join(" + ", x.CombinedUnitMembers
                 .Where(m => m.ComponentUnit?.Block is not null)
                 .Select(m => $"{m.ComponentUnit!.Block!.Name}-{m.ComponentUnit.UnitNo}")
@@ -430,15 +430,15 @@ public class UnitsController(
         }
 
         var headers = BuildHeaders(rows[0]);
-        if (!headers.ContainsKey("unitno"))
+        if (!HasAnyHeader(headers, "unitno", "daireno"))
         {
-            TempData["ImportError"] = "Zorunlu alan eksik: UnitNo.";
+            TempData["ImportError"] = "Zorunlu alan eksik: DaireNo.";
             return RedirectToAction(nameof(Index));
         }
 
-        if (!headers.ContainsKey("blockid") && !headers.ContainsKey("block"))
+        if (!HasAnyHeader(headers, "blockid", "blokid") && !HasAnyHeader(headers, "block", "blok"))
         {
-            TempData["ImportError"] = "Zorunlu alan eksik: BlockId veya Block.";
+            TempData["ImportError"] = "Zorunlu alan eksik: BlokId veya Blok.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -471,10 +471,10 @@ public class UnitsController(
             var row = rows[i];
             var lineNo = i + 1;
 
-            var unitNo = ReadValue(row, headers, "unitno");
+            var unitNo = ReadFirstValue(row, headers, "unitno", "daireno");
             if (string.IsNullOrWhiteSpace(unitNo))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: UnitNo zorunludur.";
+                TempData["ImportError"] = $"Satir {lineNo}: DaireNo zorunludur.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -491,8 +491,8 @@ public class UnitsController(
                 return RedirectToAction(nameof(Index));
             }
 
-            var ownerName = ReadValue(row, headers, "ownername");
-            var active = ParseBool(ReadValue(row, headers, "active"), true);
+            var ownerName = ReadFirstValue(row, headers, "ownername", "malikadi");
+            var active = ParseBool(ReadFirstValue(row, headers, "active", "aktif"), true);
             var isCombined = ParseBool(ReadFirstValue(row, headers, "iscombined", "birlesik"), false);
             var openingBalance = ParseDecimal(ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir"));
             var openingBalanceDate = ParseNullableDate(ReadFirstValue(row, headers, "openingbalancedate", "devirtarihi", "devirbakiyesitarihi"));
@@ -558,21 +558,21 @@ public class UnitsController(
             }
 
             var billingGroupKey = NormalizeHeaderKey(billingGroupName);
-            var effectiveStartPeriod = ReadFirstValue(row, headers, "effectivestartperiod", "startperiod", "period", "donem");
+            var effectiveStartPeriod = ReadFirstValue(row, headers, "effectivestartperiod", "startperiod", "period", "donem", "baslangicdonemi");
             effectiveStartPeriod = string.IsNullOrWhiteSpace(effectiveStartPeriod)
                 ? PeriodHelper.CurrentFiscalPeriod(DateTime.Today)
                 : effectiveStartPeriod.Trim();
 
             if (!PeriodHelper.IsValid(effectiveStartPeriod))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: EffectiveStartPeriod/Period formati YYYY-YYYY olmali.";
+                TempData["ImportError"] = $"Satir {lineNo}: BaslangicDonemi formati YYYY-YYYY olmali.";
                 return RedirectToAction(nameof(Index));
             }
 
-            var effectiveEndPeriod = ReadFirstValue(row, headers, "effectiveendperiod", "endperiod");
+            var effectiveEndPeriod = ReadFirstValue(row, headers, "effectiveendperiod", "endperiod", "bitisdonemi");
             if (!string.IsNullOrWhiteSpace(effectiveEndPeriod) && !PeriodHelper.IsValid(effectiveEndPeriod))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: EffectiveEndPeriod formati YYYY-YYYY olmali.";
+                TempData["ImportError"] = $"Satir {lineNo}: BitisDonemi formati YYYY-YYYY olmali.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -1016,6 +1016,9 @@ public class UnitsController(
         return value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty);
     }
 
+    private static bool HasAnyHeader(Dictionary<string, int> headers, params string[] keys) =>
+        keys.Any(headers.ContainsKey);
+
     private static bool TryResolveBlockId(
         string[] row,
         Dictionary<string, int> headers,
@@ -1025,12 +1028,12 @@ public class UnitsController(
         out string error)
     {
         blockId = 0;
-        var blockIdText = ReadValue(row, headers, "blockid");
+        var blockIdText = ReadFirstValue(row, headers, "blockid", "blokid");
         if (!string.IsNullOrWhiteSpace(blockIdText))
         {
             if (!int.TryParse(blockIdText, out blockId) || !blockById.ContainsKey(blockId))
             {
-                error = "geçerli BlockId bulunamadı.";
+                error = "geçerli BlokId bulunamadı.";
                 return false;
             }
 
@@ -1038,14 +1041,14 @@ public class UnitsController(
             return true;
         }
 
-        var blockName = NormalizeHeaderKey(ReadValue(row, headers, "block"));
+        var blockName = NormalizeHeaderKey(ReadFirstValue(row, headers, "block", "blok"));
         if (!string.IsNullOrWhiteSpace(blockName) && blockByName.TryGetValue(blockName, out blockId))
         {
             error = string.Empty;
             return true;
         }
 
-        error = "geçerli Block alanı bulunamadı.";
+        error = "geçerli Blok alanı bulunamadı.";
         return false;
     }
 
@@ -1063,7 +1066,7 @@ public class UnitsController(
         {
             if (!int.TryParse(duesTypeIdText, out duesTypeId) || !duesTypeById.ContainsKey(duesTypeId))
             {
-                error = "geçerli DuesTypeId bulunamadı.";
+                error = "geçerli AidatTipiId bulunamadı.";
                 return false;
             }
 
@@ -1078,7 +1081,7 @@ public class UnitsController(
             return true;
         }
 
-        error = "yeni aidat grubu için DuesTypeId veya DuesType alanı zorunludur.";
+        error = "yeni aidat grubu için AidatTipiId veya AidatTipi alanı zorunludur.";
         return false;
     }
 
@@ -1119,7 +1122,7 @@ public class UnitsController(
             return true;
         }
 
-        if (normalized is "0" or "false" or "hayir" or "no" or "pasif")
+        if (normalized is "0" or "false" or "hayir" or "hayır" or "no" or "pasif")
         {
             return false;
         }

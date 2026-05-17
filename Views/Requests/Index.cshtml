@@ -19,8 +19,8 @@
                 <tr>
                     <td><div class="font-semibold">@item.Title</div><div class="text-xs text-gray-500 line-clamp-1">@item.Description</div></td>
                     <td>@(item.Unit is null ? "Ortak Alan" : UnitDisplayHelper.Display(item.Unit))</td>
-                    <td><span class="pill @(item.Priority == ServiceRequestPriority.Urgent ? "pill-neg" : item.Priority == ServiceRequestPriority.High ? "pill-warn" : "pill-info")">@item.Priority</span></td>
-                    <td><span class="pill @(item.Status == ServiceRequestStatus.Closed ? "pill-muted" : item.Status == ServiceRequestStatus.Resolved ? "pill-ok" : "pill-info")">@item.Status</span></td>
+                    <td><span class="pill @(item.Priority == ServiceRequestPriority.Urgent ? "pill-neg" : item.Priority == ServiceRequestPriority.High ? "pill-warn" : "pill-info")">@EnumDisplayHelper.Display(item.Priority)</span></td>
+                    <td><span class="pill @(item.Status == ServiceRequestStatus.Closed ? "pill-muted" : item.Status == ServiceRequestStatus.Resolved ? "pill-ok" : "pill-info")">@EnumDisplayHelper.Display(item.Status)</span></td>
                     <td>@(item.AssignedTo ?? "—")</td>
                     <td>@item.CreatedAt.ToString("dd.MM.yyyy")</td>
                     <td><div class="flex justify-end gap-1"><a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id"><span class="material-symbols-outlined ms-sm">edit</span></a><form method="post" asp-action="Delete" asp-route-id="@item.Id" onsubmit="return confirm('Bu talep silinsin mi?');">@Html.AntiForgeryToken()<button class="btn btn-xs btn-ghost text-error"><span class="material-symbols-outlined ms-sm">delete</span></button></form></div></td>

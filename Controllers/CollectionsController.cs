@@ -24,7 +24,7 @@ public class CollectionsController(
         var rows = await collectionService.GetAllAsync();
         var csvRows = new List<string[]>
         {
-            new[] { "BillingGroupId", "BillingGroup", "Date", "Amount", "PaymentChannel", "ReferenceNo", "Note" }
+            new[] { "AidatGrubuId", "AidatGrubu", "Tarih", "Tutar", "OdemeKanali", "ReferansNo", "Not" }
         };
 
         csvRows.AddRange(rows.Select(x => new[]
@@ -33,7 +33,7 @@ public class CollectionsController(
             x.BillingGroup?.Name ?? string.Empty,
             x.Date.ToString("yyyy-MM-dd"),
             x.Amount.ToString(CultureInfo.InvariantCulture),
-            x.PaymentChannel.ToString(),
+            EnumDisplayHelper.Display(x.PaymentChannel),
             x.ReferenceNo ?? string.Empty,
             x.Note ?? string.Empty
         }));
@@ -230,9 +230,11 @@ public class CollectionsController(
         }
 
         var headers = BuildHeaders(rows[0]);
-        if (!headers.ContainsKey("billinggroupid") || !headers.ContainsKey("date") || !headers.ContainsKey("amount"))
+        if (!HasAnyHeader(headers, "billinggroupid", "aidatgrubuid") ||
+            !HasAnyHeader(headers, "date", "tarih") ||
+            !HasAnyHeader(headers, "amount", "tutar"))
         {
-            TempData["ImportError"] = "Zorunlu alanlar: BillingGroupId, Date, Amount.";
+            TempData["ImportError"] = "Zorunlu alanlar: AidatGrubuId, Tarih, Tutar.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -245,28 +247,28 @@ public class CollectionsController(
             var row = rows[i];
             var lineNo = i + 1;
 
-            var billingGroupIdText = ReadValue(row, headers, "billinggroupid");
+            var billingGroupIdText = ReadFirstValue(row, headers, "billinggroupid", "aidatgrubuid");
             if (!int.TryParse(billingGroupIdText, out var billingGroupId) || !billingGroupSet.Contains(billingGroupId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: geçerli BillingGroupId bulunamadı.";
+                TempData["ImportError"] = $"Satir {lineNo}: geçerli AidatGrubuId bulunamadı.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParseDate(ReadValue(row, headers, "date"), out var date))
+            if (!TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out var date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Date alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Tarih alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParseAmount(ReadValue(row, headers, "amount"), out var amount) || amount <= 0)
+            if (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out var amount) || amount <= 0)
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Amount alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: Tutar alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!TryParsePaymentChannel(ReadValue(row, headers, "paymentchannel"), out var paymentChannel))
+            if (!TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out var paymentChannel))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: PaymentChannel alanı geçersiz.";
+                TempData["ImportError"] = $"Satir {lineNo}: OdemeKanali alanı geçersiz.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -276,8 +278,8 @@ public class CollectionsController(
                 Date = date,
                 Amount = amount,
                 PaymentChannel = paymentChannel,
-                ReferenceNo = NullIfWhiteSpace(ReadValue(row, headers, "referenceno")),
-                Note = NullIfWhiteSpace(ReadValue(row, headers, "note"))
+                ReferenceNo = NullIfWhiteSpace(ReadFirstValue(row, headers, "referenceno", "referansno")),
+                Note = NullIfWhiteSpace(ReadFirstValue(row, headers, "note", "not"))
             };
 
             try
@@ -429,6 +431,23 @@ public class CollectionsController(
 
         return row[idx].Trim();
     }
+
+    private static string ReadFirstValue(string[] row, Dictionary<string, int> headers, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            var value = ReadValue(row, headers, key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static bool HasAnyHeader(Dictionary<string, int> headers, params string[] keys) =>
+        keys.Any(headers.ContainsKey);
 
     private static string NormalizeHeaderKey(string value)
     {

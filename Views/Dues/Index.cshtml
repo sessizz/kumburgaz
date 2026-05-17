@@ -114,7 +114,7 @@
                             <td class="text-end font-bold">@item.Amount.ToString("N2") TL</td>
                             <td>
                                 <span class="badge badge-ghost">
-                                    @(item.CashBox?.Name ?? item.BankAccount?.Name ?? item.PaymentChannel.ToString())
+                                    @(item.CashBox?.Name ?? item.BankAccount?.Name ?? EnumDisplayHelper.Display(item.PaymentChannel))
                                 </span>
                             </td>
                             <td class="text-xs">@item.ReferenceNo</td>

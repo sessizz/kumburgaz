@@ -44,7 +44,7 @@
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tahsilat CSV dosyası</legend>
                     <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" />
-                    <p class="label text-xs">Kolonlar: BillingGroupId, Date, Amount, PaymentChannel, ReferenceNo, Note</p>
+                    <p class="label text-xs">Kolonlar: AidatGrubuId, Tarih, Tutar, OdemeKanali, ReferansNo, Not</p>
                 </fieldset>
                 <button type="submit" class="btn btn-outline btn-primary">
                     <span class="material-symbols-outlined ms-sm">upload</span>
@@ -77,7 +77,7 @@
                         <td class="font-medium">@BillingGroupDisplayHelper.UnitDisplay(item.BillingGroup)</td>
                         <td>@item.BillingGroup?.Name</td>
                         <td class="text-end font-bold">@item.Amount.ToString("N2")</td>
-                        <td><span class="badge badge-ghost">@item.PaymentChannel</span></td>
+                        <td><span class="badge badge-ghost">@EnumDisplayHelper.Display(item.PaymentChannel)</span></td>
                         <td class="text-xs">@item.ReferenceNo</td>
                         <td class="text-xs text-gray-500">@item.Note</td>
                         <td>

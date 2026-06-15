@@ -53,20 +53,22 @@ public class AccountsController(ApplicationDbContext db) : Controller
             return Json(Array.Empty<object>());
         }
 
+        var normalizedTerm = term.ToLower();
         var accounts = await db.Accounts
             .AsNoTracking()
             .Include(x => x.UnitAccounts)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
-            .Where(x => x.Name.Contains(term)
-                || (x.Phone != null && x.Phone.Contains(term))
-                || (x.Email != null && x.Email.Contains(term))
+            .Where(x => x.Name.ToLower().Contains(normalizedTerm)
+                || (x.Phone != null && x.Phone.ToLower().Contains(normalizedTerm))
+                || (x.Email != null && x.Email.ToLower().Contains(normalizedTerm))
                 || x.UnitAccounts.Any(unitAccount =>
                     unitAccount.Active &&
                     unitAccount.Unit != null &&
-                    (unitAccount.Unit.UnitNo.Contains(term) ||
-                     (unitAccount.Unit.Block != null && unitAccount.Unit.Block.Name.Contains(term)))))
-            .OrderBy(x => x.Name == term ? 0 : 1)
+                    (unitAccount.Unit.UnitNo.ToLower().Contains(normalizedTerm) ||
+                     (unitAccount.Unit.OwnerName != null && unitAccount.Unit.OwnerName.ToLower().Contains(normalizedTerm)) ||
+                     (unitAccount.Unit.Block != null && unitAccount.Unit.Block.Name.ToLower().Contains(normalizedTerm)))))
+            .OrderBy(x => x.Name.ToLower() == normalizedTerm ? 0 : 1)
             .ThenBy(x => x.Name)
             .Take(12)
             .ToListAsync();
@@ -77,7 +79,11 @@ public class AccountsController(ApplicationDbContext db) : Controller
                 .Where(x => x.Active && x.Unit?.Block is not null)
                 .OrderBy(x => x.Unit!.Block!.Name)
                 .ThenBy(x => x.Unit!.UnitNo)
-                .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo} ({AccountDisplayHelper.RoleLabel(x.Role)})")
+                .Select(x =>
+                {
+                    var owner = string.IsNullOrWhiteSpace(x.Unit!.OwnerName) ? "" : $" / Malik: {x.Unit.OwnerName}";
+                    return $"{x.Unit.Block!.Name}-{x.Unit.UnitNo} ({AccountDisplayHelper.RoleLabel(x.Role)}){owner}";
+                })
                 .ToList();
 
             var subtitleParts = new List<string> { AccountDisplayHelper.TypeLabel(account.AccountType) };

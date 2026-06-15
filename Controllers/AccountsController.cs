@@ -59,6 +59,9 @@ public class AccountsController(ApplicationDbContext db) : Controller
             .Include(x => x.UnitAccounts)
             .ThenInclude(x => x.Unit)
             .ThenInclude(x => x!.Block)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
             .Where(x => x.Name.ToLower().Contains(normalizedTerm)
                 || (x.Phone != null && x.Phone.ToLower().Contains(normalizedTerm))
                 || (x.Email != null && x.Email.ToLower().Contains(normalizedTerm))
@@ -75,8 +78,14 @@ public class AccountsController(ApplicationDbContext db) : Controller
 
         var results = accounts.Select(account =>
         {
+            var combinedComponentIds = account.UnitAccounts
+                .Where(x => x.Active && x.Unit?.IsCombined == true)
+                .SelectMany(x => x.Unit!.CombinedUnitMembers.Select(member => member.ComponentUnitId))
+                .ToHashSet();
+
             var unitLinks = account.UnitAccounts
                 .Where(x => x.Active && x.Unit?.Block is not null)
+                .Where(x => x.Unit!.IsCombined || !combinedComponentIds.Contains(x.Unit.Id))
                 .OrderBy(x => x.Unit!.Block!.Name)
                 .ThenBy(x => x.Unit!.UnitNo)
                 .Select(x =>

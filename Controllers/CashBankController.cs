@@ -123,32 +123,32 @@ public class CashBankController(ApplicationDbContext db, CashBankDetailService d
     }
 
     [HttpGet("/CashBank/CashBox/{id:int}")]
-    public async Task<IActionResult> CashBoxDetail(int id, CashBankDetailQuery q)
+    public async Task<IActionResult> CashBoxDetail(int id, CashBankDetailQuery query)
     {
-        q.Type ??= "all"; q.Range ??= "all";
+        query.Type ??= "all"; query.Range ??= "all";
         if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
-            return await ExportCsv("cash", id, q);
-        var vm = await detailService.BuildAsync("cash", id, q);
+            return await ExportCsv("cash", id, query);
+        var vm = await detailService.BuildAsync("cash", id, query);
         if (vm == null) return NotFound();
         ViewData["Title"] = vm.Name;
         return View("Detail", vm);
     }
 
     [HttpGet("/CashBank/Bank/{id:int}")]
-    public async Task<IActionResult> BankDetail(int id, CashBankDetailQuery q)
+    public async Task<IActionResult> BankDetail(int id, CashBankDetailQuery query)
     {
-        q.Type ??= "all"; q.Range ??= "all";
+        query.Type ??= "all"; query.Range ??= "all";
         if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
-            return await ExportCsv("bank", id, q);
-        var vm = await detailService.BuildAsync("bank", id, q);
+            return await ExportCsv("bank", id, query);
+        var vm = await detailService.BuildAsync("bank", id, query);
         if (vm == null) return NotFound();
         ViewData["Title"] = vm.Name;
         return View("Detail", vm);
     }
 
-    private async Task<IActionResult> ExportCsv(string kind, int id, CashBankDetailQuery q)
+    private async Task<IActionResult> ExportCsv(string kind, int id, CashBankDetailQuery query)
     {
-        var vm = await detailService.BuildAsync(kind, id, q);
+        var vm = await detailService.BuildAsync(kind, id, query);
         if (vm == null) return NotFound();
         var rows = vm.Groups.SelectMany(g => g.Items).ToList();
         var sb = new StringBuilder();

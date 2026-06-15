@@ -97,13 +97,14 @@ $(function () {
         }
 
         results.innerHTML = items.map(function (item, index) {
-            var owner = item.ownerName ? '<span class="text-gray-400">•</span><span>' + escapeHtml(item.ownerName) + '</span>' : '';
+            var owner = item.ownerName ? '<span class="text-gray-400">•</span><span>Malik: ' + escapeHtml(item.ownerName) + '</span>' : '';
+            var tenant = item.tenantName ? '<span class="text-gray-400">•</span><span>Kiracı: ' + escapeHtml(item.tenantName) + '</span>' : '';
             var inactive = item.active ? '' : '<span class="ml-2 pill pill-muted normal-case">Pasif</span>';
             return '<button type="button" class="w-full text-left px-4 py-3 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none border-b border-gray-100 last:border-b-0" role="option" aria-selected="false" data-result-index="' + index + '">' +
                 '<span class="flex items-center justify-between gap-3">' +
                     '<span class="min-w-0">' +
                         '<span class="block text-sm font-semibold text-gray-900 truncate">' + escapeHtml(item.label) + inactive + '</span>' +
-                        '<span class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 truncate">Daire ' + escapeHtml(item.unitNo) + owner + '</span>' +
+                        '<span class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 truncate">Daire ' + escapeHtml(item.unitNo) + owner + tenant + '</span>' +
                     '</span>' +
                     '<span class="material-symbols-outlined text-gray-300">chevron_right</span>' +
                 '</span>' +

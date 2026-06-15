@@ -69,9 +69,16 @@ public class UnitsController(
 
         var units = await db.Units.AsNoTracking()
             .Include(x => x.Block)
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Account)
             .Where(x => x.UnitNo.Contains(term)
                 || (x.Block != null && x.Block.Name.Contains(term))
-                || (x.OwnerName != null && x.OwnerName.Contains(term)))
+                || (x.OwnerName != null && x.OwnerName.Contains(term))
+                || x.UnitAccounts.Any(account => account.Active
+                    && account.Role == UnitAccountRole.Tenant
+                    && account.Account != null
+                    && account.Account.AccountType == AccountType.Tenant
+                    && account.Account.Name.Contains(term)))
             .OrderBy(x => x.UnitNo == term ? 0 : 1)
             .ThenBy(x => x.Block == null ? string.Empty : x.Block.Name)
             .ThenBy(x => x.UnitNo)
@@ -80,6 +87,7 @@ public class UnitsController(
 
         var results = units.Select(x => new
         {
+            tenantName = AccountAssignmentService.ActiveTenant(x)?.Name ?? string.Empty,
             id = x.Id,
             label = x.Block is null ? x.UnitNo : $"{x.Block.Name}-{x.UnitNo}",
             unitNo = x.UnitNo,

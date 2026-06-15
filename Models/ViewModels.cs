@@ -89,6 +89,13 @@ public class AccountFormViewModel
     public bool Active { get; set; } = true;
 }
 
+public class AccountDetailViewModel
+{
+    public Account Account { get; set; } = null!;
+    public List<DuesInstallment> OpenInstallments { get; set; } = [];
+    public List<CollectionAllocation> RecentAllocations { get; set; } = [];
+}
+
 public class DuesGenerationPreviewItem
 {
     public int BillingGroupId { get; set; }

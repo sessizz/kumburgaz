@@ -32,7 +32,7 @@
             <div class="flex items-center gap-2 flex-wrap">
                 <label class="input input-bordered input-sm flex items-center gap-2 w-56">
                     <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
-                    <input name="q" value="@q.Q" placeholder="Açıklama veya daire ara" class="grow" />
+                    <input name="q" value="@q.Q" placeholder="Açıklama veya hesap ara" class="grow" />
                 </label>
                 <input type="hidden" name="type" value="@(q.Type ?? "all")" />
                 <select name="range" class="select select-bordered select-sm w-44" onchange="this.form.submit()">

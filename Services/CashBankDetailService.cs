@@ -31,6 +31,9 @@ public class CashBankDetailService(ApplicationDbContext db)
             .AsNoTracking()
             .Include(x => x.Unit).ThenInclude(u => u!.Block)
             .Include(x => x.BillingGroup)
+            .Include(x => x.Allocations)
+            .ThenInclude(x => x.DuesInstallment)
+            .ThenInclude(x => x!.ResponsibleAccount)
             .Where(x => kind == "bank" ? x.BankAccountId == id : x.CashBoxId == id)
             .ToListAsync();
 
@@ -47,12 +50,19 @@ public class CashBankDetailService(ApplicationDbContext db)
         {
             var block = c.Unit?.Block?.Name ?? "";
             var unitNo = c.Unit?.UnitNo ?? "";
-            var owner = c.Unit?.OwnerName ?? "";
+            var responsibleNames = c.Allocations
+                .Select(x => x.DuesInstallment?.ResponsibleAccount?.Name)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .ToList();
+            var payer = responsibleNames.Count > 0
+                ? string.Join(", ", responsibleNames)
+                : c.Unit?.OwnerName ?? "";
             allRows.Add(new TxRow
             {
                 Id = c.Id,
                 Description = c.BillingGroup?.Name ?? "Tahsilat",
-                Subline = $"{block} Blok · No {unitNo} · {owner}",
+                Subline = $"{block} Blok · No {unitNo} · {payer}",
                 Kind = TxKind.Tahsilat,
                 Amount = c.Amount,
                 Date = c.Date

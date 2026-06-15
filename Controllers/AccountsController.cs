@@ -44,6 +44,113 @@ public class AccountsController(ApplicationDbContext db) : Controller
         return View(accounts);
     }
 
+    [HttpGet]
+    public async Task<IActionResult> Search(string? term)
+    {
+        term = term?.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            return Json(Array.Empty<object>());
+        }
+
+        var accounts = await db.Accounts
+            .AsNoTracking()
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => x.Name.Contains(term)
+                || (x.Phone != null && x.Phone.Contains(term))
+                || (x.Email != null && x.Email.Contains(term))
+                || x.UnitAccounts.Any(unitAccount =>
+                    unitAccount.Active &&
+                    unitAccount.Unit != null &&
+                    (unitAccount.Unit.UnitNo.Contains(term) ||
+                     (unitAccount.Unit.Block != null && unitAccount.Unit.Block.Name.Contains(term)))))
+            .OrderBy(x => x.Name == term ? 0 : 1)
+            .ThenBy(x => x.Name)
+            .Take(12)
+            .ToListAsync();
+
+        var results = accounts.Select(account =>
+        {
+            var unitLinks = account.UnitAccounts
+                .Where(x => x.Active && x.Unit?.Block is not null)
+                .OrderBy(x => x.Unit!.Block!.Name)
+                .ThenBy(x => x.Unit!.UnitNo)
+                .Select(x => $"{x.Unit!.Block!.Name}-{x.Unit.UnitNo} ({AccountDisplayHelper.RoleLabel(x.Role)})")
+                .ToList();
+
+            var subtitleParts = new List<string> { AccountDisplayHelper.TypeLabel(account.AccountType) };
+            if (unitLinks.Count > 0)
+            {
+                subtitleParts.Add(string.Join(", ", unitLinks));
+            }
+
+            return new
+            {
+                id = account.Id,
+                label = account.Name,
+                subtitle = string.Join(" • ", subtitleParts),
+                active = account.Active,
+                url = Url.Action(nameof(Detail), "Accounts", new { id = account.Id })
+            };
+        });
+
+        return Json(results);
+    }
+
+    public async Task<IActionResult> Detail(int id)
+    {
+        var account = await db.Accounts
+            .AsNoTracking()
+            .Include(x => x.UnitAccounts)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (account is null)
+        {
+            return NotFound();
+        }
+
+        var openInstallments = await db.DuesInstallments
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => x.ResponsibleAccountId == id && x.RemainingAmount > 0)
+            .OrderBy(x => x.DueDate)
+            .ThenBy(x => x.Period)
+            .ToListAsync();
+
+        var recentAllocations = await db.CollectionAllocations
+            .AsNoTracking()
+            .Include(x => x.Collection)
+            .ThenInclude(x => x!.CashBox)
+            .Include(x => x.Collection)
+            .ThenInclude(x => x!.BankAccount)
+            .Include(x => x.DuesInstallment)
+            .ThenInclude(x => x!.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Where(x => x.DuesInstallment != null && x.DuesInstallment.ResponsibleAccountId == id)
+            .OrderByDescending(x => x.Collection!.Date)
+            .ThenByDescending(x => x.Id)
+            .Take(20)
+            .ToListAsync();
+
+        return View(new AccountDetailViewModel
+        {
+            Account = account,
+            OpenInstallments = openInstallments,
+            RecentAllocations = recentAllocations
+        });
+    }
+
     public IActionResult Create()
     {
         return View(new AccountFormViewModel { Active = true });

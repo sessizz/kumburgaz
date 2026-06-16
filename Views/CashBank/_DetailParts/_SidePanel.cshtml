@@ -45,6 +45,10 @@
                 <li><button type="button" onclick="transferModal.showModal()">Para Transferi</button></li>
             </ul>
         </div>
+        <button type="button" class="btn btn-sm btn-outline" onclick="importModal.showModal()">
+            <span class="material-symbols-outlined ms-sm">upload_file</span>
+            Import
+        </button>
     </div>
     <div class="p-5">
         <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bakiye</div>
@@ -123,6 +127,38 @@
             <div class="modal-action">
                 <button type="button" class="btn btn-ghost" onclick="accountDeleteModal.close()">Vazgeç</button>
                 <button type="submit" class="btn btn-error">Sil</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="importModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="PreviewImport" method="post" enctype="multipart/form-data" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="kind" value="@Model.Kind" />
+            <input type="hidden" name="id" value="@Model.Id" />
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">CSV Import</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="importModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">CSV dosyası</legend>
+                <input name="file" type="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" required />
+            </fieldset>
+            <div class="flex items-center justify-between gap-3 text-xs text-gray-500">
+                <span>Tanınan başlıklar: tip, tarih, tutar, daire, kişi, kategori, açıklama, referans, not.</span>
+                <a class="btn btn-xs btn-outline"
+                   asp-action="DownloadImportTemplate"
+                   asp-route-kind="@Model.Kind"
+                   asp-route-id="@Model.Id">
+                    Şablon indir
+                </a>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="importModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Önizle</button>
             </div>
         </form>
     </div>

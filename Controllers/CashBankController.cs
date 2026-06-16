@@ -155,6 +155,174 @@ public class CashBankController(
         return View("Detail", vm);
     }
 
+    [HttpGet]
+    public IActionResult DownloadImportTemplate(string kind, int id)
+    {
+        var rows = new[]
+        {
+            "tip;tarih;tutar;daire;kisi;kategori;aciklama;referans;not",
+            "tahsilat;2026-06-16;2000,00;B-08;Alper Bahçeliler;;Haziran aidat tahsilatı;DK-001;",
+            "gider;2026-06-16;1200,00;;;Bakım Onarım;Pompa bakım ödemesi;FIS-001;"
+        };
+        var bytes = Encoding.UTF8.GetPreamble()
+            .Concat(Encoding.UTF8.GetBytes(string.Join(Environment.NewLine, rows)))
+            .ToArray();
+        return File(bytes, "text/csv;charset=utf-8", $"{kind}-{id}-import-sablonu.csv");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PreviewImport(string kind, int id, IFormFile? file)
+    {
+        if (file is null || file.Length == 0)
+        {
+            TempData["ActionError"] = "CSV dosyası seçin.";
+            return RedirectToDetail(kind, id);
+        }
+
+        var rows = await CsvImportHelper.ReadRowsAsync(file);
+        if (rows.Count < 2)
+        {
+            TempData["ActionError"] = "CSV başlık ve en az bir veri satırı içermelidir.";
+            return RedirectToDetail(kind, id);
+        }
+
+        var detail = await detailService.BuildAsync(kind, id, new CashBankDetailQuery());
+        if (detail is null) return NotFound();
+
+        var headers = BuildImportHeaders(rows[0]);
+        var previewRows = rows.Skip(1)
+            .Select((row, index) => BuildImportPreviewRow(row, headers, index + 2, detail))
+            .ToList();
+
+        return View("ImportPreview", new CashBankImportPreviewViewModel
+        {
+            Kind = kind,
+            Id = id,
+            AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}",
+            Rows = previewRows,
+            DuesOptions = detail.DuesOptions,
+            ExpenseCategoryOptions = detail.ExpenseCategoryOptions
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CommitImport(CashBankImportPreviewViewModel model)
+    {
+        var detail = await detailService.BuildAsync(model.Kind, model.Id, new CashBankDetailQuery());
+        if (detail is null) return NotFound();
+
+        var accountKey = BuildAccountKey(model.Kind, model.Id);
+        var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
+        var errors = new List<string>();
+        var collectionRows = new List<(CashBankImportRowViewModel Row, DateTime Date, decimal Amount, DuesInstallment Installment)>();
+        var ledgerRows = new List<(CashBankImportRowViewModel Row, DateTime Date, decimal Amount)>();
+
+        foreach (var row in model.Rows.Where(x => x.Include))
+        {
+            if (!TryParseDate(row.Date, out var date))
+            {
+                errors.Add($"{row.LineNo}. satır: tarih geçersiz.");
+                continue;
+            }
+
+            if (!TryParseImportAmount(row.Amount, out var amount))
+            {
+                errors.Add($"{row.LineNo}. satır: tutar geçersiz.");
+                continue;
+            }
+
+            if (row.Type == "collection")
+            {
+                if (!row.DuesInstallmentId.HasValue)
+                {
+                    errors.Add($"{row.LineNo}. satır: tahsilat için aidat borcu seçin.");
+                    continue;
+                }
+
+                var installment = await db.DuesInstallments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == row.DuesInstallmentId.Value);
+                if (installment is null)
+                {
+                    errors.Add($"{row.LineNo}. satır: aidat borcu bulunamadı.");
+                    continue;
+                }
+
+                collectionRows.Add((row, date, amount, installment));
+                continue;
+            }
+
+            if (!row.ExpenseCategoryId.HasValue)
+            {
+                errors.Add($"{row.LineNo}. satır: gider kategorisi seçin.");
+                continue;
+            }
+
+            var categoryExists = await db.IncomeExpenseCategories
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == row.ExpenseCategoryId.Value && x.Type == CategoryTypeHelper.Gider);
+            if (!categoryExists)
+            {
+                errors.Add($"{row.LineNo}. satır: gider kategorisi bulunamadı.");
+                continue;
+            }
+
+            ledgerRows.Add((row, date, amount));
+        }
+
+        if (errors.Count > 0)
+        {
+            return ImportPreviewWithErrors(model, detail, errors, "CSV import edilmedi. Hatalı satırları düzeltin.");
+        }
+
+        var saved = collectionRows.Count + ledgerRows.Count;
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var item in collectionRows)
+            {
+                await collectionService.CreateAsync(new CollectionCreateViewModel
+                {
+                    BillingGroupId = item.Installment.BillingGroupId,
+                    DuesInstallmentId = item.Installment.Id,
+                    Date = item.Date,
+                    Amount = item.Amount,
+                    PaymentChannel = paymentChannel,
+                    AccountKey = accountKey,
+                    ReferenceNo = item.Row.ReferenceNo,
+                    Note = string.IsNullOrWhiteSpace(item.Row.Note) ? item.Row.Description : item.Row.Note
+                });
+            }
+
+            foreach (var item in ledgerRows)
+            {
+                db.LedgerTransactions.Add(new LedgerTransaction
+                {
+                    Date = DateTimeHelper.EnsureUtc(item.Date),
+                    IncomeExpenseCategoryId = item.Row.ExpenseCategoryId!.Value,
+                    Amount = item.Amount,
+                    PaymentChannel = paymentChannel,
+                    CashBoxId = model.Kind == "cash" ? model.Id : null,
+                    BankAccountId = model.Kind == "bank" ? model.Id : null,
+                    Description = string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description
+                });
+            }
+
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
+        }
+
+        TempData["ActionSuccess"] = $"{saved} kayıt import edildi.";
+        return RedirectToDetail(model.Kind, model.Id);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateAccount(CashBankAccountEditViewModel model)
@@ -750,5 +918,282 @@ public class CashBankController(
             ? CultureInfo.InvariantCulture
             : CultureInfo.GetCultureInfo("tr-TR");
         return decimal.TryParse(raw, NumberStyles.Number, fallbackCulture, out amount) && amount > 0;
+    }
+
+    private static CashBankImportRowViewModel BuildImportPreviewRow(
+        string[] row,
+        Dictionary<string, int> headers,
+        int lineNo,
+        CashBankDetailViewModel detail)
+    {
+        var typeText = ReadImportValue(row, headers, "tip", "type", "tur", "islemtipi", "işlemtipi");
+        var amountText = ReadImportValue(row, headers, "tutar", "amount", "borc", "borç", "alacak");
+        var description = ReadImportValue(row, headers, "aciklama", "açıklama", "description", "izahat", "detay");
+        var categoryText = ReadImportValue(row, headers, "kategori", "category", "giderkategori", "giderkategorisi");
+        var matchText = ReadImportValue(row, headers, "daire", "hesap", "kisi", "kişi", "isim", "ad", "malik", "kiraci", "kiracı", "uye", "üye");
+        var note = ReadImportValue(row, headers, "not", "note");
+        var reference = ReadImportValue(row, headers, "referans", "referansno", "ref", "fisno", "fişno", "dekont");
+        var dateText = ReadImportValue(row, headers, "tarih", "date", "islemtarihi", "işlemtarihi");
+        var rowType = InferImportType(typeText, amountText, description, categoryText);
+        var status = string.Empty;
+
+        var preview = new CashBankImportRowViewModel
+        {
+            LineNo = lineNo,
+            Type = rowType,
+            Date = TryParseDate(dateText, out var parsedDate) ? parsedDate.ToString("yyyy-MM-dd") : dateText,
+            Amount = NormalizeImportAmountText(amountText),
+            Description = string.IsNullOrWhiteSpace(description) ? categoryText : description,
+            ReferenceNo = reference,
+            Note = note
+        };
+
+        if (rowType == "collection")
+        {
+            var match = MatchDuesOption(detail.DuesOptions, string.Join(" ", matchText, description, note, reference));
+            preview.DuesInstallmentId = match?.Id;
+            if (match is not null && string.IsNullOrWhiteSpace(preview.Amount))
+            {
+                preview.Amount = match.RemainingAmount.ToString("0.##", CultureInfo.InvariantCulture);
+            }
+            if (match is null)
+            {
+                status = "Aidat borcu eşleşmedi.";
+            }
+        }
+        else
+        {
+            var category = MatchCategory(detail.ExpenseCategoryOptions, string.Join(" ", categoryText, description, note));
+            preview.ExpenseCategoryId = category;
+            if (category is null)
+            {
+                status = "Gider kategorisi eşleşmedi.";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(preview.Date) || !TryParseDate(preview.Date, out _))
+        {
+            status = AppendImportStatus(status, "Tarih kontrol edilmeli.");
+        }
+        if (string.IsNullOrWhiteSpace(preview.Amount) || !TryParseImportAmount(preview.Amount, out _))
+        {
+            status = AppendImportStatus(status, "Tutar kontrol edilmeli.");
+        }
+
+        preview.Status = status;
+        return preview;
+    }
+
+    private IActionResult ImportPreviewWithErrors(
+        CashBankImportPreviewViewModel model,
+        CashBankDetailViewModel detail,
+        List<string> errors,
+        string message)
+    {
+        model.DuesOptions = detail.DuesOptions;
+        model.ExpenseCategoryOptions = detail.ExpenseCategoryOptions;
+        model.AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}";
+        foreach (var row in model.Rows)
+        {
+            row.Status = errors.FirstOrDefault(x => x.StartsWith($"{row.LineNo}. satır:", StringComparison.OrdinalIgnoreCase)) ?? row.Status;
+        }
+
+        var rowErrorCount = errors.Count(x => x.Contains(". satır:", StringComparison.OrdinalIgnoreCase));
+        var suffix = rowErrorCount > 0
+            ? $"{rowErrorCount} satır kontrol istiyor."
+            : $"{errors.Count} hata var.";
+        TempData["ActionError"] = $"{message} {suffix}";
+        return View("ImportPreview", model);
+    }
+
+    private static Dictionary<string, int> BuildImportHeaders(string[] row)
+    {
+        var map = new Dictionary<string, int>();
+        for (var i = 0; i < row.Length; i++)
+        {
+            var key = NormalizeImportKey(row[i]);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                map[key] = i;
+            }
+        }
+
+        return map;
+    }
+
+    private static string ReadImportValue(string[] row, Dictionary<string, int> headers, params string[] keys)
+    {
+        foreach (var key in keys.Select(NormalizeImportKey))
+        {
+            if (headers.TryGetValue(key, out var idx) && idx < row.Length && !string.IsNullOrWhiteSpace(row[idx]))
+            {
+                return row[idx].Trim();
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string NormalizeImportKey(string value)
+    {
+        return value.Trim()
+            .ToLowerInvariant()
+            .Replace("ı", "i")
+            .Replace("ğ", "g")
+            .Replace("ü", "u")
+            .Replace("ş", "s")
+            .Replace("ö", "o")
+            .Replace("ç", "c")
+            .Replace(" ", "")
+            .Replace("_", "")
+            .Replace("-", "");
+    }
+
+    private static string InferImportType(string typeText, string amountText, string description, string categoryText)
+    {
+        var haystack = NormalizeImportKey(string.Join(" ", typeText, description, categoryText));
+        if (haystack.Contains("tahsil") || haystack.Contains("aidat") || haystack.Contains("gelir"))
+        {
+            return "collection";
+        }
+        if (haystack.Contains("gider") || haystack.Contains("odeme") || haystack.Contains("masraf"))
+        {
+            return "expense";
+        }
+        return amountText.TrimStart().StartsWith("-", StringComparison.Ordinal) ? "expense" : "collection";
+    }
+
+    private static CashBankDuesOptionViewModel? MatchDuesOption(List<CashBankDuesOptionViewModel> options, string text)
+    {
+        var tokens = TokenizeImportSearch(text);
+        if (tokens.Count == 0)
+        {
+            return null;
+        }
+
+        return options
+            .Select(x => new
+            {
+                Option = x,
+                Haystack = NormalizeSearchText($"{x.SearchText} {x.Text}")
+            })
+            .Select(x => new
+            {
+                x.Option,
+                Score = tokens.Count(token => x.Haystack.Contains(token, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Option.RemainingAmount > 0)
+            .ThenBy(x => x.Option.Text.Length)
+            .Select(x => x.Option)
+            .FirstOrDefault();
+    }
+
+    private static int? MatchCategory(List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> options, string text)
+    {
+        var tokens = TokenizeImportSearch(text);
+        if (tokens.Count == 0)
+        {
+            return null;
+        }
+
+        var match = options
+            .Select(x => new
+            {
+                Option = x,
+                Haystack = NormalizeSearchText(x.Text)
+            })
+            .Select(x => new
+            {
+                x.Option,
+                Score = tokens.Count(token => x.Haystack.Contains(token, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Option.Text.Length)
+            .Select(x => x.Option)
+            .FirstOrDefault();
+
+        return int.TryParse(match?.Value, out var id) ? id : null;
+    }
+
+    private static string NormalizeSearchText(string value)
+    {
+        return value.Trim()
+            .ToLowerInvariant()
+            .Replace("ı", "i")
+            .Replace("ğ", "g")
+            .Replace("ü", "u")
+            .Replace("ş", "s")
+            .Replace("ö", "o")
+            .Replace("ç", "c")
+            .Replace(".", "")
+            .Replace("-", "")
+            .Replace("_", "")
+            .Replace("/", "")
+            .Replace("\\", "")
+            .Replace(" ", "");
+    }
+
+    private static List<string> TokenizeImportSearch(string value)
+    {
+        var cleaned = value.Trim()
+            .ToLowerInvariant()
+            .Replace("ı", "i")
+            .Replace("ğ", "g")
+            .Replace("ü", "u")
+            .Replace("ş", "s")
+            .Replace("ö", "o")
+            .Replace("ç", "c");
+
+        foreach (var separator in new[] { '.', ',', ';', ':', '-', '_', '/', '\\', '|', '(', ')', '[', ']' })
+        {
+            cleaned = cleaned.Replace(separator, ' ');
+        }
+
+        return cleaned
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => x.Length > 1)
+            .Distinct()
+            .ToList();
+    }
+
+    private static string NormalizeImportAmountText(string value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.StartsWith("-", StringComparison.Ordinal) ? trimmed[1..].Trim() : trimmed;
+    }
+
+    private static string AppendImportStatus(string current, string message)
+    {
+        return string.IsNullOrWhiteSpace(current) ? message : $"{current} {message}";
+    }
+
+    private static bool TryParseDate(string value, out DateTime date)
+    {
+        var formats = new[] { "yyyy-MM-dd", "dd.MM.yyyy", "dd/MM/yyyy", "MM/dd/yyyy" };
+        return DateTime.TryParseExact(value, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out date)
+            || DateTime.TryParse(value, CultureInfo.GetCultureInfo("tr-TR"), DateTimeStyles.None, out date)
+            || DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+    }
+
+    private static bool TryParseImportAmount(string value, out decimal amount)
+    {
+        amount = 0m;
+        var raw = NormalizeImportAmountText(value);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var culture = raw.Contains(',') ? CultureInfo.GetCultureInfo("tr-TR") : CultureInfo.InvariantCulture;
+        if (decimal.TryParse(raw, NumberStyles.Number, culture, out amount) && amount > 0)
+        {
+            return true;
+        }
+
+        var fallback = culture.Name == "tr-TR" ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("tr-TR");
+        return decimal.TryParse(raw, NumberStyles.Number, fallback, out amount) && amount > 0;
     }
 }

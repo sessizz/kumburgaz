@@ -1,0 +1,160 @@
+@model Kumburgaz.Web.Models.CashBankImportPreviewViewModel
+@{
+    ViewData["Title"] = "CSV Import Önizleme";
+    var backAction = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
+}
+
+<div class="max-w-7xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square"
+           asp-action="@backAction"
+           asp-route-id="@Model.Id"
+           title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div>
+            <h2 class="text-2xl font-extrabold">CSV Import Önizleme</h2>
+            <p class="text-sm text-gray-500">@Model.AccountName hesabına kaydedilecek satırları kontrol edin.</p>
+        </div>
+    </div>
+
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <form asp-action="CommitImport" method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Kind" />
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="AccountName" />
+
+        <div class="overflow-x-auto">
+            <table class="table table-zebra align-middle min-w-[1180px]">
+                <thead>
+                    <tr>
+                        <th class="w-16">Al</th>
+                        <th class="w-20">Satır</th>
+                        <th class="w-36">Tip</th>
+                        <th class="w-36">Tarih</th>
+                        <th class="w-36 text-end">Tutar</th>
+                        <th>Tahsilat / Gider Eşleşmesi</th>
+                        <th>Açıklama</th>
+                        <th>Referans</th>
+                        <th>Not</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @for (var i = 0; i < Model.Rows.Count; i++)
+                {
+                    var row = Model.Rows[i];
+                    <tr class="import-row">
+                        <td>
+                            <input type="checkbox" name="Rows[@i].Include" value="true" class="checkbox checkbox-sm" checked="@row.Include" />
+                            <input type="hidden" name="Rows[@i].Include" value="false" />
+                        </td>
+                        <td>
+                            <input type="hidden" name="Rows[@i].LineNo" value="@row.LineNo" />
+                            <span class="text-sm text-gray-500">@row.LineNo</span>
+                        </td>
+                        <td>
+                            <select name="Rows[@i].Type" class="select select-bordered select-sm w-32 import-type">
+                                <option value="collection" selected="@(row.Type == "collection")">Tahsilat</option>
+                                <option value="expense" selected="@(row.Type == "expense")">Gider</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Date" value="@row.Date" type="date" class="input input-bordered input-sm w-36" />
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Amount" value="@row.Amount" inputmode="decimal" class="input input-bordered input-sm w-32 text-end" />
+                        </td>
+                        <td>
+                            <div class="collection-pick space-y-1">
+                                <input type="search" class="input input-bordered input-sm w-full import-dues-search" placeholder="Daire, isim, dönem ara" />
+                                <select name="Rows[@i].DuesInstallmentId" class="select select-bordered select-sm w-full import-dues-select">
+                                    <option value="">Aidat borcu seçin</option>
+                                    @foreach (var option in Model.DuesOptions)
+                                    {
+                                        <option value="@option.Id"
+                                                selected="@(row.DuesInstallmentId == option.Id)"
+                                                data-search="@option.SearchText @option.Text">
+                                            @option.Text
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="expense-pick hidden">
+                                <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
+                                    <option value="">Gider kategorisi seçin</option>
+                                    @foreach (var option in Model.ExpenseCategoryOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                            </div>
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Description" value="@row.Description" class="input input-bordered input-sm w-56" />
+                        </td>
+                        <td>
+                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-32" />
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Note" value="@row.Note" class="input input-bordered input-sm w-44" />
+                        </td>
+                        <td class="text-xs @(string.IsNullOrWhiteSpace(row.Status) ? "text-success" : "text-warning")">
+                            @(string.IsNullOrWhiteSpace(row.Status) ? "Hazır" : row.Status)
+                            <input type="hidden" name="Rows[@i].Status" value="@row.Status" />
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-5 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div class="text-sm text-gray-500">@Model.Rows.Count satır okundu.</div>
+            <div class="flex gap-2">
+                <a class="btn btn-ghost" asp-action="@backAction" asp-route-id="@Model.Id">Vazgeç</a>
+                <button class="btn btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">upload_file</span>
+                    Import et
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+function normalizeImportSearch(value) {
+    return (value || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function updateImportRow(row) {
+    var type = row.querySelector('.import-type')?.value || 'collection';
+    row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
+    row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
+}
+
+document.querySelectorAll('.import-row').forEach(function(row) {
+    updateImportRow(row);
+    row.querySelector('.import-type')?.addEventListener('change', function() {
+        updateImportRow(row);
+    });
+    var search = row.querySelector('.import-dues-search');
+    var select = row.querySelector('.import-dues-select');
+    search?.addEventListener('input', function() {
+        var query = normalizeImportSearch(search.value);
+        Array.from(select.options).forEach(function(option) {
+            if (!option.value) return;
+            var haystack = normalizeImportSearch(option.dataset.search || option.textContent);
+            option.hidden = query.length > 0 && !haystack.includes(query);
+        });
+    });
+});
+</script>

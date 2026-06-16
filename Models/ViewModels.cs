@@ -409,6 +409,31 @@ public class CashBankDuesOptionViewModel
     public decimal RemainingAmount { get; set; }
 }
 
+public class CashBankImportPreviewViewModel
+{
+    public string Kind { get; set; } = "bank";
+    public int Id { get; set; }
+    public string AccountName { get; set; } = string.Empty;
+    public List<CashBankImportRowViewModel> Rows { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
+}
+
+public class CashBankImportRowViewModel
+{
+    public bool Include { get; set; } = true;
+    public int LineNo { get; set; }
+    public string Type { get; set; } = "collection";
+    public string Date { get; set; } = DateTime.Today.ToString("yyyy-MM-dd");
+    public string Amount { get; set; } = string.Empty;
+    public int? DuesInstallmentId { get; set; }
+    public int? ExpenseCategoryId { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string ReferenceNo { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+}
+
 public class CashBankLedgerFormViewModel
 {
     [Required]

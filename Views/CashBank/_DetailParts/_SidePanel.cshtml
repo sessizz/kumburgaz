@@ -16,16 +16,35 @@
                 <span class="material-symbols-outlined ms-sm">expand_more</span>
             </button>
             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-40 p-2 shadow-sm border border-gray-200">
-                <li><a>Düzenle</a></li>
-                <li><a>Pasifleştir</a></li>
-                <li><a class="text-error">Sil</a></li>
+                <li><button type="button" onclick="accountEditModal.showModal()">Düzenle</button></li>
+                <li>
+                    <form asp-action="SetActive" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="kind" value="@Model.Kind" />
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <input type="hidden" name="active" value="@(!Model.IsActive)" />
+                        <button type="submit">@(Model.IsActive ? "Pasifleştir" : "Aktifleştir")</button>
+                    </form>
+                </li>
+                <li><button type="button" class="text-error" onclick="accountDeleteModal.showModal()">Sil</button></li>
             </ul>
         </div>
         <div class="flex-1"></div>
-        <button class="btn btn-sm btn-primary">
-            <span class="material-symbols-outlined ms-sm">swap_horiz</span>
-            Para Hareketi
-        </button>
+        <div class="dropdown dropdown-end">
+            <button tabindex="0" class="btn btn-sm btn-primary">
+                <span class="material-symbols-outlined ms-sm">swap_horiz</span>
+                Para Hareketi
+            </button>
+            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-sm border border-gray-200">
+                <li><button type="button" onclick="collectionModal.showModal()">Tahsilat</button></li>
+                <li><button type="button" onclick="openLedgerModal(false)">Ödeme</button></li>
+                @if (Model.Kind == "bank")
+                {
+                    <li><button type="button" onclick="openLedgerModal(true)">Banka Masrafı</button></li>
+                }
+                <li><button type="button" onclick="transferModal.showModal()">Para Transferi</button></li>
+            </ul>
+        </div>
     </div>
     <div class="p-5">
         <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bakiye</div>
@@ -45,7 +64,12 @@
             }
             @foreach (var (icon, label) in shortcuts)
             {
-                <button class="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 text-gray-700 hover:text-blue-700 transition">
+                var click = label == "Tahsilat"
+                    ? "collectionModal.showModal()"
+                    : label == "Ödeme"
+                        ? "openLedgerModal(false)"
+                        : "transferModal.showModal()";
+                <button type="button" onclick="@click" class="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 text-gray-700 hover:text-blue-700 transition">
                     <span class="material-symbols-outlined">@icon</span>
                     <span class="text-xs font-medium">@label</span>
                 </button>
@@ -53,6 +77,198 @@
         </div>
     </div>
 </div>
+
+<dialog id="accountEditModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="UpdateAccount" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Kind" value="@Model.Kind" />
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Hesabı Düzenle</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="accountEditModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Ad</legend>
+                <input name="Name" value="@Model.Name" class="input input-bordered w-full" required />
+            </fieldset>
+            @if (Model.Kind == "bank")
+            {
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Şube</legend>
+                    <input name="Branch" value="@Model.Branch" class="input input-bordered w-full" />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">IBAN</legend>
+                    <input name="Iban" value="@Model.Iban" class="input input-bordered w-full" />
+                </fieldset>
+            }
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="accountEditModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="accountDeleteModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="DeleteAccount" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="kind" value="@Model.Kind" />
+            <input type="hidden" name="id" value="@Model.Id" />
+            <h3 class="text-lg font-bold">Hesabı Sil</h3>
+            <p class="text-sm text-gray-500">İşlem görmüş hesaplar silinemez; bu durumda pasifleştirme kullanılır.</p>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="accountDeleteModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-error">Sil</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="collectionModal" class="modal">
+    <div class="modal-box max-w-2xl">
+        <form asp-action="CreateCollection" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Kind" value="@Model.Kind" />
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Tahsilat</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="collectionModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Açık borç</legend>
+                <select name="DuesInstallmentId" class="select select-bordered w-full">
+                    <option value="">Borç seçmeden aidat grubuna işle</option>
+                    @foreach (var option in Model.DuesInstallmentOptions)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Aidat grubu</legend>
+                <select name="BillingGroupId" class="select select-bordered w-full" required>
+                    <option value="">Seçiniz</option>
+                    @foreach (var option in Model.BillingGroupOptions)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tarih</legend>
+                    <input name="Date" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" class="input input-bordered w-full" required />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tutar</legend>
+                    <input name="Amount" type="number" min="0.01" step="0.01" class="input input-bordered w-full" required />
+                </fieldset>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Referans / Not</legend>
+                <input name="ReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
+                <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not"></textarea>
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="collectionModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="ledgerModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="CreateLedger" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Kind" value="@Model.Kind" />
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <input id="ledgerIsBankFee" type="hidden" name="IsBankFee" value="false" />
+            <div class="flex items-center justify-between">
+                <h3 id="ledgerModalTitle" class="text-lg font-bold">Ödeme</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="ledgerModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Gider kategorisi</legend>
+                <select name="IncomeExpenseCategoryId" class="select select-bordered w-full" required>
+                    <option value="">Seçiniz</option>
+                    @foreach (var option in Model.ExpenseCategoryOptions)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tarih</legend>
+                    <input name="Date" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" class="input input-bordered w-full" required />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tutar</legend>
+                    <input name="Amount" type="number" min="0.01" step="0.01" class="input input-bordered w-full" required />
+                </fieldset>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Açıklama</legend>
+                <textarea id="ledgerDescription" name="Description" class="textarea textarea-bordered w-full" rows="2"></textarea>
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="ledgerModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="transferModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="CreateTransfer" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Kind" value="@Model.Kind" />
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Para Transferi</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="transferModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Hedef hesap</legend>
+                <select name="ToAccountKey" class="select select-bordered w-full" required>
+                    <option value="">Seçiniz</option>
+                    @foreach (var option in Model.TransferAccountOptions)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tarih</legend>
+                    <input name="Date" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" class="input input-bordered w-full" required />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tutar</legend>
+                    <input name="Amount" type="number" min="0.01" step="0.01" class="input input-bordered w-full" required />
+                </fieldset>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Açıklama</legend>
+                <textarea name="Description" class="textarea textarea-bordered w-full" rows="2"></textarea>
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="transferModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
     <div class="flex border-b border-gray-200 px-2 pt-2 gap-1">
@@ -117,7 +333,6 @@
     </div>
 </div>
 
-@section Scripts {
 <script>
 function switchTab(btn, tab) {
     document.querySelectorAll('.seg-tab[data-tab]').forEach(b => b.classList.remove('active'));
@@ -127,5 +342,11 @@ function switchTab(btn, tab) {
         if (el) el.classList.toggle('hidden', id !== tab);
     });
 }
-</script>
+
+function openLedgerModal(isBankFee) {
+    document.getElementById('ledgerIsBankFee').value = isBankFee ? 'true' : 'false';
+    document.getElementById('ledgerModalTitle').textContent = isBankFee ? 'Banka Masrafı' : 'Ödeme';
+    document.getElementById('ledgerDescription').placeholder = isBankFee ? 'Banka masrafı açıklaması' : 'Ödeme açıklaması';
+    ledgerModal.showModal();
 }
+</script>

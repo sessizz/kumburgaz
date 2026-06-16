@@ -32,7 +32,78 @@
     <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>
     <div class="text-right tabular-nums font-semibold @amtClass">@sign@absAmt <span class="text-gray-400 font-normal">₺</span></div>
     <div class="text-right tabular-nums font-medium text-gray-700">@Model.RunningBalance.ToString("N2", trTR) <span class="text-gray-400 font-normal">₺</span></div>
-    <div class="text-right text-gray-400 hover:text-gray-700 cursor-pointer">
-        <span class="material-symbols-outlined">more_horiz</span>
+    <div class="text-right">
+        <div class="dropdown dropdown-end">
+            <button tabindex="0" type="button" class="text-gray-400 hover:text-gray-700 cursor-pointer">
+                <span class="material-symbols-outlined">more_horiz</span>
+            </button>
+            <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-20 w-36 p-2 shadow-sm border border-gray-200">
+                @if (Model.Source == "opening")
+                {
+                    <li><button type="button" onclick="document.getElementById('openingEditModal-@Model.AccountKind-@Model.AccountId').showModal()">Değiştir</button></li>
+                    <li><button type="button" class="text-error" onclick="document.getElementById('openingDeleteModal-@Model.AccountKind-@Model.AccountId').showModal()">Sil</button></li>
+                }
+                else
+                {
+                    <li>
+                        <form asp-action="DeleteTransaction" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="kind" value="@Model.AccountKind" />
+                            <input type="hidden" name="accountId" value="@Model.AccountId" />
+                            <input type="hidden" name="source" value="@Model.Source" />
+                            <input type="hidden" name="id" value="@Model.Id" />
+                            <button type="submit" class="text-error">Sil</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        </div>
     </div>
 </li>
+
+@if (Model.Source == "opening")
+{
+    <dialog id="openingEditModal-@Model.AccountKind-@Model.AccountId" class="modal">
+        <div class="modal-box">
+            <form asp-action="UpdateOpeningBalance" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Kind" value="@Model.AccountKind" />
+                <input type="hidden" name="Id" value="@Model.AccountId" />
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">Açılış Bakiyesi</h3>
+                    <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="document.getElementById('openingEditModal-@Model.AccountKind-@Model.AccountId').close()">✕</button>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tutar</legend>
+                    <input name="OpeningBalance" type="number" step="0.01" value="@Model.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="input input-bordered w-full" />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tarih</legend>
+                    <input name="OpeningBalanceDate" type="date" value="@Model.Date.ToString("yyyy-MM-dd")" class="input input-bordered w-full" required />
+                </fieldset>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('openingEditModal-@Model.AccountKind-@Model.AccountId').close()">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+
+    <dialog id="openingDeleteModal-@Model.AccountKind-@Model.AccountId" class="modal">
+        <div class="modal-box">
+            <form asp-action="DeleteOpeningBalance" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="kind" value="@Model.AccountKind" />
+                <input type="hidden" name="id" value="@Model.AccountId" />
+                <h3 class="text-lg font-bold">Açılış Bakiyesini Sil</h3>
+                <p class="text-sm text-gray-500">Açılış bakiyesi sıfırlanacak.</p>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('openingDeleteModal-@Model.AccountKind-@Model.AccountId').close()">Vazgeç</button>
+                    <button type="submit" class="btn btn-error">Sil</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+}

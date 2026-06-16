@@ -340,6 +340,112 @@ public class BankAccountFormViewModel
     public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
 }
 
+public class CashBankAccountEditViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? Branch { get; set; }
+
+    [MaxLength(34)]
+    public string? Iban { get; set; }
+}
+
+public class CashBankOpeningBalanceViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    public decimal OpeningBalance { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
+}
+
+public class CashBankCollectionFormViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    public int? DuesInstallmentId { get; set; }
+
+    [Required]
+    public int BillingGroupId { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    [Range(1, 999999999)]
+    public decimal Amount { get; set; }
+
+    [MaxLength(80)]
+    public string? ReferenceNo { get; set; }
+
+    [MaxLength(250)]
+    public string? Note { get; set; }
+}
+
+public class CashBankLedgerFormViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    [Required]
+    public int IncomeExpenseCategoryId { get; set; }
+
+    [Range(1, 999999999)]
+    public decimal Amount { get; set; }
+
+    [MaxLength(250)]
+    public string? Description { get; set; }
+
+    public bool IsBankFee { get; set; }
+}
+
+public class CashBankTransferFormViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    [Range(1, 999999999)]
+    public decimal Amount { get; set; }
+
+    [Required]
+    public string? ToAccountKey { get; set; }
+
+    [MaxLength(250)]
+    public string? Description { get; set; }
+}
+
 public class CashBankListItemViewModel
 {
     public int Id { get; set; }
@@ -374,6 +480,9 @@ public enum TxKind { Tahsilat, Cikis, Transfer, Girdi, Acilis }
 public class TxRow
 {
     public int Id { get; set; }
+    public string Source { get; set; } = "";
+    public string AccountKind { get; set; } = "";
+    public int AccountId { get; set; }
     public string Description { get; set; } = "";
     public string? Subline { get; set; }
     public TxKind Kind { get; set; }
@@ -423,6 +532,10 @@ public class CashBankDetailViewModel
     public IReadOnlyList<AuditEntry> History { get; set; } = Array.Empty<AuditEntry>();
     public int PendingCount { get; set; }
     public string? Note { get; set; }
+    public List<SelectListItem> BillingGroupOptions { get; set; } = [];
+    public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
+    public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }
 
 public class DashboardMetricViewModel

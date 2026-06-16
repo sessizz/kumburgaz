@@ -41,9 +41,15 @@ public class HomeController(ApplicationDbContext db) : Controller
         var collections = await db.Collections
             .Select(x => new { x.CashBoxId, x.BankAccountId, x.Amount })
             .ToListAsync();
-        var expenses = await db.LedgerTransactions
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
-            .Select(x => new { x.CashBoxId, x.BankAccountId, x.Amount })
+        var ledgerRows = await db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .Select(x => new
+            {
+                x.CashBoxId,
+                x.BankAccountId,
+                x.Amount,
+                Type = x.IncomeExpenseCategory != null ? x.IncomeExpenseCategory.Type : CategoryTypeHelper.Gider
+            })
             .ToListAsync();
         var cashBoxes = await db.CashBoxes.Where(x => x.Active).OrderBy(x => x.Name).ToListAsync();
         var bankAccounts = await db.BankAccounts.Where(x => x.Active).OrderBy(x => x.Name).ThenBy(x => x.Branch).ToListAsync();
@@ -55,7 +61,7 @@ public class HomeController(ApplicationDbContext db) : Controller
             Name = x.Name,
             Balance = x.OpeningBalance
                 + collections.Where(c => c.CashBoxId == x.Id).Sum(c => c.Amount)
-                - expenses.Where(e => e.CashBoxId == x.Id).Sum(e => e.Amount)
+                + ledgerRows.Where(e => e.CashBoxId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
         }));
         cashBankItems.AddRange(bankAccounts.Select(x => new CashBankListItemViewModel
         {
@@ -63,7 +69,7 @@ public class HomeController(ApplicationDbContext db) : Controller
             Name = string.IsNullOrWhiteSpace(x.Branch) ? x.Name : $"{x.Name} - {x.Branch}",
             Balance = x.OpeningBalance
                 + collections.Where(c => c.BankAccountId == x.Id).Sum(c => c.Amount)
-                - expenses.Where(e => e.BankAccountId == x.Id).Sum(e => e.Amount)
+                + ledgerRows.Where(e => e.BankAccountId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
         }));
 
         var monthCollections = await db.Collections

@@ -1,5 +1,6 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
@@ -61,6 +62,9 @@ public class CashBankDetailService(ApplicationDbContext db)
             allRows.Add(new TxRow
             {
                 Id = c.Id,
+                Source = "collection",
+                AccountKind = kind,
+                AccountId = id,
                 Description = c.BillingGroup?.Name ?? "Tahsilat",
                 Subline = $"{block} Blok · No {unitNo} · {payer}",
                 Kind = TxKind.Tahsilat,
@@ -76,9 +80,12 @@ public class CashBankDetailService(ApplicationDbContext db)
             allRows.Add(new TxRow
             {
                 Id = l.Id,
+                Source = "ledger",
+                AccountKind = kind,
+                AccountId = id,
                 Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? "Gider",
                 Subline = l.IncomeExpenseCategory?.Name,
-                Kind = kind2,
+                Kind = IsTransfer(l) ? TxKind.Transfer : kind2,
                 Amount = catType == "Gelir" ? l.Amount : -l.Amount,
                 Date = l.Date
             });
@@ -92,6 +99,9 @@ public class CashBankDetailService(ApplicationDbContext db)
             allRows.Insert(0, new TxRow
             {
                 Id = 0,
+                Source = "opening",
+                AccountKind = kind,
+                AccountId = id,
                 Description = kind == "bank" ? "Banka açılış bakiyesi" : "Kasa açılış bakiyesi",
                 Subline = "Devir",
                 Kind = TxKind.Acilis,
@@ -188,7 +198,7 @@ public class CashBankDetailService(ApplicationDbContext db)
                     At = openingDate, ByUserName = "Sistem" }
         };
 
-        return new CashBankDetailViewModel
+        var vm = new CashBankDetailViewModel
         {
             Kind = kind,
             Id = id,
@@ -214,6 +224,17 @@ public class CashBankDetailService(ApplicationDbContext db)
             History = history,
             PendingCount = 0
         };
+
+        var currentAccountKey = kind == "bank"
+            ? FinancialAccountHelper.BankKey(id)
+            : FinancialAccountHelper.CashKey(id);
+        var options = await BuildDetailOptionsAsync(currentAccountKey);
+        vm.BillingGroupOptions = options.BillingGroups;
+        vm.DuesInstallmentOptions = options.DuesInstallments;
+        vm.ExpenseCategoryOptions = options.ExpenseCategories;
+        vm.TransferAccountOptions = options.TransferAccounts;
+
+        return vm;
     }
 
     public async Task<List<TxRow>> GetAllRowsAsync(string kind, int id)
@@ -223,4 +244,69 @@ public class CashBankDetailService(ApplicationDbContext db)
         var vm = await BuildAsync(kind, id, q);
         return vm?.Groups.SelectMany(g => g.Items).ToList() ?? new();
     }
+
+    private static bool IsTransfer(LedgerTransaction tx)
+    {
+        var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
+        var description = tx.Description ?? string.Empty;
+        return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
+            || category.Contains("Para Transferi", StringComparison.OrdinalIgnoreCase)
+            || description.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase)
+            || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey)
+    {
+        var installments = await db.DuesInstallments
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
+            .Where(x => x.Unit == null || x.Unit.Active)
+            .Where(x => x.RemainingAmount > 0)
+            .OrderBy(x => x.Period)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Unit!.Block!.Name)
+            .ThenBy(x => x.Unit!.UnitNo)
+            .ToListAsync();
+
+        var billingGroups = await db.BillingGroups
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .Include(x => x.DuesType)
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem($"{x.Name} / {x.DuesType!.Name}", x.Id.ToString()))
+            .ToListAsync();
+
+        var expenseCategories = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gider)
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .ToListAsync();
+
+        var transferAccounts = (await FinancialAccountHelper.BuildOptionsAsync(db))
+            .Where(x => x.Value != currentAccountKey)
+            .ToList();
+
+        return new DetailOptions(
+            billingGroups,
+            installments.Select(x =>
+            {
+                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : x.BillingGroup?.Name ?? "Aidat";
+                var responsible = string.IsNullOrWhiteSpace(x.ResponsibleAccount?.Name) ? "" : $" / {x.ResponsibleAccount.Name}";
+                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
+                return new SelectListItem($"{x.Period} / {unitText}{responsible} / {duesType} / Kalan {x.RemainingAmount:N2} TL", x.Id.ToString());
+            }).ToList(),
+            expenseCategories,
+            transferAccounts);
+    }
+
+    private sealed record DetailOptions(
+        List<SelectListItem> BillingGroups,
+        List<SelectListItem> DuesInstallments,
+        List<SelectListItem> ExpenseCategories,
+        List<SelectListItem> TransferAccounts);
 }

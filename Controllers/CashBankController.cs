@@ -298,8 +298,25 @@ public class CashBankController(
         }
         else if (source == "ledger")
         {
-            var ledger = await db.LedgerTransactions.FindAsync(id);
+            var ledger = await db.LedgerTransactions
+                .Include(x => x.IncomeExpenseCategory)
+                .FirstOrDefaultAsync(x => x.Id == id);
             if (ledger is null) return NotFound();
+            if (IsTransferLedger(ledger))
+            {
+                var candidates = await db.LedgerTransactions
+                    .Include(x => x.IncomeExpenseCategory)
+                    .Where(x => x.Id != ledger.Id)
+                    .Where(x => x.Amount == ledger.Amount)
+                    .Where(x => x.Date == ledger.Date)
+                    .Where(x => x.Description == ledger.Description)
+                    .ToListAsync();
+                var pair = FindTransferPair(ledger, candidates);
+                if (pair is not null)
+                {
+                    db.LedgerTransactions.Remove(pair);
+                }
+            }
             db.LedgerTransactions.Remove(ledger);
             await db.SaveChangesAsync();
         }
@@ -339,6 +356,39 @@ public class CashBankController(
                 Note = model.Note
             });
             TempData["ActionSuccess"] = "Tahsilat kaydedildi.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
+        return RedirectToDetail(model.Kind, model.Id);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateCollectionTransaction(int transactionId, CashBankCollectionFormViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["ActionError"] = "Tahsilat bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        try
+        {
+            await collectionService.UpdateAsync(transactionId, new CollectionCreateViewModel
+            {
+                BillingGroupId = model.BillingGroupId,
+                DuesInstallmentId = model.DuesInstallmentId,
+                Date = model.Date,
+                Amount = model.Amount,
+                PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
+                AccountKey = BuildAccountKey(model.Kind, model.Id),
+                ReferenceNo = model.ReferenceNo,
+                Note = model.Note
+            });
+            TempData["ActionSuccess"] = "Tahsilat güncellendi.";
         }
         catch (Exception ex)
         {
@@ -393,6 +443,43 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateLedgerTransaction(int transactionId, CashBankLedgerFormViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["ActionError"] = "Ödeme bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var entity = await db.LedgerTransactions.FindAsync(transactionId);
+        if (entity is null) return NotFound();
+
+        var category = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == model.IncomeExpenseCategoryId && x.Type == CategoryTypeHelper.Gider);
+        if (category is null)
+        {
+            TempData["ActionError"] = "Geçerli bir gider kategorisi seçin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        entity.Date = DateTimeHelper.EnsureUtc(model.Date);
+        entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
+        entity.Amount = model.Amount;
+        entity.PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
+        entity.CashBoxId = model.Kind == "cash" ? model.Id : null;
+        entity.BankAccountId = model.Kind == "bank" ? model.Id : null;
+        entity.Description = string.IsNullOrWhiteSpace(model.Description)
+            ? (model.IsBankFee ? "Banka masrafı" : category.Name)
+            : model.Description;
+
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = model.IsBankFee ? "Banka masrafı güncellendi." : "Ödeme güncellendi.";
+        return RedirectToDetail(model.Kind, model.Id);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTransfer(CashBankTransferFormViewModel model)
     {
         if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var toChannel, out var toCashBoxId, out var toBankAccountId))
@@ -440,6 +527,84 @@ public class CashBankController(
         return RedirectToDetail(model.Kind, model.Id);
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateTransferTransaction(int transactionId, CashBankTransferFormViewModel model)
+    {
+        if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var counterChannel, out var counterCashBoxId, out var counterBankAccountId))
+        {
+            TempData["ActionError"] = "Transfer bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var source = await db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .FirstOrDefaultAsync(x => x.Id == transactionId);
+        if (source is null) return NotFound();
+
+        var candidates = await db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => x.Id != source.Id)
+            .Where(x => x.Amount == source.Amount)
+            .Where(x => x.Date == source.Date)
+            .Where(x => x.Description == source.Description)
+            .ToListAsync();
+        var pair = FindTransferPair(source, candidates);
+        if (pair is null)
+        {
+            TempData["ActionError"] = "Transferin karşı satırı bulunamadı.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var currentCashBoxId = model.Kind == "cash" ? model.Id : (int?)null;
+        var currentBankAccountId = model.Kind == "bank" ? model.Id : (int?)null;
+        var currentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
+        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
+        var editingIncomingRow = sourceType == CategoryTypeHelper.Gelir;
+
+        var fromCashBoxId = editingIncomingRow ? counterCashBoxId : currentCashBoxId;
+        var fromBankAccountId = editingIncomingRow ? counterBankAccountId : currentBankAccountId;
+        var fromChannel = editingIncomingRow ? counterChannel : currentChannel;
+        var toCashBoxId = editingIncomingRow ? currentCashBoxId : counterCashBoxId;
+        var toBankAccountId = editingIncomingRow ? currentBankAccountId : counterBankAccountId;
+        var toChannel = editingIncomingRow ? currentChannel : counterChannel;
+
+        if (fromCashBoxId == toCashBoxId && fromBankAccountId == toBankAccountId)
+        {
+            TempData["ActionError"] = "Kaynak ve karşı hesap aynı olamaz.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var expenseCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gider);
+        var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
+        var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatır" : "Para transferi";
+        var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
+        var utcDate = DateTimeHelper.EnsureUtc(model.Date);
+
+        var expenseRow = sourceType == CategoryTypeHelper.Gider ? source : pair;
+        var incomeRow = sourceType == CategoryTypeHelper.Gelir ? source : pair;
+
+        expenseRow.Date = utcDate;
+        expenseRow.IncomeExpenseCategoryId = expenseCategoryId;
+        expenseRow.Amount = model.Amount;
+        expenseRow.PaymentChannel = fromChannel;
+        expenseRow.CashBoxId = fromCashBoxId;
+        expenseRow.BankAccountId = fromBankAccountId;
+        expenseRow.Description = description;
+
+        incomeRow.Date = utcDate;
+        incomeRow.IncomeExpenseCategoryId = incomeCategoryId;
+        incomeRow.Amount = model.Amount;
+        incomeRow.PaymentChannel = toChannel;
+        incomeRow.CashBoxId = toCashBoxId;
+        incomeRow.BankAccountId = toBankAccountId;
+        incomeRow.Description = description;
+
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = "Transfer güncellendi.";
+        return RedirectToDetail(model.Kind, model.Id);
+    }
+
     private async Task<IActionResult> ExportCsv(string kind, int id, CashBankDetailQuery query)
     {
         var vm = await detailService.BuildAsync(kind, id, query);
@@ -483,5 +648,28 @@ public class CashBankController(
         db.IncomeExpenseCategories.Add(category);
         await db.SaveChangesAsync();
         return category.Id;
+    }
+
+    private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
+    {
+        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
+        var targetType = sourceType == CategoryTypeHelper.Gelir ? CategoryTypeHelper.Gider : CategoryTypeHelper.Gelir;
+
+        return candidates
+            .Where(x => (x.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider) == targetType)
+            .OrderBy(x => Math.Abs(x.Id - source.Id))
+            .FirstOrDefault();
+    }
+
+    private static bool IsTransferLedger(LedgerTransaction tx)
+    {
+        var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
+        var description = tx.Description ?? string.Empty;
+        return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
+            || category.Contains("Para Transferi", StringComparison.OrdinalIgnoreCase)
+            || description.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase)
+            || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase)
+            || description.Equals("Para transferi", StringComparison.OrdinalIgnoreCase)
+            || description.Equals("Bankaya yatır", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -44,6 +44,11 @@ public class CashBankDetailService(ApplicationDbContext db)
             .Where(x => kind == "bank" ? x.BankAccountId == id : x.CashBoxId == id)
             .ToListAsync();
 
+        var allLedgerRaw = await db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .ToListAsync();
+
         // 3. TxRow listesi oluştur
         var allRows = new List<TxRow>();
 
@@ -65,6 +70,13 @@ public class CashBankDetailService(ApplicationDbContext db)
                 Source = "collection",
                 AccountKind = kind,
                 AccountId = id,
+                BillingGroupId = c.BillingGroupId,
+                DuesInstallmentId = c.Allocations
+                    .OrderBy(x => x.Id)
+                    .Select(x => (int?)x.DuesInstallmentId)
+                    .FirstOrDefault(),
+                ReferenceNo = c.ReferenceNo,
+                Note = c.Note,
                 Description = c.BillingGroup?.Name ?? "Tahsilat",
                 Subline = $"{block} Blok · No {unitNo} · {payer}",
                 Kind = TxKind.Tahsilat,
@@ -83,6 +95,7 @@ public class CashBankDetailService(ApplicationDbContext db)
                 Source = "ledger",
                 AccountKind = kind,
                 AccountId = id,
+                IncomeExpenseCategoryId = l.IncomeExpenseCategoryId,
                 Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? "Gider",
                 Subline = l.IncomeExpenseCategory?.Name,
                 Kind = IsTransfer(l) ? TxKind.Transfer : kind2,
@@ -229,10 +242,10 @@ public class CashBankDetailService(ApplicationDbContext db)
             ? FinancialAccountHelper.BankKey(id)
             : FinancialAccountHelper.CashKey(id);
         var options = await BuildDetailOptionsAsync(currentAccountKey);
-        vm.BillingGroupOptions = options.BillingGroups;
-        vm.DuesInstallmentOptions = options.DuesInstallments;
+        vm.DuesOptions = options.DuesOptions;
         vm.ExpenseCategoryOptions = options.ExpenseCategories;
         vm.TransferAccountOptions = options.TransferAccounts;
+        ApplyRowOptions(vm, allLedgerRaw);
 
         return vm;
     }
@@ -255,6 +268,42 @@ public class CashBankDetailService(ApplicationDbContext db)
             || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase);
     }
 
+    private void ApplyRowOptions(CashBankDetailViewModel vm, List<LedgerTransaction> ledgerRaw)
+    {
+        foreach (var row in vm.Groups.SelectMany(x => x.Items))
+        {
+            row.DuesOptions = vm.DuesOptions;
+            row.ExpenseCategoryOptions = vm.ExpenseCategoryOptions;
+            row.TransferAccountOptions = vm.TransferAccountOptions;
+
+            if (row.Kind != TxKind.Transfer || row.Source != "ledger")
+            {
+                continue;
+            }
+
+            var sourceLedger = ledgerRaw.FirstOrDefault(x => x.Id == row.Id);
+            var pair = sourceLedger is null ? null : FindTransferPair(sourceLedger, ledgerRaw);
+            row.ToAccountKey = pair is null
+                ? null
+                : FinancialAccountHelper.BuildKey(pair.CashBoxId, pair.BankAccountId);
+        }
+    }
+
+    private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
+    {
+        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
+        var targetType = sourceType == CategoryTypeHelper.Gelir ? CategoryTypeHelper.Gider : CategoryTypeHelper.Gelir;
+
+        return candidates
+            .Where(x => x.Id != source.Id)
+            .Where(x => x.Amount == source.Amount)
+            .Where(x => x.Date == source.Date)
+            .Where(x => string.Equals(x.Description, source.Description, StringComparison.Ordinal))
+            .Where(x => (x.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider) == targetType)
+            .OrderBy(x => Math.Abs(x.Id - source.Id))
+            .FirstOrDefault();
+    }
+
     private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey)
     {
         var installments = await db.DuesInstallments
@@ -265,19 +314,10 @@ public class CashBankDetailService(ApplicationDbContext db)
             .ThenInclude(x => x!.Block)
             .Include(x => x.ResponsibleAccount)
             .Where(x => x.Unit == null || x.Unit.Active)
-            .Where(x => x.RemainingAmount > 0)
             .OrderBy(x => x.Period)
             .ThenBy(x => x.DueDate)
             .ThenBy(x => x.Unit!.Block!.Name)
             .ThenBy(x => x.Unit!.UnitNo)
-            .ToListAsync();
-
-        var billingGroups = await db.BillingGroups
-            .AsNoTracking()
-            .Where(x => x.Active)
-            .Include(x => x.DuesType)
-            .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem($"{x.Name} / {x.DuesType!.Name}", x.Id.ToString()))
             .ToListAsync();
 
         var expenseCategories = await db.IncomeExpenseCategories
@@ -292,21 +332,63 @@ public class CashBankDetailService(ApplicationDbContext db)
             .ToList();
 
         return new DetailOptions(
-            billingGroups,
-            installments.Select(x =>
-            {
-                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : x.BillingGroup?.Name ?? "Aidat";
-                var responsible = string.IsNullOrWhiteSpace(x.ResponsibleAccount?.Name) ? "" : $" / {x.ResponsibleAccount.Name}";
-                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
-                return new SelectListItem($"{x.Period} / {unitText}{responsible} / {duesType} / Kalan {x.RemainingAmount:N2} TL", x.Id.ToString());
-            }).ToList(),
+            await BuildDuesOptionsAsync(installments),
             expenseCategories,
             transferAccounts);
     }
 
+    private async Task<List<CashBankDuesOptionViewModel>> BuildDuesOptionsAsync(List<DuesInstallment> installments)
+    {
+        var effectiveRemaining = installments.ToDictionary(x => x.Id, x => x.RemainingAmount);
+        var units = await db.Units
+            .AsNoTracking()
+            .Where(x => x.Active && x.OpeningBalance > 0)
+            .ToListAsync();
+
+        foreach (var unit in units)
+        {
+            var credit = unit.OpeningBalance;
+            foreach (var installment in installments
+                         .Where(x => x.UnitId == unit.Id)
+                         .OrderBy(x => x.AccrualDate)
+                         .ThenBy(x => x.DueDate))
+            {
+                if (credit <= 0) break;
+                var reduction = Math.Min(effectiveRemaining[installment.Id], credit);
+                effectiveRemaining[installment.Id] -= reduction;
+                credit -= reduction;
+            }
+        }
+
+        return installments
+            .Select(x =>
+            {
+                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : x.BillingGroup?.Name ?? "Aidat";
+                var block = x.Unit?.Block?.Name ?? string.Empty;
+                var unitNo = x.Unit?.UnitNo ?? string.Empty;
+                var paddedUnitNo = int.TryParse(unitNo, out var unitNoNumber) ? unitNoNumber.ToString("00") : unitNo;
+                var owner = x.Unit?.OwnerName ?? string.Empty;
+                var responsible = x.ResponsibleAccount?.Name ?? string.Empty;
+                var responsibleText = string.IsNullOrWhiteSpace(responsible) ? owner : responsible;
+                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
+                var remaining = effectiveRemaining[x.Id];
+                var text = $"{x.Period} / {unitText} / {responsibleText} / {duesType} / Net kalan {remaining:N2} TL";
+                return new CashBankDuesOptionViewModel
+                {
+                    Id = x.Id,
+                    BillingGroupId = x.BillingGroupId,
+                    RemainingAmount = remaining,
+                    Text = text,
+                    SearchText = string.Join(" ", x.Period, block, unitNo, paddedUnitNo, $"{block}-{unitNo}", $"{block}-{paddedUnitNo}", unitText, owner, responsible, duesType, x.BillingGroup?.Name ?? string.Empty)
+                };
+            })
+            .OrderByDescending(x => x.RemainingAmount > 0)
+            .ThenBy(x => x.Text)
+            .ToList();
+    }
+
     private sealed record DetailOptions(
-        List<SelectListItem> BillingGroups,
-        List<SelectListItem> DuesInstallments,
+        List<CashBankDuesOptionViewModel> DuesOptions,
         List<SelectListItem> ExpenseCategories,
         List<SelectListItem> TransferAccounts);
 }

@@ -139,23 +139,21 @@
                 <h3 class="text-lg font-bold">Tahsilat</h3>
                 <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="collectionModal.close()">✕</button>
             </div>
+            <input type="hidden" name="BillingGroupId" data-dues-billing-group />
             <fieldset class="fieldset">
                 <legend class="fieldset-legend">Açık borç</legend>
-                <select name="DuesInstallmentId" class="select select-bordered w-full">
-                    <option value="">Borç seçmeden aidat grubuna işle</option>
-                    @foreach (var option in Model.DuesInstallmentOptions)
+                <label class="input input-bordered flex items-center gap-2 mb-2">
+                    <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
+                    <input type="search" data-dues-search placeholder="Daire no, blok veya isim ara" class="grow" />
+                </label>
+                <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
+                    <option value="">Tahsil edilecek borcu seçin</option>
+                    @foreach (var option in Model.DuesOptions)
                     {
-                        <option value="@option.Value">@option.Text</option>
-                    }
-                </select>
-            </fieldset>
-            <fieldset class="fieldset">
-                <legend class="fieldset-legend">Aidat grubu</legend>
-                <select name="BillingGroupId" class="select select-bordered w-full" required>
-                    <option value="">Seçiniz</option>
-                    @foreach (var option in Model.BillingGroupOptions)
-                    {
-                        <option value="@option.Value">@option.Text</option>
+                        <option value="@option.Id"
+                                data-billing-group-id="@option.BillingGroupId"
+                                data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                data-search="@option.SearchText">@option.Text</option>
                     }
                 </select>
             </fieldset>
@@ -166,7 +164,7 @@
                 </fieldset>
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tutar</legend>
-                    <input name="Amount" type="number" min="0.01" step="0.01" class="input input-bordered w-full" required />
+                    <input name="Amount" type="number" min="0.01" step="0.01" class="input input-bordered w-full" required data-dues-amount />
                 </fieldset>
             </div>
             <fieldset class="fieldset">
@@ -349,4 +347,42 @@ function openLedgerModal(isBankFee) {
     document.getElementById('ledgerDescription').placeholder = isBankFee ? 'Banka masrafı açıklaması' : 'Ödeme açıklaması';
     ledgerModal.showModal();
 }
+
+function normalizeDuesSearch(value) {
+    return (value || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function wireDuesPicker(scope) {
+    var select = scope.querySelector('[data-dues-select]');
+    var search = scope.querySelector('[data-dues-search]');
+    var amount = scope.querySelector('[data-dues-amount]');
+    var billingGroup = scope.querySelector('[data-dues-billing-group]');
+    if (!select || select.dataset.wired === 'true') return;
+
+    function syncSelected() {
+        var option = select.selectedOptions[0];
+        if (!option || !option.value) {
+            if (billingGroup) billingGroup.value = '';
+            return;
+        }
+        if (billingGroup) billingGroup.value = option.dataset.billingGroupId || '';
+        if (amount && !amount.value) amount.value = option.dataset.amount || '';
+    }
+
+    function filterOptions() {
+        var query = normalizeDuesSearch(search.value);
+        Array.from(select.options).forEach(function(option) {
+            if (!option.value) return;
+            var haystack = normalizeDuesSearch((option.dataset.search || '') + ' ' + option.textContent);
+            option.hidden = query.length > 0 && !haystack.includes(query);
+        });
+    }
+
+    select.addEventListener('change', syncSelected);
+    if (search) search.addEventListener('input', filterOptions);
+    select.dataset.wired = 'true';
+    syncSelected();
+}
+
+document.querySelectorAll('.modal').forEach(wireDuesPicker);
 </script>

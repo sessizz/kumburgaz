@@ -20,6 +20,13 @@
     var amtClass = isPos ? "amount-pos" : "amount-neg";
     var sign = isPos ? "+" : "−";
     var absAmt = Math.Abs(Model.Amount).ToString("N2", trTR);
+    var modalSuffix = $"{Model.Source}-{Model.Id}-{Model.AccountKind}-{Model.AccountId}";
+    var editAmount = Math.Abs(Model.Amount).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var editDate = Model.Date.ToString("yyyy-MM-dd");
+    var editDescription = Model.Description
+        .Replace("Para transferi:", "", StringComparison.OrdinalIgnoreCase)
+        .Replace("Bankaya yatır:", "", StringComparison.OrdinalIgnoreCase)
+        .Trim();
 }
 <li class="tx-row grid grid-cols-1 md:grid-cols-[1fr_140px_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
     <div class="min-w-0">
@@ -45,6 +52,7 @@
                 }
                 else
                 {
+                    <li><button type="button" onclick="document.getElementById('txEditModal-@modalSuffix').showModal()">Değiştir</button></li>
                     <li>
                         <form asp-action="DeleteTransaction" method="post">
                             @Html.AntiForgeryToken()
@@ -101,6 +109,154 @@
                 <div class="modal-action">
                     <button type="button" class="btn btn-ghost" onclick="document.getElementById('openingDeleteModal-@Model.AccountKind-@Model.AccountId').close()">Vazgeç</button>
                     <button type="submit" class="btn btn-error">Sil</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+}
+else if (Model.Source == "collection")
+{
+    <dialog id="txEditModal-@modalSuffix" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form asp-action="UpdateCollectionTransaction" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="transactionId" value="@Model.Id" />
+                <input type="hidden" name="Kind" value="@Model.AccountKind" />
+                <input type="hidden" name="Id" value="@Model.AccountId" />
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">Tahsilatı Düzenle</h3>
+                    <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">✕</button>
+                </div>
+                <input type="hidden" name="BillingGroupId" value="@Model.BillingGroupId" data-dues-billing-group />
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Açık borç</legend>
+                    <label class="input input-bordered flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
+                        <input type="search" data-dues-search placeholder="Daire no, blok veya isim ara" class="grow" />
+                    </label>
+                    <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
+                        <option value="">Tahsil edilecek borcu seçin</option>
+                        @foreach (var option in Model.DuesOptions)
+                        {
+                            <option value="@option.Id"
+                                    selected="@(Model.DuesInstallmentId == option.Id)"
+                                    data-billing-group-id="@option.BillingGroupId"
+                                    data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-search="@option.SearchText">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tarih</legend>
+                        <input name="Date" type="date" value="@editDate" class="input input-bordered w-full" required />
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tutar</legend>
+                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required data-dues-amount />
+                    </fieldset>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Referans / Not</legend>
+                    <input name="ReferenceNo" value="@Model.ReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
+                    <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not">@Model.Note</textarea>
+                </fieldset>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+}
+else if (Model.Source == "ledger" && Model.Kind == Kumburgaz.Web.Models.TxKind.Transfer)
+{
+    <dialog id="txEditModal-@modalSuffix" class="modal">
+        <div class="modal-box">
+            <form asp-action="UpdateTransferTransaction" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="transactionId" value="@Model.Id" />
+                <input type="hidden" name="Kind" value="@Model.AccountKind" />
+                <input type="hidden" name="Id" value="@Model.AccountId" />
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">Transferi Düzenle</h3>
+                    <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">✕</button>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Karşı hesap</legend>
+                    <select name="ToAccountKey" class="select select-bordered w-full" required>
+                        <option value="">Seçiniz</option>
+                        @foreach (var option in Model.TransferAccountOptions)
+                        {
+                            <option value="@option.Value" selected="@(Model.ToAccountKey == option.Value)">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tarih</legend>
+                        <input name="Date" type="date" value="@editDate" class="input input-bordered w-full" required />
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tutar</legend>
+                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required />
+                    </fieldset>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Açıklama</legend>
+                    <textarea name="Description" class="textarea textarea-bordered w-full" rows="2">@editDescription</textarea>
+                </fieldset>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+}
+else if (Model.Source == "ledger")
+{
+    <dialog id="txEditModal-@modalSuffix" class="modal">
+        <div class="modal-box">
+            <form asp-action="UpdateLedgerTransaction" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="transactionId" value="@Model.Id" />
+                <input type="hidden" name="Kind" value="@Model.AccountKind" />
+                <input type="hidden" name="Id" value="@Model.AccountId" />
+                <input type="hidden" name="IsBankFee" value="false" />
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold">Ödemeyi Düzenle</h3>
+                    <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">✕</button>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Gider kategorisi</legend>
+                    <select name="IncomeExpenseCategoryId" class="select select-bordered w-full" required>
+                        @foreach (var option in Model.ExpenseCategoryOptions)
+                        {
+                            <option value="@option.Value" selected="@(Model.IncomeExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tarih</legend>
+                        <input name="Date" type="date" value="@editDate" class="input input-bordered w-full" required />
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tutar</legend>
+                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required />
+                    </fieldset>
+                </div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Açıklama</legend>
+                    <textarea name="Description" class="textarea textarea-bordered w-full" rows="2">@Model.Description</textarea>
+                </fieldset>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">Vazgeç</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
                 </div>
             </form>
         </div>

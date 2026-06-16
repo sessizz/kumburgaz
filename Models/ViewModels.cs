@@ -381,9 +381,9 @@ public class CashBankCollectionFormViewModel
     [Required]
     public int Id { get; set; }
 
+    [Required]
     public int? DuesInstallmentId { get; set; }
 
-    [Required]
     public int BillingGroupId { get; set; }
 
     [Required]
@@ -398,6 +398,15 @@ public class CashBankCollectionFormViewModel
 
     [MaxLength(250)]
     public string? Note { get; set; }
+}
+
+public class CashBankDuesOptionViewModel
+{
+    public int Id { get; set; }
+    public int BillingGroupId { get; set; }
+    public string Text { get; set; } = string.Empty;
+    public string SearchText { get; set; } = string.Empty;
+    public decimal RemainingAmount { get; set; }
 }
 
 public class CashBankLedgerFormViewModel
@@ -483,12 +492,21 @@ public class TxRow
     public string Source { get; set; } = "";
     public string AccountKind { get; set; } = "";
     public int AccountId { get; set; }
+    public int? BillingGroupId { get; set; }
+    public int? DuesInstallmentId { get; set; }
+    public int? IncomeExpenseCategoryId { get; set; }
+    public string? ReferenceNo { get; set; }
+    public string? Note { get; set; }
+    public string? ToAccountKey { get; set; }
     public string Description { get; set; } = "";
     public string? Subline { get; set; }
     public TxKind Kind { get; set; }
     public decimal Amount { get; set; }
     public decimal RunningBalance { get; set; }
     public DateTime Date { get; set; }
+    public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
+    public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }
 
 public class TxDayGroup
@@ -532,8 +550,7 @@ public class CashBankDetailViewModel
     public IReadOnlyList<AuditEntry> History { get; set; } = Array.Empty<AuditEntry>();
     public int PendingCount { get; set; }
     public string? Note { get; set; }
-    public List<SelectListItem> BillingGroupOptions { get; set; } = [];
-    public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }

@@ -53,20 +53,21 @@
                 else
                 {
                     <li><button type="button" onclick="document.getElementById('txEditModal-@modalSuffix').showModal()">Değiştir</button></li>
-                    <li>
-                        <form asp-action="DeleteTransaction" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="kind" value="@Model.AccountKind" />
-                            <input type="hidden" name="accountId" value="@Model.AccountId" />
-                            <input type="hidden" name="source" value="@Model.Source" />
-                            <input type="hidden" name="id" value="@Model.Id" />
-                            <button type="submit" class="text-error">Sil</button>
-                        </form>
-                    </li>
+                    <li><button type="submit" form="txDeleteForm-@modalSuffix" class="text-error">Sil</button></li>
                 }
             </ul>
         </div>
     </div>
+    @if (Model.Source != "opening")
+    {
+        <form id="txDeleteForm-@modalSuffix" asp-action="DeleteTransaction" method="post" class="hidden">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="kind" value="@Model.AccountKind" />
+            <input type="hidden" name="accountId" value="@Model.AccountId" />
+            <input type="hidden" name="source" value="@Model.Source" />
+            <input type="hidden" name="id" value="@Model.Id" />
+        </form>
+    }
 </li>
 
 @if (Model.Source == "opening")
@@ -154,7 +155,7 @@ else if (Model.Source == "collection")
                     </fieldset>
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Tutar</legend>
-                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required data-dues-amount />
+                        <input name="Amount" type="text" inputmode="decimal" value="@editAmount" class="input input-bordered w-full" required data-dues-amount />
                     </fieldset>
                 </div>
                 <fieldset class="fieldset">
@@ -201,7 +202,7 @@ else if (Model.Source == "ledger" && Model.Kind == Kumburgaz.Web.Models.TxKind.T
                     </fieldset>
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Tutar</legend>
-                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required />
+                        <input name="Amount" type="text" inputmode="decimal" value="@editAmount" class="input input-bordered w-full" required />
                     </fieldset>
                 </div>
                 <fieldset class="fieldset">
@@ -247,7 +248,7 @@ else if (Model.Source == "ledger")
                     </fieldset>
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Tutar</legend>
-                        <input name="Amount" type="number" min="0.01" step="0.01" value="@editAmount" class="input input-bordered w-full" required />
+                        <input name="Amount" type="text" inputmode="decimal" value="@editAmount" class="input input-bordered w-full" required />
                     </fieldset>
                 </div>
                 <fieldset class="fieldset">

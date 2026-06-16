@@ -4,6 +4,7 @@ using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Text;
 
 namespace Kumburgaz.Web.Controllers;
@@ -333,6 +334,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCollection(CashBankCollectionFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Tahsilat bilgilerini kontrol edin.";
@@ -369,6 +379,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateCollectionTransaction(int transactionId, CashBankCollectionFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Tahsilat bilgilerini kontrol edin.";
@@ -402,6 +421,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateLedger(CashBankLedgerFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Ödeme bilgilerini kontrol edin.";
@@ -445,6 +473,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateLedgerTransaction(int transactionId, CashBankLedgerFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Ödeme bilgilerini kontrol edin.";
@@ -482,6 +519,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateTransfer(CashBankTransferFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var toChannel, out var toCashBoxId, out var toBankAccountId))
         {
             TempData["ActionError"] = "Transfer bilgilerini kontrol edin.";
@@ -531,6 +577,15 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateTransferTransaction(int transactionId, CashBankTransferFormViewModel model)
     {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
         if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var counterChannel, out var counterCashBoxId, out var counterBankAccountId))
         {
             TempData["ActionError"] = "Transfer bilgilerini kontrol edin.";
@@ -671,5 +726,29 @@ public class CashBankController(
             || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase)
             || description.Equals("Para transferi", StringComparison.OrdinalIgnoreCase)
             || description.Equals("Bankaya yatır", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool TryReadAmount(out decimal amount)
+    {
+        ModelState.Remove("Amount");
+        amount = 0m;
+        var raw = Request.Form["Amount"].FirstOrDefault()?.Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var culture = raw.Contains(',')
+            ? CultureInfo.GetCultureInfo("tr-TR")
+            : CultureInfo.InvariantCulture;
+        if (decimal.TryParse(raw, NumberStyles.Number, culture, out amount) && amount > 0)
+        {
+            return true;
+        }
+
+        var fallbackCulture = culture.Name == "tr-TR"
+            ? CultureInfo.InvariantCulture
+            : CultureInfo.GetCultureInfo("tr-TR");
+        return decimal.TryParse(raw, NumberStyles.Number, fallbackCulture, out amount) && amount > 0;
     }
 }

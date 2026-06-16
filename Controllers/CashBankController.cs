@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Kumburgaz.Web.Controllers;
 
@@ -950,7 +951,7 @@ public class CashBankController(
 
         if (rowType == "collection")
         {
-            var match = MatchDuesOption(detail.DuesOptions, string.Join(" ", matchText, description, note, reference));
+            var match = MatchDuesOption(detail.DuesOptions, matchText, string.Join(" ", description, note, reference));
             preview.DuesInstallmentId = match?.Id;
             if (match is not null && string.IsNullOrWhiteSpace(preview.Amount))
             {
@@ -1063,9 +1064,28 @@ public class CashBankController(
         return amountText.TrimStart().StartsWith("-", StringComparison.Ordinal) ? "expense" : "collection";
     }
 
-    private static CashBankDuesOptionViewModel? MatchDuesOption(List<CashBankDuesOptionViewModel> options, string text)
+    private static CashBankDuesOptionViewModel? MatchDuesOption(List<CashBankDuesOptionViewModel> options, string primaryText, string secondaryText)
     {
-        var tokens = TokenizeImportSearch(text);
+        var unitCodes = ExtractUnitCodeCandidates(primaryText);
+        if (unitCodes.Count > 0)
+        {
+            var exactUnitMatches = options
+                .Where(x =>
+                {
+                    var haystack = NormalizeSearchText($"{x.SearchText} {x.Text}");
+                    return unitCodes.Any(code => haystack.Contains(code, StringComparison.OrdinalIgnoreCase));
+                })
+                .ToList();
+
+            if (exactUnitMatches.Count == 0)
+            {
+                return null;
+            }
+
+            options = exactUnitMatches;
+        }
+
+        var tokens = TokenizeImportSearch(string.Join(" ", primaryText, secondaryText));
         if (tokens.Count == 0)
         {
             return null;
@@ -1088,6 +1108,15 @@ public class CashBankController(
             .ThenBy(x => x.Option.Text.Length)
             .Select(x => x.Option)
             .FirstOrDefault();
+    }
+
+    private static List<string> ExtractUnitCodeCandidates(string value)
+    {
+        return Regex.Matches(value, @"(?i)\b[\p{L}]{1,4}\s*[-/]?\s*\d+[a-zA-Z]?\b")
+            .Select(x => NormalizeSearchText(x.Value))
+            .Where(x => x.Any(char.IsLetter) && x.Any(char.IsDigit))
+            .Distinct()
+            .ToList();
     }
 
     private static int? MatchCategory(List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> options, string text)

@@ -22,7 +22,8 @@
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="kind" value="@Model.Kind" />
                         <input type="hidden" name="id" value="@Model.Id" />
-                        <input type="hidden" name="active" value="@(!Model.IsActive)" />
+                        <input type="hidden" name="active" value="@(Model.IsActive ? "false" : "true")" />
+                        <input type="hidden" name="command" value="@(Model.IsActive ? "deactivate" : "activate")" />
                         <button type="submit">@(Model.IsActive ? "Pasifleştir" : "Aktifleştir")</button>
                     </form>
                 </li>

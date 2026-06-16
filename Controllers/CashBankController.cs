@@ -356,23 +356,29 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SetActive(string kind, int id, bool active)
+    public async Task<IActionResult> SetActive(string kind, int id, bool? active, string? command = null)
     {
+        var shouldBeActive = command?.Equals("activate", StringComparison.OrdinalIgnoreCase) == true
+            ? true
+            : command?.Equals("deactivate", StringComparison.OrdinalIgnoreCase) == true
+                ? false
+                : active ?? false;
+
         if (kind == "bank")
         {
             var bank = await db.BankAccounts.FindAsync(id);
             if (bank is null) return NotFound();
-            bank.Active = active;
+            bank.Active = shouldBeActive;
         }
         else
         {
             var cash = await db.CashBoxes.FindAsync(id);
             if (cash is null) return NotFound();
-            cash.Active = active;
+            cash.Active = shouldBeActive;
         }
 
         await db.SaveChangesAsync();
-        TempData["ActionSuccess"] = active ? "Hesap aktifleştirildi." : "Hesap pasifleştirildi.";
+        TempData["ActionSuccess"] = shouldBeActive ? "Hesap aktifleştirildi." : "Hesap pasifleştirildi.";
         return RedirectToDetail(kind, id);
     }
 

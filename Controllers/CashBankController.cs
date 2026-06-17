@@ -928,56 +928,12 @@ public class CashBankController(
             return false;
         }
 
-        if (!TryParseFlexibleDecimal(raw, out amount))
+        if (!FlexibleDecimalParser.TryParse(raw, out amount))
         {
             return false;
         }
 
         return isValid(amount);
-    }
-
-    private static bool TryParseFlexibleDecimal(string raw, out decimal amount)
-    {
-        amount = 0m;
-        var normalized = raw.Trim()
-            .Replace("₺", string.Empty)
-            .Replace(" ", string.Empty)
-            .Replace("\u00a0", string.Empty)
-            .Replace("\u202f", string.Empty);
-
-        var commaIndex = normalized.LastIndexOf(',');
-        var dotIndex = normalized.LastIndexOf('.');
-        if (commaIndex >= 0 && dotIndex >= 0)
-        {
-            if (commaIndex > dotIndex)
-            {
-                normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
-            }
-            else
-            {
-                normalized = normalized.Replace(",", string.Empty);
-            }
-        }
-        else if (commaIndex >= 0)
-        {
-            normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
-        }
-        else if (dotIndex >= 0 && normalized.IndexOf('.') != dotIndex)
-        {
-            var decimals = normalized.Length - dotIndex - 1;
-            if (decimals == 3)
-            {
-                normalized = normalized.Replace(".", string.Empty);
-            }
-            else
-            {
-                var integerPart = normalized[..dotIndex].Replace(".", string.Empty);
-                var decimalPart = normalized[(dotIndex + 1)..];
-                normalized = $"{integerPart}.{decimalPart}";
-            }
-        }
-
-        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
     }
 
     private static CashBankImportRowViewModel BuildImportPreviewRow(
@@ -1014,7 +970,7 @@ public class CashBankController(
             preview.DuesInstallmentId = match?.Id;
             if (match is not null && string.IsNullOrWhiteSpace(preview.Amount))
             {
-                preview.Amount = match.RemainingAmount.ToString("0.##", CultureInfo.InvariantCulture);
+                preview.Amount = match.RemainingAmount.ToString("0.##", CultureInfo.GetCultureInfo("tr-TR"));
             }
             if (match is null)
             {
@@ -1275,13 +1231,6 @@ public class CashBankController(
             return false;
         }
 
-        var culture = raw.Contains(',') ? CultureInfo.GetCultureInfo("tr-TR") : CultureInfo.InvariantCulture;
-        if (decimal.TryParse(raw, NumberStyles.Number, culture, out amount) && amount > 0)
-        {
-            return true;
-        }
-
-        var fallback = culture.Name == "tr-TR" ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("tr-TR");
-        return decimal.TryParse(raw, NumberStyles.Number, fallback, out amount) && amount > 0;
+        return FlexibleDecimalParser.TryParse(raw, out amount) && amount > 0;
     }
 }

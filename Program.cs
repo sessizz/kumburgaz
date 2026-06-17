@@ -48,7 +48,10 @@ builder.Services.AddScoped<CashBankDetailService>();
 builder.Services.AddScoped<UnitStatementService>();
 builder.Services.AddScoped<AccountAssignmentService>();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.ModelBinderProviders.Insert(0, new FlexibleDecimalModelBinderProvider());
+});
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");

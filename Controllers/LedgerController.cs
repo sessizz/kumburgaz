@@ -327,8 +327,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private static bool TryParseAmount(string value, out decimal amount)
     {
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out amount)
-            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
+        return FlexibleDecimalParser.TryParse(value, out amount);
     }
 
     private static bool TryParsePaymentChannel(string value, out PaymentChannel channel)

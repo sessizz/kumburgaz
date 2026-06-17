@@ -1110,11 +1110,7 @@ public class UnitsController(
     private static decimal ParseDecimal(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) return 0m;
-        var normalized = value.Trim().Replace(',', '.');
-        return decimal.TryParse(normalized, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture, out var result)
-            ? result
-            : 0m;
+        return FlexibleDecimalParser.TryParse(value, out var result) ? result : 0m;
     }
 
     private static bool ParseBool(string value, bool fallback)

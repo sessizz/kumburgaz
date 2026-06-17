@@ -21,7 +21,7 @@
     var sign = isPos ? "+" : "−";
     var absAmt = Math.Abs(Model.Amount).ToString("N2", trTR);
     var modalSuffix = $"{Model.Source}-{Model.Id}-{Model.AccountKind}-{Model.AccountId}";
-    var editAmount = Math.Abs(Model.Amount).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var editAmount = Math.Abs(Model.Amount).ToString("0.##", trTR);
     var editDate = Model.Date.ToString("yyyy-MM-dd");
     var editDescription = Model.Description
         .Replace("Para transferi:", "", StringComparison.OrdinalIgnoreCase)
@@ -84,7 +84,7 @@
                 </div>
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tutar</legend>
-                    <input name="OpeningBalance" type="number" step="0.01" value="@Model.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="input input-bordered w-full" />
+                    <input name="OpeningBalance" type="text" inputmode="decimal" value="@Model.Amount.ToString("0.##", trTR)" class="input input-bordered w-full" />
                 </fieldset>
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tarih</legend>
@@ -143,7 +143,7 @@ else if (Model.Source == "collection")
                             <option value="@option.Id"
                                     selected="@(Model.DuesInstallmentId == option.Id)"
                                     data-billing-group-id="@option.BillingGroupId"
-                                    data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-amount="@option.RemainingAmount.ToString("0.##", trTR)"
                                     data-search="@option.SearchText">@option.Text</option>
                         }
                     </select>

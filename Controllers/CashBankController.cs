@@ -416,6 +416,16 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateOpeningBalance(CashBankOpeningBalanceViewModel model)
     {
+        ModelState.Remove(nameof(model.OpeningBalance));
+        if (!TryReadFormDecimal(nameof(model.OpeningBalance), out var openingBalance, _ => true))
+        {
+            ModelState.AddModelError(nameof(model.OpeningBalance), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.OpeningBalance = openingBalance;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Açılış bakiyesi bilgilerini kontrol edin.";
@@ -905,26 +915,69 @@ public class CashBankController(
 
     private bool TryReadAmount(out decimal amount)
     {
-        ModelState.Remove("Amount");
+        return TryReadFormDecimal("Amount", out amount, value => value > 0);
+    }
+
+    private bool TryReadFormDecimal(string fieldName, out decimal amount, Func<decimal, bool> isValid)
+    {
+        ModelState.Remove(fieldName);
         amount = 0m;
-        var raw = Request.Form["Amount"].FirstOrDefault()?.Trim();
+        var raw = Request.Form[fieldName].FirstOrDefault()?.Trim();
         if (string.IsNullOrWhiteSpace(raw))
         {
             return false;
         }
 
-        var culture = raw.Contains(',')
-            ? CultureInfo.GetCultureInfo("tr-TR")
-            : CultureInfo.InvariantCulture;
-        if (decimal.TryParse(raw, NumberStyles.Number, culture, out amount) && amount > 0)
+        if (!TryParseFlexibleDecimal(raw, out amount))
         {
-            return true;
+            return false;
         }
 
-        var fallbackCulture = culture.Name == "tr-TR"
-            ? CultureInfo.InvariantCulture
-            : CultureInfo.GetCultureInfo("tr-TR");
-        return decimal.TryParse(raw, NumberStyles.Number, fallbackCulture, out amount) && amount > 0;
+        return isValid(amount);
+    }
+
+    private static bool TryParseFlexibleDecimal(string raw, out decimal amount)
+    {
+        amount = 0m;
+        var normalized = raw.Trim()
+            .Replace("₺", string.Empty)
+            .Replace(" ", string.Empty)
+            .Replace("\u00a0", string.Empty)
+            .Replace("\u202f", string.Empty);
+
+        var commaIndex = normalized.LastIndexOf(',');
+        var dotIndex = normalized.LastIndexOf('.');
+        if (commaIndex >= 0 && dotIndex >= 0)
+        {
+            if (commaIndex > dotIndex)
+            {
+                normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
+            }
+            else
+            {
+                normalized = normalized.Replace(",", string.Empty);
+            }
+        }
+        else if (commaIndex >= 0)
+        {
+            normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
+        }
+        else if (dotIndex >= 0 && normalized.IndexOf('.') != dotIndex)
+        {
+            var decimals = normalized.Length - dotIndex - 1;
+            if (decimals == 3)
+            {
+                normalized = normalized.Replace(".", string.Empty);
+            }
+            else
+            {
+                var integerPart = normalized[..dotIndex].Replace(".", string.Empty);
+                var decimalPart = normalized[(dotIndex + 1)..];
+                normalized = $"{integerPart}.{decimalPart}";
+            }
+        }
+
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
     }
 
     private static CashBankImportRowViewModel BuildImportPreviewRow(

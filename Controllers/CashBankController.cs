@@ -217,8 +217,7 @@ public class CashBankController(
         var accountKey = BuildAccountKey(model.Kind, model.Id);
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
         var errors = new List<string>();
-        var collectionRows = new List<(CashBankImportRowViewModel Row, DateTime Date, decimal Amount, DuesInstallment Installment)>();
-        var ledgerRows = new List<(CashBankImportRowViewModel Row, DateTime Date, decimal Amount)>();
+        var importRows = new List<CashBankImportOperation>();
 
         foreach (var row in model.Rows.Where(x => x.Include))
         {
@@ -251,7 +250,7 @@ public class CashBankController(
                     continue;
                 }
 
-                collectionRows.Add((row, date, amount, installment));
+                importRows.Add(new CashBankImportOperation(row, date, amount, installment, null));
                 continue;
             }
 
@@ -270,7 +269,7 @@ public class CashBankController(
                 continue;
             }
 
-            ledgerRows.Add((row, date, amount));
+            importRows.Add(new CashBankImportOperation(row, date, amount, null, row.ExpenseCategoryId.Value));
         }
 
         if (errors.Count > 0)
@@ -278,37 +277,40 @@ public class CashBankController(
             return ImportPreviewWithErrors(model, detail, errors, "CSV import edilmedi. Hatalı satırları düzeltin.");
         }
 
-        var saved = collectionRows.Count + ledgerRows.Count;
+        importRows = ApplyImportOrder(importRows, await BuildExistingTransactionDateOffsetsAsync(model.Kind, model.Id));
+        var saved = importRows.Count;
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
-            foreach (var item in collectionRows)
+            foreach (var item in importRows)
             {
-                await collectionService.CreateAsync(new CollectionCreateViewModel
+                if (item.Installment is not null)
                 {
-                    BillingGroupId = item.Installment.BillingGroupId,
-                    DuesInstallmentId = item.Installment.Id,
-                    Date = item.Date,
-                    Amount = item.Amount,
-                    PaymentChannel = paymentChannel,
-                    AccountKey = accountKey,
-                    ReferenceNo = item.Row.ReferenceNo,
-                    Note = string.IsNullOrWhiteSpace(item.Row.Note) ? item.Row.Description : item.Row.Note
-                });
-            }
+                    await collectionService.CreateAsync(new CollectionCreateViewModel
+                    {
+                        BillingGroupId = item.Installment.BillingGroupId,
+                        DuesInstallmentId = item.Installment.Id,
+                        Date = item.Date,
+                        Amount = item.Amount,
+                        PaymentChannel = paymentChannel,
+                        AccountKey = accountKey,
+                        ReferenceNo = item.Row.ReferenceNo,
+                        Note = string.IsNullOrWhiteSpace(item.Row.Note) ? item.Row.Description : item.Row.Note
+                    });
+                    continue;
+                }
 
-            foreach (var item in ledgerRows)
-            {
                 db.LedgerTransactions.Add(new LedgerTransaction
                 {
                     Date = DateTimeHelper.EnsureUtc(item.Date),
-                    IncomeExpenseCategoryId = item.Row.ExpenseCategoryId!.Value,
+                    IncomeExpenseCategoryId = item.ExpenseCategoryId!.Value,
                     Amount = item.Amount,
                     PaymentChannel = paymentChannel,
                     CashBoxId = model.Kind == "cash" ? model.Id : null,
                     BankAccountId = model.Kind == "bank" ? model.Id : null,
                     Description = string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description
                 });
+                await db.SaveChangesAsync();
             }
 
             await db.SaveChangesAsync();
@@ -1036,6 +1038,57 @@ public class CashBankController(
         TempData["ActionError"] = $"{message} {suffix}";
         return View("ImportPreview", model);
     }
+
+    private async Task<Dictionary<DateTime, int>> BuildExistingTransactionDateOffsetsAsync(string kind, int id)
+    {
+        var collectionQuery = db.Collections.AsNoTracking();
+        var ledgerQuery = db.LedgerTransactions.AsNoTracking();
+
+        if (kind == "cash")
+        {
+            collectionQuery = collectionQuery.Where(x => x.CashBoxId == id);
+            ledgerQuery = ledgerQuery.Where(x => x.CashBoxId == id);
+        }
+        else
+        {
+            collectionQuery = collectionQuery.Where(x => x.BankAccountId == id);
+            ledgerQuery = ledgerQuery.Where(x => x.BankAccountId == id);
+        }
+
+        var collectionDates = await collectionQuery.Select(x => x.Date).ToListAsync();
+        var ledgerDates = await ledgerQuery.Select(x => x.Date).ToListAsync();
+
+        return collectionDates
+            .Concat(ledgerDates)
+            .GroupBy(x => x.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    private static List<CashBankImportOperation> ApplyImportOrder(
+        List<CashBankImportOperation> rows,
+        Dictionary<DateTime, int> existingOffsets)
+    {
+        var offsets = new Dictionary<DateTime, int>(existingOffsets);
+        var orderedRows = new List<CashBankImportOperation>(rows.Count);
+
+        foreach (var row in rows)
+        {
+            var day = row.Date.Date;
+            offsets.TryGetValue(day, out var nextOffset);
+            nextOffset++;
+            offsets[day] = nextOffset;
+            orderedRows.Add(row with { Date = day.AddTicks(nextOffset) });
+        }
+
+        return orderedRows;
+    }
+
+    private sealed record CashBankImportOperation(
+        CashBankImportRowViewModel Row,
+        DateTime Date,
+        decimal Amount,
+        DuesInstallment? Installment,
+        int? ExpenseCategoryId);
 
     private static Dictionary<string, int> BuildImportHeaders(string[] row)
     {

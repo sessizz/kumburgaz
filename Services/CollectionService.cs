@@ -49,7 +49,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
 
     public async Task DeleteAsync(int id)
     {
-        var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase);
+        var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase)
+            && db.Database.CurrentTransaction is null;
         await using var tx = useTransaction ? await db.Database.BeginTransactionAsync() : null;
 
         var collection = await db.Collections
@@ -118,7 +119,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         var representativeUnitId = targetInstallment?.UnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
-        var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase);
+        var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase)
+            && db.Database.CurrentTransaction is null;
         await using var tx = useTransaction ? await db.Database.BeginTransactionAsync() : null;
         Collection collection;
 

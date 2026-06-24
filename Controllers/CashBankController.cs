@@ -1009,15 +1009,30 @@ public class CashBankController(
         model.DuesOptions = detail.DuesOptions;
         model.ExpenseCategoryOptions = detail.ExpenseCategoryOptions;
         model.AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}";
+        var rowErrors = errors
+            .Where(x => x.Contains(". satır:", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var generalErrors = errors
+            .Except(rowErrors)
+            .Distinct()
+            .ToList();
+
         foreach (var row in model.Rows)
         {
-            row.Status = errors.FirstOrDefault(x => x.StartsWith($"{row.LineNo}. satır:", StringComparison.OrdinalIgnoreCase)) ?? row.Status;
+            row.Status = rowErrors.FirstOrDefault(x => x.StartsWith($"{row.LineNo}. satır:", StringComparison.OrdinalIgnoreCase)) ?? row.Status;
         }
 
-        var rowErrorCount = errors.Count(x => x.Contains(". satır:", StringComparison.OrdinalIgnoreCase));
-        var suffix = rowErrorCount > 0
-            ? $"{rowErrorCount} satır kontrol istiyor."
-            : $"{errors.Count} hata var.";
+        var parts = new List<string>();
+        if (rowErrors.Count > 0)
+        {
+            parts.Add($"{rowErrors.Count} satır kontrol istiyor.");
+        }
+        if (generalErrors.Count > 0)
+        {
+            parts.Add(string.Join(" ", generalErrors));
+        }
+
+        var suffix = parts.Count > 0 ? string.Join(" ", parts) : $"{errors.Count} hata var.";
         TempData["ActionError"] = $"{message} {suffix}";
         return View("ImportPreview", model);
     }

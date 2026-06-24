@@ -33,7 +33,7 @@
         <input type="hidden" asp-for="AccountName" />
 
         <div class="overflow-x-auto">
-            <table class="table table-zebra align-middle min-w-[1180px]">
+            <table class="table table-zebra align-middle table-fixed min-w-[1500px]">
                 <thead>
                     <tr>
                         <th class="w-16">Al</th>
@@ -41,11 +41,11 @@
                         <th class="w-36">Tip</th>
                         <th class="w-36">Tarih</th>
                         <th class="w-36 text-end">Tutar</th>
-                        <th>Tahsilat / Gider Eşleşmesi</th>
-                        <th>Açıklama</th>
-                        <th>Referans</th>
-                        <th>Not</th>
-                        <th>Durum</th>
+                        <th class="w-[440px]">Tahsilat / Gider Eşleşmesi</th>
+                        <th class="w-64">Açıklama</th>
+                        <th class="w-40">Referans</th>
+                        <th class="w-52">Not</th>
+                        <th class="w-56">Durum</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,7 +74,7 @@
                             <input name="Rows[@i].Amount" value="@row.Amount" inputmode="decimal" class="input input-bordered input-sm w-32 text-end" />
                         </td>
                         <td>
-                            <div class="collection-pick space-y-1">
+                            <div class="collection-pick space-y-1 min-w-0">
                                 <input type="search" class="input input-bordered input-sm w-full import-dues-search" placeholder="Daire, isim, dönem ara" />
                                 <select name="Rows[@i].DuesInstallmentId" class="select select-bordered select-sm w-full import-dues-select">
                                     <option value="">Aidat borcu seçin</option>
@@ -88,7 +88,7 @@
                                     }
                                 </select>
                             </div>
-                            <div class="expense-pick hidden">
+                            <div class="expense-pick hidden min-w-0">
                                 <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
                                     <option value="">Gider kategorisi seçin</option>
                                     @foreach (var option in Model.ExpenseCategoryOptions)
@@ -99,13 +99,13 @@
                             </div>
                         </td>
                         <td>
-                            <input name="Rows[@i].Description" value="@row.Description" class="input input-bordered input-sm w-56" />
+                            <input name="Rows[@i].Description" value="@row.Description" class="input input-bordered input-sm w-full" />
                         </td>
                         <td>
-                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-32" />
+                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-full" />
                         </td>
                         <td>
-                            <input name="Rows[@i].Note" value="@row.Note" class="input input-bordered input-sm w-44" />
+                            <input name="Rows[@i].Note" value="@row.Note" class="input input-bordered input-sm w-full" />
                         </td>
                         <td class="text-xs @(string.IsNullOrWhiteSpace(row.Status) ? "text-success" : "text-warning")">
                             @(string.IsNullOrWhiteSpace(row.Status) ? "Hazır" : row.Status)

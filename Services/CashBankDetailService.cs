@@ -105,7 +105,11 @@ public class CashBankDetailService(ApplicationDbContext db)
         }
 
         // 4. Tarih sırala, açılış bakiyesini ilk satır olarak ekle, running balance hesapla
-        allRows = allRows.OrderBy(r => r.Date).ThenBy(r => r.Id).ToList();
+        allRows = allRows
+            .OrderBy(r => DateOnly.FromDateTime(r.Date))
+            .ThenByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .ToList();
 
         if (openingBalance != 0m)
         {

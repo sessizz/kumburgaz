@@ -65,6 +65,7 @@
                             <select name="Rows[@i].Type" class="select select-bordered select-sm w-32 import-type">
                                 <option value="collection" selected="@(row.Type == "collection")">Tahsilat</option>
                                 <option value="expense" selected="@(row.Type == "expense")">Gider</option>
+                                <option value="transfer" selected="@(row.Type == "transfer")">Transfer</option>
                             </select>
                         </td>
                         <td>
@@ -96,6 +97,16 @@
                                         <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
                                     }
                                 </select>
+                            </div>
+                            <div class="transfer-pick hidden min-w-0">
+                                <select name="Rows[@i].ToAccountKey" class="select select-bordered select-sm w-full">
+                                    <option value="">Transfer hesabi secin</option>
+                                    @foreach (var option in Model.TransferAccountOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ToAccountKey == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                                <input type="hidden" name="Rows[@i].TransferToCurrentAccount" value="@row.TransferToCurrentAccount.ToString().ToLowerInvariant()" />
                             </div>
                         </td>
                         <td>
@@ -139,6 +150,7 @@ function updateImportRow(row) {
     var type = row.querySelector('.import-type')?.value || 'collection';
     row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
     row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
+    row.querySelector('.transfer-pick')?.classList.toggle('hidden', type !== 'transfer');
 }
 
 document.querySelectorAll('.import-row').forEach(function(row) {

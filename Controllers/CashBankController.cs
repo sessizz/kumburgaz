@@ -203,7 +203,8 @@ public class CashBankController(
             AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}",
             Rows = previewRows,
             DuesOptions = detail.DuesOptions,
-            ExpenseCategoryOptions = detail.ExpenseCategoryOptions
+            ExpenseCategoryOptions = detail.ExpenseCategoryOptions,
+            TransferAccountOptions = detail.TransferAccountOptions
         });
     }
 
@@ -254,6 +255,25 @@ public class CashBankController(
                 continue;
             }
 
+            if (row.Type == "transfer")
+            {
+                if (string.IsNullOrWhiteSpace(row.ToAccountKey)
+                    || !FinancialAccountHelper.TryParse(row.ToAccountKey, out _, out _, out _))
+                {
+                    errors.Add($"{row.LineNo}. satir: transfer icin karsi hesap secin.");
+                    continue;
+                }
+
+                if (string.Equals(row.ToAccountKey, accountKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"{row.LineNo}. satir: transfer karsi hesabi kaynak hesapla ayni olamaz.");
+                    continue;
+                }
+
+                importRows.Add(new CashBankImportOperation(row, date, amount, null, null));
+                continue;
+            }
+
             if (!row.ExpenseCategoryId.HasValue)
             {
                 errors.Add($"{row.LineNo}. satır: gider kategorisi seçin.");
@@ -297,6 +317,19 @@ public class CashBankController(
                         ReferenceNo = item.Row.ReferenceNo,
                         Note = string.IsNullOrWhiteSpace(item.Row.Note) ? item.Row.Description : item.Row.Note
                     });
+                    continue;
+                }
+
+                if (item.Row.Type == "transfer")
+                {
+                    await AddTransferRowsAsync(
+                        model.Kind,
+                        model.Id,
+                        item.Row.ToAccountKey!,
+                        item.Row.TransferToCurrentAccount,
+                        item.Date,
+                        item.Amount,
+                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description);
                     continue;
                 }
 
@@ -920,6 +953,61 @@ public class CashBankController(
         return category.Id;
     }
 
+    private async Task AddTransferRowsAsync(
+        string currentKind,
+        int currentId,
+        string counterAccountKey,
+        bool transferToCurrentAccount,
+        DateTime date,
+        decimal amount,
+        string? descriptionText)
+    {
+        if (!FinancialAccountHelper.TryParse(counterAccountKey, out var counterChannel, out var counterCashBoxId, out var counterBankAccountId))
+        {
+            throw new InvalidOperationException("Transfer hesabi bulunamadi.");
+        }
+
+        var currentChannel = currentKind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
+        int? currentCashBoxId = currentKind == "cash" ? currentId : null;
+        int? currentBankAccountId = currentKind == "bank" ? currentId : null;
+
+        var fromChannel = transferToCurrentAccount ? counterChannel : currentChannel;
+        var fromCashBoxId = transferToCurrentAccount ? counterCashBoxId : currentCashBoxId;
+        var fromBankAccountId = transferToCurrentAccount ? counterBankAccountId : currentBankAccountId;
+        var toChannel = transferToCurrentAccount ? currentChannel : counterChannel;
+        var toCashBoxId = transferToCurrentAccount ? currentCashBoxId : counterCashBoxId;
+        var toBankAccountId = transferToCurrentAccount ? currentBankAccountId : counterBankAccountId;
+
+        var expenseCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gider);
+        var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
+        var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatir" : "Para transferi";
+        var description = $"{descriptionPrefix}: {descriptionText}".Trim().TrimEnd(':');
+        var utcDate = DateTimeHelper.EnsureUtc(date);
+
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            Date = utcDate,
+            IncomeExpenseCategoryId = expenseCategoryId,
+            Amount = amount,
+            PaymentChannel = fromChannel,
+            CashBoxId = fromCashBoxId,
+            BankAccountId = fromBankAccountId,
+            Description = description
+        });
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            Date = utcDate,
+            IncomeExpenseCategoryId = incomeCategoryId,
+            Amount = amount,
+            PaymentChannel = toChannel,
+            CashBoxId = toCashBoxId,
+            BankAccountId = toBankAccountId,
+            Description = description
+        });
+
+        await db.SaveChangesAsync();
+    }
+
     private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
     {
         var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
@@ -1038,6 +1126,7 @@ public class CashBankController(
             Type = rowType,
             Date = TryParseDate(dateText, out var parsedDate) ? parsedDate.ToString("yyyy-MM-dd") : dateText,
             Amount = NormalizeImportAmountText(amountText),
+            TransferToCurrentAccount = !IsNegativeImportAmount(amountText),
             Description = string.IsNullOrWhiteSpace(description) ? categoryText : description,
             ReferenceNo = reference,
             Note = note
@@ -1054,6 +1143,15 @@ public class CashBankController(
             if (match is null)
             {
                 status = "Aidat borcu eşleşmedi.";
+            }
+        }
+        else if (rowType == "transfer")
+        {
+            var account = MatchTransferAccount(detail.TransferAccountOptions, string.Join(" ", categoryText, description, note));
+            preview.ToAccountKey = account;
+            if (account is null)
+            {
+                status = "Transfer hesabi eslesmedi.";
             }
         }
         else
@@ -1087,6 +1185,7 @@ public class CashBankController(
     {
         model.DuesOptions = detail.DuesOptions;
         model.ExpenseCategoryOptions = detail.ExpenseCategoryOptions;
+        model.TransferAccountOptions = detail.TransferAccountOptions;
         model.AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}";
         var rowErrors = errors
             .Where(x => x.Contains(". satır:", StringComparison.OrdinalIgnoreCase))
@@ -1213,6 +1312,10 @@ public class CashBankController(
     private static string InferImportType(string typeText, string amountText, string description, string categoryText)
     {
         var haystack = NormalizeImportKey(string.Join(" ", typeText, description, categoryText));
+        if (haystack.Contains("transfer") || haystack.Contains("virman") || haystack.Contains("aktarim"))
+        {
+            return "transfer";
+        }
         if (haystack.Contains("tahsil") || haystack.Contains("aidat") || haystack.Contains("gelir"))
         {
             return "collection";
@@ -1221,7 +1324,7 @@ public class CashBankController(
         {
             return "expense";
         }
-        return amountText.TrimStart().StartsWith("-", StringComparison.Ordinal) ? "expense" : "collection";
+        return IsNegativeImportAmount(amountText) ? "expense" : "collection";
     }
 
     private static CashBankDuesOptionViewModel? MatchDuesOption(List<CashBankDuesOptionViewModel> options, string primaryText, string secondaryText)
@@ -1307,6 +1410,40 @@ public class CashBankController(
         return int.TryParse(match?.Value, out var id) ? id : null;
     }
 
+    private static string? MatchTransferAccount(List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> options, string text)
+    {
+        var tokens = TokenizeImportSearch(text);
+        if (tokens.Count == 0)
+        {
+            return null;
+        }
+
+        var matches = options
+            .Select(x => new
+            {
+                Option = x,
+                Haystack = NormalizeSearchText(x.Text)
+            })
+            .Select(x => new
+            {
+                x.Option,
+                Score = tokens.Count(token => x.Haystack.Contains(token, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Option.Text.Length)
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var bestScore = matches[0].Score;
+        var bestMatches = matches.Where(x => x.Score == bestScore).ToList();
+        return bestMatches.Count == 1 ? bestMatches[0].Option.Value : null;
+    }
+
     private static string NormalizeSearchText(string value)
     {
         return value.Trim()
@@ -1351,7 +1488,13 @@ public class CashBankController(
     private static string NormalizeImportAmountText(string value)
     {
         var trimmed = value.Trim();
-        return trimmed.StartsWith("-", StringComparison.Ordinal) ? trimmed[1..].Trim() : trimmed;
+        return IsNegativeImportAmount(trimmed) ? trimmed[1..].Trim() : trimmed;
+    }
+
+    private static bool IsNegativeImportAmount(string value)
+    {
+        var trimmed = value.TrimStart();
+        return trimmed.StartsWith("-", StringComparison.Ordinal) || trimmed.StartsWith("−", StringComparison.Ordinal);
     }
 
     private static string AppendImportStatus(string current, string message)

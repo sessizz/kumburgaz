@@ -417,6 +417,7 @@ public class CashBankImportPreviewViewModel
     public List<CashBankImportRowViewModel> Rows { get; set; } = [];
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
+    public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }
 
 public class CashBankImportRowViewModel
@@ -428,6 +429,8 @@ public class CashBankImportRowViewModel
     public string Amount { get; set; } = string.Empty;
     public int? DuesInstallmentId { get; set; }
     public int? ExpenseCategoryId { get; set; }
+    public string? ToAccountKey { get; set; }
+    public bool TransferToCurrentAccount { get; set; } = true;
     public string Description { get; set; } = string.Empty;
     public string ReferenceNo { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;

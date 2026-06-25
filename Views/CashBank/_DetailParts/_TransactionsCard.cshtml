@@ -7,7 +7,7 @@
     var rows = Model.Groups.SelectMany(g => g.Items).ToList();
 }
 
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions>
     <form method="get" id="filterForm">
         <div class="flex flex-col lg:flex-row lg:items-center gap-3 px-5 py-3 border-b border-gray-200">
             <div class="flex items-center gap-1 flex-wrap">
@@ -41,6 +41,10 @@
                     <option value="last_month" selected="@(q.Range == "last_month")">Geçen ay</option>
                     <option value="last_90" selected="@(q.Range == "last_90")">Son 90 gün</option>
                 </select>
+                <button type="button" class="btn btn-sm btn-outline" data-bulk-toggle>
+                    <span class="material-symbols-outlined ms-sm">edit</span>
+                    Seç
+                </button>
                 <a class="btn btn-sm btn-outline"
                    href="?type=@(q.Type ?? "all")&range=@(q.Range ?? "all")&q=@q.Q&export=csv">
                     <span class="material-symbols-outlined ms-sm">download</span>
@@ -50,13 +54,35 @@
         </div>
     </form>
 
+    <form id="bulkDeleteForm" asp-action="DeleteSelectedTransactions" method="post" class="hidden">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="@Model.Kind" />
+        <input type="hidden" name="accountId" value="@Model.Id" />
+    </form>
+
     @if (!rows.Any())
     {
         <div class="px-5 py-10 text-center text-gray-400 text-sm">İşlem bulunamadı.</div>
     }
     else
     {
-        <div class="hidden md:grid grid-cols-[100px_140px_minmax(0,1fr)_160px_160px_40px] gap-3 px-5 py-2 text-[11px] font-semibold tracking-widest uppercase text-gray-400 border-b border-gray-100">
+        <div class="hidden px-5 py-2 border-b border-gray-100 bg-gray-50/70 items-center justify-between gap-3" data-bulk-actions>
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" class="checkbox checkbox-sm" data-bulk-select-all />
+                Tümünü seç
+            </label>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500" data-bulk-count>0 seçili</span>
+                <button type="submit" form="bulkDeleteForm" class="btn btn-sm btn-error" disabled data-bulk-delete onclick="return confirm('Secilen islemler silinsin mi?')">
+                    <span class="material-symbols-outlined ms-sm">delete</span>
+                    Sil
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" data-bulk-cancel>Vazgeç</button>
+            </div>
+        </div>
+
+        <div class="hidden md:grid grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-3 px-5 py-2 text-[11px] font-semibold tracking-widest uppercase text-gray-400 border-b border-gray-100">
+            <div class="bulk-select-cell invisible"></div>
             <div>Tarih</div>
             <div>Tip</div>
             <div>Açıklama</div>
@@ -112,3 +138,58 @@
         }
     </div>
 </div>
+
+<script>
+(() => {
+    const root = document.querySelector('[data-bulk-transactions]');
+    if (!root) return;
+
+    const toggle = root.querySelector('[data-bulk-toggle]');
+    const actions = root.querySelector('[data-bulk-actions]');
+    const cancel = root.querySelector('[data-bulk-cancel]');
+    const deleteButton = root.querySelector('[data-bulk-delete]');
+    const count = root.querySelector('[data-bulk-count]');
+    const selectAll = root.querySelector('[data-bulk-select-all]');
+    const checkboxes = Array.from(root.querySelectorAll('[data-bulk-checkbox]'));
+    const selectCells = Array.from(root.querySelectorAll('.bulk-select-cell'));
+
+    const setMode = (enabled) => {
+        actions?.classList.toggle('hidden', !enabled);
+        actions?.classList.toggle('flex', enabled);
+        selectCells.forEach(cell => cell.classList.toggle('invisible', !enabled));
+        checkboxes.forEach(box => {
+            box.checked = false;
+            box.closest('li')?.classList.toggle('bg-amber-50/40', false);
+        });
+        if (selectAll) selectAll.checked = false;
+        updateCount();
+    };
+
+    const updateCount = () => {
+        const selected = checkboxes.filter(box => box.checked).length;
+        if (count) count.textContent = `${selected} seçili`;
+        if (deleteButton) deleteButton.disabled = selected === 0;
+        if (selectAll) {
+            const enabledBoxes = checkboxes.filter(box => !box.disabled);
+            selectAll.checked = enabledBoxes.length > 0 && enabledBoxes.every(box => box.checked);
+            selectAll.indeterminate = selected > 0 && !selectAll.checked;
+        }
+    };
+
+    toggle?.addEventListener('click', () => setMode(true));
+    cancel?.addEventListener('click', () => setMode(false));
+    selectAll?.addEventListener('change', () => {
+        checkboxes.filter(box => !box.disabled).forEach(box => {
+            box.checked = selectAll.checked;
+            box.closest('li')?.classList.toggle('bg-amber-50/40', box.checked);
+        });
+        updateCount();
+    });
+    checkboxes.forEach(box => {
+        box.addEventListener('change', () => {
+            box.closest('li')?.classList.toggle('bg-amber-50/40', box.checked);
+            updateCount();
+        });
+    });
+})();
+</script>

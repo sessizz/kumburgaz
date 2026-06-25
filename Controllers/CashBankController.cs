@@ -482,31 +482,12 @@ public class CashBankController(
     {
         if (source == "collection")
         {
+            if (!await CollectionBelongsToAccountAsync(id, kind, accountId)) return NotFound();
             await collectionService.DeleteAsync(id);
         }
         else if (source == "ledger")
         {
-            var ledger = await db.LedgerTransactions
-                .Include(x => x.IncomeExpenseCategory)
-                .FirstOrDefaultAsync(x => x.Id == id);
-            if (ledger is null) return NotFound();
-            if (IsTransferLedger(ledger))
-            {
-                var candidates = await db.LedgerTransactions
-                    .Include(x => x.IncomeExpenseCategory)
-                    .Where(x => x.Id != ledger.Id)
-                    .Where(x => x.Amount == ledger.Amount)
-                    .Where(x => x.Date == ledger.Date)
-                    .Where(x => x.Description == ledger.Description)
-                    .ToListAsync();
-                var pair = FindTransferPair(ledger, candidates);
-                if (pair is not null)
-                {
-                    db.LedgerTransactions.Remove(pair);
-                }
-            }
-            db.LedgerTransactions.Remove(ledger);
-            await db.SaveChangesAsync();
+            if (!await DeleteLedgerTransactionAsync(id, kind, accountId)) return NotFound();
         }
         else
         {
@@ -514,6 +495,53 @@ public class CashBankController(
         }
 
         TempData["ActionSuccess"] = "İşlem silindi.";
+        return RedirectToDetail(kind, accountId);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteSelectedTransactions(string kind, int accountId, List<string>? selectedTransactions)
+    {
+        var selections = (selectedTransactions ?? [])
+            .Select(ParseSelectedTransaction)
+            .Where(x => x is not null)
+            .Select(x => x!.Value)
+            .Distinct()
+            .ToList();
+
+        if (selections.Count == 0)
+        {
+            TempData["ActionError"] = "Silmek icin en az bir islem secin.";
+            return RedirectToDetail(kind, accountId);
+        }
+
+        var deleted = 0;
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        foreach (var (selectedSource, selectedId) in selections)
+        {
+            if (selectedSource == "collection")
+            {
+                if (!await CollectionBelongsToAccountAsync(selectedId, kind, accountId))
+                {
+                    continue;
+                }
+
+                await collectionService.DeleteAsync(selectedId);
+                deleted++;
+                continue;
+            }
+
+            if (selectedSource == "ledger")
+            {
+                deleted += await DeleteLedgerTransactionAsync(selectedId, kind, accountId) ? 1 : 0;
+            }
+        }
+
+        await transaction.CommitAsync();
+
+        TempData[deleted > 0 ? "ActionSuccess" : "ActionError"] = deleted > 0
+            ? $"{deleted} islem silindi."
+            : "Secilen islemler bulunamadi.";
         return RedirectToDetail(kind, accountId);
     }
 
@@ -913,6 +941,55 @@ public class CashBankController(
             || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase)
             || description.Equals("Para transferi", StringComparison.OrdinalIgnoreCase)
             || description.Equals("Bankaya yatır", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static (string Source, int Id)? ParseSelectedTransaction(string value)
+    {
+        var parts = value.Split(':', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length != 2 || !int.TryParse(parts[1], out var id))
+        {
+            return null;
+        }
+
+        return parts[0] is "collection" or "ledger" ? (parts[0], id) : null;
+    }
+
+    private Task<bool> CollectionBelongsToAccountAsync(int id, string kind, int accountId)
+    {
+        return db.Collections.AnyAsync(x =>
+            x.Id == id && (kind == "bank" ? x.BankAccountId == accountId : x.CashBoxId == accountId));
+    }
+
+    private async Task<bool> DeleteLedgerTransactionAsync(int id, string kind, int accountId)
+    {
+        var ledger = await db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .FirstOrDefaultAsync(x =>
+                x.Id == id && (kind == "bank" ? x.BankAccountId == accountId : x.CashBoxId == accountId));
+        if (ledger is null)
+        {
+            return false;
+        }
+
+        if (IsTransferLedger(ledger))
+        {
+            var candidates = await db.LedgerTransactions
+                .Include(x => x.IncomeExpenseCategory)
+                .Where(x => x.Id != ledger.Id)
+                .Where(x => x.Amount == ledger.Amount)
+                .Where(x => x.Date == ledger.Date)
+                .Where(x => x.Description == ledger.Description)
+                .ToListAsync();
+            var pair = FindTransferPair(ledger, candidates);
+            if (pair is not null)
+            {
+                db.LedgerTransactions.Remove(pair);
+            }
+        }
+
+        db.LedgerTransactions.Remove(ledger);
+        await db.SaveChangesAsync();
+        return true;
     }
 
     private bool TryReadAmount(out decimal amount)

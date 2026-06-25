@@ -28,7 +28,18 @@
         .Replace("Bankaya yatır:", "", StringComparison.OrdinalIgnoreCase)
         .Trim();
 }
-<li class="tx-row grid grid-cols-1 md:grid-cols-[100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
+<li class="tx-row grid grid-cols-1 md:grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
+    <div class="bulk-select-cell invisible">
+        @if (Model.Source != "opening")
+        {
+            <input type="checkbox"
+                   class="checkbox checkbox-sm"
+                   name="selectedTransactions"
+                   value="@($"{Model.Source}:{Model.Id}")"
+                   form="bulkDeleteForm"
+                   data-bulk-checkbox />
+        }
+    </div>
     <div class="text-sm text-gray-600 tabular-nums">@Model.Date.ToString("dd.MM.yyyy")</div>
     <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>
     <div class="min-w-0">

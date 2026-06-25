@@ -21,14 +21,16 @@
     var sign = isPos ? "+" : "−";
     var absAmt = Math.Abs(Model.Amount).ToString("N2", trTR);
     var modalSuffix = $"{Model.Source}-{Model.Id}-{Model.AccountKind}-{Model.AccountId}";
-    var editAmount = Math.Abs(Model.Amount).ToString("0.##", trTR);
+    var editAmount = Math.Abs(Model.Amount).ToString(System.Globalization.CultureInfo.InvariantCulture);
     var editDate = Model.Date.ToString("yyyy-MM-dd");
     var editDescription = Model.Description
         .Replace("Para transferi:", "", StringComparison.OrdinalIgnoreCase)
         .Replace("Bankaya yatır:", "", StringComparison.OrdinalIgnoreCase)
         .Trim();
 }
-<li class="tx-row grid grid-cols-1 md:grid-cols-[1fr_140px_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
+<li class="tx-row grid grid-cols-1 md:grid-cols-[100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
+    <div class="text-sm text-gray-600 tabular-nums">@Model.Date.ToString("dd.MM.yyyy")</div>
+    <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>
     <div class="min-w-0">
         <div class="font-medium text-gray-900 truncate">@Model.Description</div>
         @if (!string.IsNullOrWhiteSpace(Model.Subline))
@@ -36,7 +38,6 @@
             <div class="text-xs text-gray-500 mt-0.5">@Model.Subline</div>
         }
     </div>
-    <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>
     <div class="text-right tabular-nums font-semibold @amtClass">@sign@absAmt <span class="text-gray-400 font-normal">₺</span></div>
     <div class="text-right tabular-nums font-medium text-gray-700">@Model.RunningBalance.ToString("N2", trTR) <span class="text-gray-400 font-normal">₺</span></div>
     <div class="text-right">
@@ -84,7 +85,7 @@
                 </div>
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tutar</legend>
-                    <input name="OpeningBalance" type="text" inputmode="decimal" value="@Model.Amount.ToString("0.##", trTR)" class="input input-bordered w-full" />
+                    <input name="OpeningBalance" type="number" step="0.01" value="@Model.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="input input-bordered w-full" />
                 </fieldset>
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tarih</legend>
@@ -143,7 +144,7 @@ else if (Model.Source == "collection")
                             <option value="@option.Id"
                                     selected="@(Model.DuesInstallmentId == option.Id)"
                                     data-billing-group-id="@option.BillingGroupId"
-                                    data-amount="@option.RemainingAmount.ToString("0.##", trTR)"
+                                    data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                     data-search="@option.SearchText">@option.Text</option>
                         }
                     </select>

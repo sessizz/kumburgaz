@@ -1,10 +1,10 @@
 @model Kumburgaz.Web.Models.CashBankDetailViewModel
 @using System.Globalization
 @{
-    var trTR = new CultureInfo("tr-TR");
     var q = Model.Query;
     var actionName = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
     var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
+    var rows = Model.Groups.SelectMany(g => g.Items).ToList();
 }
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -50,46 +50,33 @@
         </div>
     </form>
 
-    @if (!Model.Groups.Any())
+    @if (!rows.Any())
     {
         <div class="px-5 py-10 text-center text-gray-400 text-sm">İşlem bulunamadı.</div>
     }
     else
     {
-        <div class="hidden md:grid grid-cols-[1fr_140px_160px_160px_40px] gap-3 px-5 py-2 text-[11px] font-semibold tracking-widest uppercase text-gray-400 border-b border-gray-100">
-            <div>Açıklama</div>
+        <div class="hidden md:grid grid-cols-[100px_140px_minmax(0,1fr)_160px_160px_40px] gap-3 px-5 py-2 text-[11px] font-semibold tracking-widest uppercase text-gray-400 border-b border-gray-100">
+            <div>Tarih</div>
             <div>Tip</div>
+            <div>Açıklama</div>
             <div class="text-right">Tutar</div>
             <div class="text-right">Bakiye</div>
             <div></div>
         </div>
 
-        @foreach (var group in Model.Groups)
-        {
-            <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                <span class="text-xs font-semibold tracking-widest uppercase text-gray-400">
-                    @group.Date.ToString("d MMM yyyy · dddd", new CultureInfo("tr-TR"))
-                </span>
-                <div class="flex-1 h-px bg-gray-100"></div>
-                <span class="text-xs text-gray-400">
-                    Net <span class="font-semibold @(group.Net >= 0 ? "text-emerald-600" : "text-red-600")">
-                        @($"{(group.Net >= 0 ? "+" : "")}{group.Net.ToString("N2", trTR)} ₺")
-                    </span>
-                </span>
-            </div>
-            <ul class="divide-y divide-gray-100">
-                @foreach (var row in group.Items)
-                {
-                    <partial name="_DetailParts/_TxRow" model="row" />
-                }
-            </ul>
-        }
+        <ul class="divide-y divide-gray-100">
+            @foreach (var row in rows)
+            {
+                <partial name="_DetailParts/_TxRow" model="row" />
+            }
+        </ul>
     }
 
     <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50/50">
         <span class="text-sm text-gray-500">
             @Model.TotalCount işlem ·
-            @(((q.Page - 1) * q.PageSize) + 1)–@(Math.Min(q.Page * q.PageSize, Model.TotalCount)) gösteriliyor
+            @(((q.Page - 1) * q.PageSize) + 1)-@(Math.Min(q.Page * q.PageSize, Model.TotalCount)) gösteriliyor
         </span>
         @if (totalPages > 1)
         {

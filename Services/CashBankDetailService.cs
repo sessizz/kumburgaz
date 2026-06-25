@@ -108,7 +108,7 @@ public class CashBankDetailService(ApplicationDbContext db)
         allRows = allRows
             .OrderBy(r => DateOnly.FromDateTime(r.Date))
             .ThenByDescending(r => r.Date)
-            .ThenByDescending(r => r.Id)
+            .ThenBy(r => r.Id)
             .ToList();
 
         if (openingBalance != 0m)
@@ -189,7 +189,7 @@ public class CashBankDetailService(ApplicationDbContext db)
         var filteredList = filtered
             .OrderByDescending(r => DateOnly.FromDateTime(r.Date))
             .ThenBy(r => r.Date)
-            .ThenBy(r => r.Id)
+            .ThenByDescending(r => r.Id)
             .ToList();
         var totalCount = filteredList.Count;
         var tahsilatCount = allRows.Count(r => r.Kind == TxKind.Tahsilat);
@@ -208,7 +208,7 @@ public class CashBankDetailService(ApplicationDbContext db)
             {
                 Date = g.Key,
                 Net = g.Sum(r => r.Amount),
-                Items = g.OrderBy(r => r.Date).ThenBy(r => r.Id).ToList()
+                Items = g.OrderBy(r => r.Date).ThenByDescending(r => r.Id).ToList()
             })
             .ToList();
 

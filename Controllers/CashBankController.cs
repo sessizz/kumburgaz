@@ -599,6 +599,7 @@ public class CashBankController(
 
         var accountKey = BuildAccountKey(model.Kind, model.Id);
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
+        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
 
         try
         {
@@ -606,7 +607,7 @@ public class CashBankController(
             {
                 BillingGroupId = model.BillingGroupId,
                 DuesInstallmentId = model.DuesInstallmentId,
-                Date = model.Date,
+                Date = orderedDate,
                 Amount = model.Amount,
                 PaymentChannel = paymentChannel,
                 AccountKey = accountKey,
@@ -642,13 +643,19 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
+        var existingCollection = await db.Collections
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == transactionId);
+        if (existingCollection is null) return NotFound();
+        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, existingCollection.Date);
+
         try
         {
             await collectionService.UpdateAsync(transactionId, new CollectionCreateViewModel
             {
                 BillingGroupId = model.BillingGroupId,
                 DuesInstallmentId = model.DuesInstallmentId,
-                Date = model.Date,
+                Date = orderedDate,
                 Amount = model.Amount,
                 PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
                 AccountKey = BuildAccountKey(model.Kind, model.Id),
@@ -699,9 +706,10 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
+        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
         db.LedgerTransactions.Add(new LedgerTransaction
         {
-            Date = DateTimeHelper.EnsureUtc(model.Date),
+            Date = DateTimeHelper.EnsureUtc(orderedDate),
             IncomeExpenseCategoryId = model.IncomeExpenseCategoryId,
             Amount = model.Amount,
             PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
@@ -748,7 +756,8 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        entity.Date = DateTimeHelper.EnsureUtc(model.Date);
+        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, entity.Date);
+        entity.Date = DateTimeHelper.EnsureUtc(orderedDate);
         entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
         entity.Amount = model.Amount;
         entity.PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
@@ -793,7 +802,8 @@ public class CashBankController(
         var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
         var descriptionPrefix = model.Kind == "cash" && toChannel == PaymentChannel.Bank ? "Bankaya yatır" : "Para transferi";
         var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
-        var utcDate = DateTimeHelper.EnsureUtc(model.Date);
+        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
+        var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
 
         db.LedgerTransactions.Add(new LedgerTransaction
         {
@@ -882,7 +892,8 @@ public class CashBankController(
         var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
         var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatır" : "Para transferi";
         var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
-        var utcDate = DateTimeHelper.EnsureUtc(model.Date);
+        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, source.Date);
+        var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
 
         var expenseRow = sourceType == CategoryTypeHelper.Gider ? source : pair;
         var incomeRow = sourceType == CategoryTypeHelper.Gelir ? source : pair;
@@ -1215,7 +1226,7 @@ public class CashBankController(
         return View("ImportPreview", model);
     }
 
-    private async Task<Dictionary<DateTime, int>> BuildExistingTransactionDateOffsetsAsync(string kind, int id)
+    private async Task<Dictionary<DateTime, long>> BuildExistingTransactionDateOffsetsAsync(string kind, int id)
     {
         var collectionQuery = db.Collections.AsNoTracking();
         var ledgerQuery = db.LedgerTransactions.AsNoTracking();
@@ -1236,15 +1247,15 @@ public class CashBankController(
 
         return collectionDates
             .Concat(ledgerDates)
-            .GroupBy(x => x.Date)
-            .ToDictionary(g => g.Key, g => g.Count());
+            .GroupBy(x => x.Date.Date)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.TimeOfDay.Ticks));
     }
 
     private static List<CashBankImportOperation> ApplyImportOrder(
         List<CashBankImportOperation> rows,
-        Dictionary<DateTime, int> existingOffsets)
+        Dictionary<DateTime, long> existingOffsets)
     {
-        var offsets = new Dictionary<DateTime, int>(existingOffsets);
+        var offsets = new Dictionary<DateTime, long>(existingOffsets);
         var orderedRows = new List<CashBankImportOperation>(rows.Count);
 
         foreach (var row in rows)
@@ -1257,6 +1268,21 @@ public class CashBankController(
         }
 
         return orderedRows;
+    }
+
+    private async Task<DateTime> BuildNextTransactionDateAsync(string kind, int id, DateTime date)
+    {
+        var offsets = await BuildExistingTransactionDateOffsetsAsync(kind, id);
+        var day = date.Date;
+        offsets.TryGetValue(day, out var currentOffset);
+        return day.AddTicks(currentOffset + 1);
+    }
+
+    private async Task<DateTime> ResolveEditedTransactionDateAsync(string kind, int id, DateTime submittedDate, DateTime existingDate)
+    {
+        return submittedDate.Date == existingDate.Date
+            ? existingDate
+            : await BuildNextTransactionDateAsync(kind, id, submittedDate);
     }
 
     private sealed record CashBankImportOperation(

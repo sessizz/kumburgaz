@@ -106,8 +106,7 @@ public class CashBankDetailService(ApplicationDbContext db)
 
         // 4. Tarih sırala, açılış bakiyesini ilk satır olarak ekle, running balance hesapla
         allRows = allRows
-            .OrderBy(r => DateOnly.FromDateTime(r.Date))
-            .ThenByDescending(r => r.Date)
+            .OrderBy(r => r.Date)
             .ThenBy(r => r.Id)
             .ToList();
 
@@ -187,8 +186,7 @@ public class CashBankDetailService(ApplicationDbContext db)
         }
 
         var filteredList = filtered
-            .OrderByDescending(r => DateOnly.FromDateTime(r.Date))
-            .ThenBy(r => r.Date)
+            .OrderByDescending(r => r.Date)
             .ThenByDescending(r => r.Id)
             .ToList();
         var totalCount = filteredList.Count;
@@ -208,7 +206,7 @@ public class CashBankDetailService(ApplicationDbContext db)
             {
                 Date = g.Key,
                 Net = g.Sum(r => r.Amount),
-                Items = g.OrderBy(r => r.Date).ThenByDescending(r => r.Id).ToList()
+                Items = g.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList()
             })
             .ToList();
 

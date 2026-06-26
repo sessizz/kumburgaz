@@ -16,6 +16,9 @@ public class CashBankController(
     CashBankDetailService detailService,
     ICollectionService collectionService) : Controller
 {
+    // PostgreSQL timestamp precision is microseconds, so ordering offsets must be at least 10 ticks.
+    private const long TransactionOrderTickStep = 10L;
+
     public async Task<IActionResult> Index(string? q = null)
     {
         var query = q?.Trim();
@@ -1248,7 +1251,7 @@ public class CashBankController(
         return collectionDates
             .Concat(ledgerDates)
             .GroupBy(x => x.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Max(x => x.TimeOfDay.Ticks));
+            .ToDictionary(g => g.Key, g => g.Max(GetTransactionOrderSlot));
     }
 
     private static List<CashBankImportOperation> ApplyImportOrder(
@@ -1264,7 +1267,7 @@ public class CashBankController(
             offsets.TryGetValue(day, out var nextOffset);
             nextOffset++;
             offsets[day] = nextOffset;
-            orderedRows.Add(row with { Date = day.AddTicks(nextOffset) });
+            orderedRows.Add(row with { Date = ApplyTransactionOrderSlot(day, nextOffset) });
         }
 
         return orderedRows;
@@ -1275,7 +1278,7 @@ public class CashBankController(
         var offsets = await BuildExistingTransactionDateOffsetsAsync(kind, id);
         var day = date.Date;
         offsets.TryGetValue(day, out var currentOffset);
-        return day.AddTicks(currentOffset + 1);
+        return ApplyTransactionOrderSlot(day, currentOffset + 1);
     }
 
     private async Task<DateTime> ResolveEditedTransactionDateAsync(string kind, int id, DateTime submittedDate, DateTime existingDate)
@@ -1283,6 +1286,16 @@ public class CashBankController(
         return submittedDate.Date == existingDate.Date
             ? existingDate
             : await BuildNextTransactionDateAsync(kind, id, submittedDate);
+    }
+
+    private static long GetTransactionOrderSlot(DateTime date)
+    {
+        return date.TimeOfDay.Ticks / TransactionOrderTickStep;
+    }
+
+    private static DateTime ApplyTransactionOrderSlot(DateTime day, long slot)
+    {
+        return day.Date.AddTicks(slot * TransactionOrderTickStep);
     }
 
     private sealed record CashBankImportOperation(

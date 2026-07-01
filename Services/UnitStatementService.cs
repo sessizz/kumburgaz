@@ -101,19 +101,78 @@ public class UnitStatementService(ApplicationDbContext db)
             });
         }
 
-        // Tarihe göre sırala (en eski önce) ve yürüyen bakiyeyi hesapla
-        var ordered = entries
+        // Tarihe göre sırala (en eski önce), borcu aşan tahsilatları avans olarak ayır ve yürüyen bakiyeyi hesapla
+        var orderedRaw = entries
             .OrderBy(x => x.Date)
             .ThenBy(x => x.Kind == StatementEntryKind.Debt ? 0 : 1)
             .ToList();
 
+        var ordered = new List<StatementEntry>();
         decimal running = 0m;
-        foreach (var e in ordered)
+        foreach (var entry in orderedRaw)
         {
-            running += e.Amount;
-            e.RunningBalance = running;
+            if (entry.Kind == StatementEntryKind.Collection && entry.Amount < 0)
+            {
+                var collectionAmount = -entry.Amount;
+                if (running <= 0)
+                {
+                    AddStatementEntry(ordered, entry, -collectionAmount, BuildAdvanceDescription(entry.Description), ref running);
+                    continue;
+                }
+
+                var appliedToDebt = Math.Min(running, collectionAmount);
+                if (appliedToDebt > 0)
+                {
+                    AddStatementEntry(ordered, entry, -appliedToDebt, entry.Description, ref running);
+                }
+
+                var advanceAmount = collectionAmount - appliedToDebt;
+                if (advanceAmount > 0)
+                {
+                    AddStatementEntry(ordered, entry, -advanceAmount, BuildAdvanceDescription(entry.Description), ref running);
+                }
+
+                continue;
+            }
+
+            AddStatementEntry(ordered, entry, entry.Amount, entry.Description, ref running);
         }
 
         return ordered;
+    }
+
+    private static void AddStatementEntry(
+        List<StatementEntry> entries,
+        StatementEntry source,
+        decimal amount,
+        string description,
+        ref decimal running)
+    {
+        running += amount;
+        entries.Add(new StatementEntry
+        {
+            Kind = source.Kind,
+            Date = source.Date,
+            Description = description,
+            Amount = amount,
+            RunningBalance = running
+        });
+    }
+
+    private static string BuildAdvanceDescription(string description)
+    {
+        if (description.Contains("Avans", StringComparison.OrdinalIgnoreCase))
+        {
+            return description;
+        }
+
+        var text = description.Replace(" Tahsilatı", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        var separatorIndex = text.LastIndexOf(" - ", StringComparison.Ordinal);
+        if (separatorIndex >= 0)
+        {
+            text = text[(separatorIndex + 3)..].Trim();
+        }
+
+        return $"{text} Avans Tahsilatı";
     }
 }

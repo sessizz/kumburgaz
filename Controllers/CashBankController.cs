@@ -213,6 +213,7 @@ public class CashBankController(
             AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}",
             Rows = previewRows,
             DuesOptions = detail.DuesOptions,
+            IncomeCategoryOptions = detail.IncomeCategoryOptions,
             ExpenseCategoryOptions = detail.ExpenseCategoryOptions,
             TransferAccountOptions = detail.TransferAccountOptions
         });
@@ -285,18 +286,26 @@ public class CashBankController(
                 continue;
             }
 
+            if (row.Type != "income" && row.Type != "expense")
+            {
+                errors.Add($"{row.LineNo}. satır: işlem tipi geçersiz.");
+                continue;
+            }
+
+            var categoryKind = row.Type == "income" ? CategoryTypeHelper.Gelir : CategoryTypeHelper.Gider;
+            var categoryLabel = row.Type == "income" ? "gelir" : "gider";
             if (!row.ExpenseCategoryId.HasValue)
             {
-                errors.Add($"{row.LineNo}. satır: gider kategorisi seçin.");
+                errors.Add($"{row.LineNo}. satır: {categoryLabel} kategorisi seçin.");
                 continue;
             }
 
             var categoryExists = await db.IncomeExpenseCategories
                 .AsNoTracking()
-                .AnyAsync(x => x.Id == row.ExpenseCategoryId.Value && x.Type == CategoryTypeHelper.Gider);
+                .AnyAsync(x => x.Id == row.ExpenseCategoryId.Value && x.Type == categoryKind);
             if (!categoryExists)
             {
-                errors.Add($"{row.LineNo}. satır: gider kategorisi bulunamadı.");
+                errors.Add($"{row.LineNo}. satır: {categoryLabel} kategorisi bulunamadı.");
                 continue;
             }
 
@@ -347,7 +356,7 @@ public class CashBankController(
                 db.LedgerTransactions.Add(new LedgerTransaction
                 {
                     Date = DateTimeHelper.EnsureUtc(item.Date),
-                    IncomeExpenseCategoryId = item.ExpenseCategoryId!.Value,
+                    IncomeExpenseCategoryId = item.CategoryId!.Value,
                     IsTransfer = false,
                     TransferIsIncoming = false,
                     Amount = item.Amount,
@@ -1128,12 +1137,26 @@ public class CashBankController(
         var typeText = ReadImportValue(row, headers, "tip", "type", "tur", "islemtipi", "işlemtipi");
         var amountText = ReadImportValue(row, headers, "tutar", "amount", "borc", "borç", "alacak");
         var description = ReadImportValue(row, headers, "aciklama", "açıklama", "description", "izahat", "detay");
-        var categoryText = ReadImportValue(row, headers, "kategori", "category", "giderkategori", "giderkategorisi");
+        var categoryText = ReadImportValue(row, headers, "kategori", "category", "giderkategori", "giderkategorisi", "gelirkategori", "gelirkategorisi");
         var matchText = ReadImportValue(row, headers, "daire", "hesap", "kisi", "kişi", "isim", "ad", "malik", "kiraci", "kiracı", "uye", "üye");
         var note = ReadImportValue(row, headers, "not", "note");
         var reference = ReadImportValue(row, headers, "referans", "referansno", "ref", "fisno", "fişno", "dekont");
         var dateText = ReadImportValue(row, headers, "tarih", "date", "islemtarihi", "işlemtarihi");
         var rowType = InferImportType(typeText, amountText, description, categoryText);
+        var categoryMatchText = string.Join(" ", categoryText, description, note);
+        var incomeCategory = MatchCategory(detail.IncomeCategoryOptions, categoryMatchText);
+        var expenseCategory = MatchCategory(detail.ExpenseCategoryOptions, categoryMatchText);
+        if (rowType == "collection" && !HasCollectionImportHint(typeText, description, categoryText, matchText))
+        {
+            if (expenseCategory.HasValue)
+            {
+                rowType = "expense";
+            }
+            else if (incomeCategory.HasValue)
+            {
+                rowType = "income";
+            }
+        }
         var status = string.Empty;
 
         var preview = new CashBankImportRowViewModel
@@ -1172,11 +1195,12 @@ public class CashBankController(
         }
         else
         {
-            var category = MatchCategory(detail.ExpenseCategoryOptions, string.Join(" ", categoryText, description, note));
+            var isIncome = rowType == "income";
+            var category = isIncome ? incomeCategory : expenseCategory;
             preview.ExpenseCategoryId = category;
             if (category is null)
             {
-                status = "Gider kategorisi eşleşmedi.";
+                status = isIncome ? "Gelir kategorisi eşleşmedi." : "Gider kategorisi eşleşmedi.";
             }
         }
 
@@ -1200,6 +1224,7 @@ public class CashBankController(
         string message)
     {
         model.DuesOptions = detail.DuesOptions;
+        model.IncomeCategoryOptions = detail.IncomeCategoryOptions;
         model.ExpenseCategoryOptions = detail.ExpenseCategoryOptions;
         model.TransferAccountOptions = detail.TransferAccountOptions;
         model.AccountName = detail.Branch is null ? detail.Name : $"{detail.Name} · {detail.Branch}";
@@ -1305,7 +1330,7 @@ public class CashBankController(
         DateTime Date,
         decimal Amount,
         DuesInstallment? Installment,
-        int? ExpenseCategoryId);
+        int? CategoryId);
 
     private static Dictionary<string, int> BuildImportHeaders(string[] row)
     {
@@ -1350,6 +1375,14 @@ public class CashBankController(
             .Replace("-", "");
     }
 
+    private static bool HasCollectionImportHint(string typeText, string description, string categoryText, string matchText)
+    {
+        var haystack = NormalizeImportKey(string.Join(" ", typeText, description, categoryText, matchText));
+        return haystack.Contains("tahsil")
+            || haystack.Contains("aidat")
+            || haystack.Contains("dues");
+    }
+
     private static string InferImportType(string typeText, string amountText, string description, string categoryText)
     {
         var haystack = NormalizeImportKey(string.Join(" ", typeText, description, categoryText));
@@ -1357,7 +1390,15 @@ public class CashBankController(
         {
             return "transfer";
         }
-        if (haystack.Contains("tahsil") || haystack.Contains("aidat") || haystack.Contains("gelir"))
+        if (haystack.Contains("vergi") || haystack.Contains("stopaj"))
+        {
+            return "expense";
+        }
+        if (haystack.Contains("faiz") || haystack.Contains("gelir"))
+        {
+            return "income";
+        }
+        if (haystack.Contains("tahsil") || haystack.Contains("aidat"))
         {
             return "collection";
         }

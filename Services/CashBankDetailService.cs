@@ -251,6 +251,7 @@ public class CashBankDetailService(ApplicationDbContext db)
             : FinancialAccountHelper.CashKey(id);
         var options = await BuildDetailOptionsAsync(currentAccountKey);
         vm.DuesOptions = options.DuesOptions;
+        vm.IncomeCategoryOptions = options.IncomeCategories;
         vm.ExpenseCategoryOptions = options.ExpenseCategories;
         vm.TransferAccountOptions = options.TransferAccounts;
         ApplyRowOptions(vm, allLedgerRaw);
@@ -360,12 +361,20 @@ public class CashBankDetailService(ApplicationDbContext db)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
             .ToListAsync();
 
+        var incomeCategories = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gelir)
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .ToListAsync();
+
         var transferAccounts = (await FinancialAccountHelper.BuildOptionsAsync(db))
             .Where(x => x.Value != currentAccountKey)
             .ToList();
 
         return new DetailOptions(
             await BuildDuesOptionsAsync(installments),
+            incomeCategories,
             expenseCategories,
             transferAccounts);
     }
@@ -432,6 +441,7 @@ public class CashBankDetailService(ApplicationDbContext db)
 
     private sealed record DetailOptions(
         List<CashBankDuesOptionViewModel> DuesOptions,
+        List<SelectListItem> IncomeCategories,
         List<SelectListItem> ExpenseCategories,
         List<SelectListItem> TransferAccounts);
 }

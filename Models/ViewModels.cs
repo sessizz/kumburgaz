@@ -438,6 +438,7 @@ public class CashBankImportPreviewViewModel
     public string AccountName { get; set; } = string.Empty;
     public List<CashBankImportRowViewModel> Rows { get; set; } = [];
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }
@@ -602,6 +603,7 @@ public class CashBankDetailViewModel
     public int PendingCount { get; set; }
     public string? Note { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }

@@ -50,7 +50,7 @@
                         <th>Tip</th>
                         <th>Tarih</th>
                         <th class="text-end">Tutar</th>
-                        <th>Tahsilat / Gider Eşleşmesi</th>
+                        <th>Eşleşme / Kategori</th>
                         <th>Açıklama</th>
                         <th>Makbuz No</th>
                         <th>Durum</th>
@@ -72,6 +72,7 @@
                         <td>
                             <select name="Rows[@i].Type" class="select select-bordered select-sm w-full import-type">
                                 <option value="collection" selected="@(row.Type == "collection")">Tahsilat</option>
+                                <option value="income" selected="@(row.Type == "income")">Gelir</option>
                                 <option value="expense" selected="@(row.Type == "expense")">Gider</option>
                                 <option value="transfer" selected="@(row.Type == "transfer")">Transfer</option>
                             </select>
@@ -101,6 +102,15 @@
                                 <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
                                     <option value="">Gider kategorisi seçin</option>
                                     @foreach (var option in Model.ExpenseCategoryOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="income-pick hidden min-w-0">
+                                <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
+                                    <option value="">Gelir kategorisi seçin</option>
+                                    @foreach (var option in Model.IncomeCategoryOptions)
                                     {
                                         <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
                                     }
@@ -179,10 +189,14 @@ function updateImportSearch(search, select) {
 function updateImportRow(row) {
     var type = row.querySelector('.import-type')?.value || 'collection';
     row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
+    row.querySelector('.income-pick')?.classList.toggle('hidden', type !== 'income');
     row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
     row.querySelector('.transfer-pick')?.classList.toggle('hidden', type !== 'transfer');
     row.querySelectorAll('.collection-pick select, .collection-pick input').forEach(function(input) {
         input.disabled = type !== 'collection';
+    });
+    row.querySelectorAll('.income-pick select, .income-pick input').forEach(function(input) {
+        input.disabled = type !== 'income';
     });
     row.querySelectorAll('.expense-pick select, .expense-pick input').forEach(function(input) {
         input.disabled = type !== 'expense';

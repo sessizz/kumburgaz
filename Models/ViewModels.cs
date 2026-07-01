@@ -424,6 +424,7 @@ public class CashBankCollectionFormViewModel
 public class CashBankDuesOptionViewModel
 {
     public int Id { get; set; }
+    public int? UnitId { get; set; }
     public int BillingGroupId { get; set; }
     public string Text { get; set; } = string.Empty;
     public string SearchText { get; set; } = string.Empty;
@@ -541,6 +542,7 @@ public class TxRow
     public string Source { get; set; } = "";
     public string AccountKind { get; set; } = "";
     public int AccountId { get; set; }
+    public int? UnitId { get; set; }
     public int? BillingGroupId { get; set; }
     public int? DuesInstallmentId { get; set; }
     public int? IncomeExpenseCategoryId { get; set; }

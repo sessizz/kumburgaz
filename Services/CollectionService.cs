@@ -189,16 +189,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         var openInstallments = await openInstallmentsQuery
             .OrderBy(x => x.Period)
             .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Id)
             .ToListAsync();
-
-        if (targetInstallment is not null)
-        {
-            openInstallments = openInstallments
-                .OrderByDescending(x => x.Id == targetInstallment.Id)
-                .ThenBy(x => x.Period)
-                .ThenBy(x => x.DueDate)
-                .ToList();
-        }
 
         var remaining = model.Amount;
         foreach (var installment in openInstallments)

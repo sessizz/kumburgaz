@@ -217,6 +217,7 @@ public class DuesGenerationService : IDuesGenerationService
         }
 
         await db.SaveChangesAsync();
+        await CollectionAdvanceAllocator.ApplyAsync(db);
     }
 
     public async Task DeleteForPeriodAsync(string period)

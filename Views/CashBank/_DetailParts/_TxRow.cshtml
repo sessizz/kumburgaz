@@ -143,13 +143,13 @@ else if (Model.Source == "collection")
                 </div>
                 <input type="hidden" name="BillingGroupId" value="@Model.BillingGroupId" data-dues-billing-group />
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Açık borç</legend>
+                    <legend class="fieldset-legend">Daire / Malik</legend>
                     <label class="input input-bordered flex items-center gap-2 mb-2">
                         <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
                         <input type="search" data-dues-search placeholder="Daire no, blok veya isim ara" class="grow" />
                     </label>
                     <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
-                        <option value="">Tahsil edilecek borcu seçin</option>
+                        <option value="">Daire veya malik seçin</option>
                         @foreach (var option in Model.DuesOptions)
                         {
                             <option value="@option.Id"

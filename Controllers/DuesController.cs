@@ -166,6 +166,7 @@ public class DuesController(
         });
 
         await db.SaveChangesAsync();
+        await CollectionAdvanceAllocator.ApplyAsync(db);
         TempData["Success"] = "Aidat borcu eklendi.";
         return RedirectToAction(nameof(Index));
     }

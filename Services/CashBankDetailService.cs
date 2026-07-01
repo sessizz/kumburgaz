@@ -70,6 +70,7 @@ public class CashBankDetailService(ApplicationDbContext db)
                 Source = "collection",
                 AccountKind = kind,
                 AccountId = id,
+                UnitId = c.UnitId,
                 BillingGroupId = c.BillingGroupId,
                 DuesInstallmentId = c.Allocations
                     .OrderBy(x => x.Id)
@@ -288,6 +289,14 @@ public class CashBankDetailService(ApplicationDbContext db)
             row.ExpenseCategoryOptions = vm.ExpenseCategoryOptions;
             row.TransferAccountOptions = vm.TransferAccountOptions;
 
+            if (row.Source == "collection")
+            {
+                var selectedOption = vm.DuesOptions.FirstOrDefault(x => x.Id == row.DuesInstallmentId)
+                    ?? vm.DuesOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId && x.UnitId == row.UnitId)
+                    ?? vm.DuesOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId);
+                row.DuesInstallmentId = selectedOption?.Id;
+            }
+
             if (row.Kind != TxKind.Transfer || row.Source != "ledger")
             {
                 continue;
@@ -385,25 +394,35 @@ public class CashBankDetailService(ApplicationDbContext db)
         }
 
         return installments
-            .Select(x =>
+            .GroupBy(x => new { x.BillingGroupId, x.UnitId })
+            .Select(group =>
             {
-                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : x.BillingGroup?.Name ?? "Aidat";
-                var block = x.Unit?.Block?.Name ?? string.Empty;
-                var unitNo = x.Unit?.UnitNo ?? string.Empty;
+                var ordered = group
+                    .OrderByDescending(x => effectiveRemaining[x.Id] > 0)
+                    .ThenBy(x => x.Period)
+                    .ThenBy(x => x.DueDate)
+                    .ThenBy(x => x.Id)
+                    .ToList();
+                var first = ordered.First();
+                var unitText = first.Unit is not null ? UnitDisplayHelper.Display(first.Unit) : first.BillingGroup?.Name ?? "Aidat";
+                var block = first.Unit?.Block?.Name ?? string.Empty;
+                var unitNo = first.Unit?.UnitNo ?? string.Empty;
                 var paddedUnitNo = int.TryParse(unitNo, out var unitNoNumber) ? unitNoNumber.ToString("00") : unitNo;
-                var owner = x.Unit?.OwnerName ?? string.Empty;
-                var responsible = x.ResponsibleAccount?.Name ?? string.Empty;
+                var owner = first.Unit?.OwnerName ?? string.Empty;
+                var responsible = first.ResponsibleAccount?.Name ?? string.Empty;
                 var responsibleText = string.IsNullOrWhiteSpace(responsible) ? owner : responsible;
-                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
-                var remaining = effectiveRemaining[x.Id];
-                var text = $"{x.Period} / {unitText} / {responsibleText} / {duesType} / Net kalan {remaining:N2} TL";
+                var duesType = first.BillingGroup?.DuesType?.Name ?? "Aidat";
+                var remaining = group.Sum(x => effectiveRemaining[x.Id]);
+                var periods = string.Join(" ", group.Select(x => x.Period).Distinct());
+                var text = $"{unitText} / {responsibleText} / {duesType} / Net kalan {remaining:N2} TL";
                 return new CashBankDuesOptionViewModel
                 {
-                    Id = x.Id,
-                    BillingGroupId = x.BillingGroupId,
+                    Id = first.Id,
+                    UnitId = first.UnitId,
+                    BillingGroupId = first.BillingGroupId,
                     RemainingAmount = remaining,
                     Text = text,
-                    SearchText = string.Join(" ", x.Period, block, unitNo, paddedUnitNo, $"{block}-{unitNo}", $"{block}-{paddedUnitNo}", unitText, owner, responsible, duesType, x.BillingGroup?.Name ?? string.Empty)
+                    SearchText = string.Join(" ", periods, block, unitNo, paddedUnitNo, $"{block}-{unitNo}", $"{block}-{paddedUnitNo}", unitText, owner, responsible, duesType, first.BillingGroup?.Name ?? string.Empty)
                 };
             })
             .OrderByDescending(x => x.RemainingAmount > 0)

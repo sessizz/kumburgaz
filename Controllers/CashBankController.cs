@@ -145,6 +145,7 @@ public class CashBankController(
     public async Task<IActionResult> CashBoxDetail(int id, CashBankDetailQuery query)
     {
         query.Type ??= "all"; query.Range ??= "all";
+        if (query.From.HasValue || query.To.HasValue) query.Range = "custom";
         if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
             return await ExportCsv("cash", id, query);
         var vm = await detailService.BuildAsync("cash", id, query);
@@ -157,6 +158,7 @@ public class CashBankController(
     public async Task<IActionResult> BankDetail(int id, CashBankDetailQuery query)
     {
         query.Type ??= "all"; query.Range ??= "all";
+        if (query.From.HasValue || query.To.HasValue) query.Range = "custom";
         if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
             return await ExportCsv("bank", id, query);
         var vm = await detailService.BuildAsync("bank", id, query);

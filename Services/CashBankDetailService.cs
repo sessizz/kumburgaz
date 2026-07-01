@@ -171,11 +171,19 @@ public class CashBankDetailService(ApplicationDbContext db)
             filtered = filtered.Where(r => r.Date >= lmStart && r.Date < monthStart);
         }
         else if (q.Range == "last_90") filtered = filtered.Where(r => r.Date >= DateTime.UtcNow.AddDays(-90));
-        else if (q.Range == "custom" && q.From.HasValue && q.To.HasValue)
+        else if (q.Range == "custom")
         {
-            var fromDt = q.From.Value.ToDateTime(TimeOnly.MinValue);
-            var toDt = q.To.Value.ToDateTime(TimeOnly.MaxValue);
-            filtered = filtered.Where(r => r.Date >= fromDt && r.Date <= toDt);
+            if (q.From.HasValue)
+            {
+                var fromDt = q.From.Value.ToDateTime(TimeOnly.MinValue);
+                filtered = filtered.Where(r => r.Date >= fromDt);
+            }
+
+            if (q.To.HasValue)
+            {
+                var toDt = q.To.Value.ToDateTime(TimeOnly.MaxValue);
+                filtered = filtered.Where(r => r.Date <= toDt);
+            }
         }
 
         // Arama filtre

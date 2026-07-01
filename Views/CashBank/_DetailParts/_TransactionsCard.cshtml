@@ -5,6 +5,8 @@
     var actionName = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
     var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
     var rows = Model.Groups.SelectMany(g => g.Items).ToList();
+    var fromValue = q.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var toValue = q.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions>
@@ -23,7 +25,14 @@
                 {
                     var active = (q.Type ?? "all") == val;
                     <a class="seg-tab @(active ? "active" : "")"
-                       href="?type=@val&range=@(q.Range ?? "all")&q=@q.Q&page=1">
+                       asp-action="@actionName"
+                       asp-route-id="@Model.Id"
+                       asp-route-type="@val"
+                       asp-route-range="@(q.Range ?? "all")"
+                       asp-route-from="@fromValue"
+                       asp-route-to="@toValue"
+                       asp-route-q="@q.Q"
+                       asp-route-page="1">
                         @label <span class="text-gray-400 ml-1">@cnt</span>
                     </a>
                 }
@@ -35,18 +44,32 @@
                     <input name="q" value="@q.Q" placeholder="Açıklama veya hesap ara" class="grow" />
                 </label>
                 <input type="hidden" name="type" value="@(q.Type ?? "all")" />
-                <select name="range" class="select select-bordered select-sm w-44" onchange="this.form.submit()">
+                <select name="range" class="select select-bordered select-sm w-40" data-range-select>
                     <option value="all" selected="@((q.Range ?? "all") == "all")">Tüm tarihler</option>
                     <option value="this_month" selected="@(q.Range == "this_month")">Bu ay</option>
                     <option value="last_month" selected="@(q.Range == "last_month")">Geçen ay</option>
                     <option value="last_90" selected="@(q.Range == "last_90")">Son 90 gün</option>
+                    <option value="custom" selected="@(q.Range == "custom")">Tarih aralığı</option>
                 </select>
+                <input type="date" name="from" value="@fromValue" class="input input-bordered input-sm w-36" data-range-date />
+                <input type="date" name="to" value="@toValue" class="input input-bordered input-sm w-36" data-range-date />
+                <button class="btn btn-sm btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                    Filtrele
+                </button>
                 <button type="button" class="btn btn-sm btn-outline" data-bulk-toggle>
                     <span class="material-symbols-outlined ms-sm">edit</span>
                     Seç
                 </button>
                 <a class="btn btn-sm btn-outline"
-                   href="?type=@(q.Type ?? "all")&range=@(q.Range ?? "all")&q=@q.Q&export=csv">
+                   asp-action="@actionName"
+                   asp-route-id="@Model.Id"
+                   asp-route-type="@(q.Type ?? "all")"
+                   asp-route-range="@(q.Range ?? "all")"
+                   asp-route-from="@fromValue"
+                   asp-route-to="@toValue"
+                   asp-route-q="@q.Q"
+                   asp-route-export="csv">
                     <span class="material-symbols-outlined ms-sm">download</span>
                     Dışa aktar
                 </a>
@@ -109,7 +132,15 @@
             <div class="flex items-center gap-1">
                 @if (q.Page > 1)
                 {
-                    <a class="btn btn-sm btn-ghost" href="?type=@(q.Type ?? "all")&range=@(q.Range ?? "all")&q=@q.Q&page=@(q.Page - 1)">
+                    <a class="btn btn-sm btn-ghost"
+                       asp-action="@actionName"
+                       asp-route-id="@Model.Id"
+                       asp-route-type="@(q.Type ?? "all")"
+                       asp-route-range="@(q.Range ?? "all")"
+                       asp-route-from="@fromValue"
+                       asp-route-to="@toValue"
+                       asp-route-q="@q.Q"
+                       asp-route-page="@(q.Page - 1)">
                         <span class="material-symbols-outlined">chevron_left</span>
                     </a>
                 }
@@ -125,12 +156,28 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-ghost" href="?type=@(q.Type ?? "all")&range=@(q.Range ?? "all")&q=@q.Q&page=@p">@p</a>
+                        <a class="btn btn-sm btn-ghost"
+                           asp-action="@actionName"
+                           asp-route-id="@Model.Id"
+                           asp-route-type="@(q.Type ?? "all")"
+                           asp-route-range="@(q.Range ?? "all")"
+                           asp-route-from="@fromValue"
+                           asp-route-to="@toValue"
+                           asp-route-q="@q.Q"
+                           asp-route-page="@p">@p</a>
                     }
                 }
                 @if (q.Page < totalPages)
                 {
-                    <a class="btn btn-sm btn-ghost" href="?type=@(q.Type ?? "all")&range=@(q.Range ?? "all")&q=@q.Q&page=@(q.Page + 1)">
+                    <a class="btn btn-sm btn-ghost"
+                       asp-action="@actionName"
+                       asp-route-id="@Model.Id"
+                       asp-route-type="@(q.Type ?? "all")"
+                       asp-route-range="@(q.Range ?? "all")"
+                       asp-route-from="@fromValue"
+                       asp-route-to="@toValue"
+                       asp-route-q="@q.Q"
+                       asp-route-page="@(q.Page + 1)">
                         <span class="material-symbols-outlined">chevron_right</span>
                     </a>
                 }
@@ -145,6 +192,8 @@
     if (!root) return;
 
     const toggle = root.querySelector('[data-bulk-toggle]');
+    const rangeSelect = root.querySelector('[data-range-select]');
+    const rangeDates = Array.from(root.querySelectorAll('[data-range-date]'));
     const actions = root.querySelector('[data-bulk-actions]');
     const cancel = root.querySelector('[data-bulk-cancel]');
     const deleteButton = root.querySelector('[data-bulk-delete]');
@@ -152,6 +201,18 @@
     const selectAll = root.querySelector('[data-bulk-select-all]');
     const checkboxes = Array.from(root.querySelectorAll('[data-bulk-checkbox]'));
     const selectCells = Array.from(root.querySelectorAll('.bulk-select-cell'));
+
+    rangeDates.forEach(input => {
+        input.addEventListener('change', () => {
+            if (rangeSelect) rangeSelect.value = 'custom';
+        });
+    });
+
+    rangeSelect?.addEventListener('change', () => {
+        if (rangeSelect.value !== 'custom') {
+            rangeDates.forEach(input => input.value = '');
+        }
+    });
 
     const setMode = (enabled) => {
         actions?.classList.toggle('hidden', !enabled);

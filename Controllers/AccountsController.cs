@@ -161,6 +161,26 @@ public class AccountsController(ApplicationDbContext db) : Controller
             .ThenBy(x => x.UnitDisplay)
             .ToList();
 
+        var openingDebtRows = account.UnitAccounts
+            .Where(x => x.Active && x.Unit is { Active: true, OpeningBalance: < 0m })
+            .Select(x => new AccountOpenInstallmentViewModel
+            {
+                UnitId = x.UnitId,
+                Period = "Devir",
+                UnitDisplay = UnitDisplayHelper.Display(x.Unit!),
+                DuesTypeName = "Devir Bakiyesi",
+                DueDate = x.Unit!.OpeningBalanceDate ?? DateTime.Today,
+                RemainingAmount = -x.Unit.OpeningBalance,
+                IsOpeningBalance = true
+            });
+
+        openRows = openingDebtRows
+            .Concat(openRows)
+            .OrderBy(x => x.DueDate)
+            .ThenBy(x => x.Period)
+            .ThenBy(x => x.UnitDisplay)
+            .ToList();
+
         var recentAllocations = await db.CollectionAllocations
             .AsNoTracking()
             .Include(x => x.Collection)

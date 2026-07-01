@@ -105,6 +105,7 @@ public class AccountOpenInstallmentViewModel
     public string DuesTypeName { get; set; } = string.Empty;
     public DateTime DueDate { get; set; }
     public decimal RemainingAmount { get; set; }
+    public bool IsOpeningBalance { get; set; }
 }
 
 public class AccountCollectionRowViewModel

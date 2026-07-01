@@ -78,14 +78,21 @@
                         <td class="text-end font-bold">@installment.RemainingAmount.ToString("N2", trTR) ₺</td>
                         <td>
                             <div class="flex justify-end">
-                                <a class="btn btn-xs btn-success"
-                                   asp-controller="Collections"
-                                   asp-action="Create"
-                                   asp-route-duesInstallmentId="@installment.Id"
-                                   asp-route-returnUrl="@returnUrl">
-                                    <span class="material-symbols-outlined ms-sm">payments</span>
-                                    Tahsilat
-                                </a>
+                                @if (installment.IsOpeningBalance)
+                                {
+                                    <span class="badge badge-warning badge-soft">Devir</span>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-xs btn-success"
+                                       asp-controller="Collections"
+                                       asp-action="Create"
+                                       asp-route-duesInstallmentId="@installment.Id"
+                                       asp-route-returnUrl="@returnUrl">
+                                        <span class="material-symbols-outlined ms-sm">payments</span>
+                                        Tahsilat
+                                    </a>
+                                }
                             </div>
                         </td>
                     </tr>

@@ -298,22 +298,6 @@ public class CollectionsController(
 
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {
-        if (model.DuesInstallmentId.HasValue)
-        {
-            var selectedInstallment = await db.DuesInstallments
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == model.DuesInstallmentId.Value);
-
-            if (selectedInstallment is not null)
-            {
-                model.BillingGroupId = selectedInstallment.BillingGroupId;
-                if (model.Amount <= 0)
-                {
-                    model.Amount = selectedInstallment.RemainingAmount;
-                }
-            }
-        }
-
         var installments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
@@ -333,13 +317,32 @@ public class CollectionsController(
             .ThenBy(x => x.Unit!.UnitNo)
             .ToListAsync();
 
+        var effectiveRemaining = OpeningBalanceCreditHelper.BuildEffectiveRemainingMap(installments);
+
+        if (model.DuesInstallmentId.HasValue)
+        {
+            var selectedInstallment = installments.FirstOrDefault(x => x.Id == model.DuesInstallmentId.Value);
+
+            if (selectedInstallment is not null)
+            {
+                model.BillingGroupId = selectedInstallment.BillingGroupId;
+                if (model.Amount <= 0)
+                {
+                    model.Amount = effectiveRemaining.GetValueOrDefault(selectedInstallment.Id, selectedInstallment.RemainingAmount);
+                }
+            }
+        }
+
         model.DuesInstallmentOptions = installments
+            .Where(x => effectiveRemaining.GetValueOrDefault(x.Id, x.RemainingAmount) > 0
+                        || (model.DuesInstallmentId.HasValue && x.Id == model.DuesInstallmentId.Value))
             .Select(x =>
             {
                 var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup);
                 var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
                 var responsible = string.IsNullOrWhiteSpace(x.ResponsibleAccount?.Name) ? "" : $" / {x.ResponsibleAccount.Name}";
-                var text = $"{x.Period} / {unitText}{responsible} / {duesType} / Kalan {x.RemainingAmount:N2} TL";
+                var remaining = effectiveRemaining.GetValueOrDefault(x.Id, x.RemainingAmount);
+                var text = $"{x.Period} / {unitText}{responsible} / {duesType} / Kalan {remaining:N2} TL";
                 return new SelectListItem(text, x.Id.ToString(), model.DuesInstallmentId == x.Id);
             })
             .ToList();

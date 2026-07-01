@@ -92,8 +92,28 @@ public class AccountFormViewModel
 public class AccountDetailViewModel
 {
     public Account Account { get; set; } = null!;
-    public List<DuesInstallment> OpenInstallments { get; set; } = [];
-    public List<CollectionAllocation> RecentAllocations { get; set; } = [];
+    public List<AccountOpenInstallmentViewModel> OpenInstallments { get; set; } = [];
+    public List<AccountCollectionRowViewModel> RecentCollections { get; set; } = [];
+}
+
+public class AccountOpenInstallmentViewModel
+{
+    public int Id { get; set; }
+    public int? UnitId { get; set; }
+    public string Period { get; set; } = string.Empty;
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string DuesTypeName { get; set; } = string.Empty;
+    public DateTime DueDate { get; set; }
+    public decimal RemainingAmount { get; set; }
+}
+
+public class AccountCollectionRowViewModel
+{
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public bool IsOpeningBalance { get; set; }
 }
 
 public class DuesGenerationPreviewItem

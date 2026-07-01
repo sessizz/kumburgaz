@@ -70,11 +70,10 @@
                 }
                 @foreach (var installment in Model.OpenInstallments)
                 {
-                    var unitText = installment.Unit is not null ? UnitDisplayHelper.Display(installment.Unit) : BillingGroupDisplayHelper.UnitDisplay(installment.BillingGroup);
                     <tr>
                         <td class="font-semibold">@installment.Period</td>
-                        <td>@unitText</td>
-                        <td>@(installment.BillingGroup?.DuesType?.Name ?? "Aidat")</td>
+                        <td>@installment.UnitDisplay</td>
+                        <td>@installment.DuesTypeName</td>
                         <td>@installment.DueDate.ToString("dd MMM yyyy", trTR)</td>
                         <td class="text-end font-bold">@installment.RemainingAmount.ToString("N2", trTR) ₺</td>
                         <td>
@@ -111,21 +110,19 @@
                     </tr>
                 </thead>
                 <tbody>
-                @if (Model.RecentAllocations.Count == 0)
+                @if (Model.RecentCollections.Count == 0)
                 {
                     <tr>
                         <td colspan="4" class="text-center text-gray-400 py-8">Henüz tahsilat yok.</td>
                     </tr>
                 }
-                @foreach (var allocation in Model.RecentAllocations)
+                @foreach (var row in Model.RecentCollections)
                 {
-                    var collection = allocation.Collection;
-                    var installment = allocation.DuesInstallment;
                     <tr>
-                        <td>@collection?.Date.ToString("dd MMM yyyy", trTR)</td>
-                        <td>@installment?.Period - @(installment?.BillingGroup?.DuesType?.Name ?? "Aidat")</td>
-                        <td>@(collection?.CashBox?.Name ?? collection?.BankAccount?.Name ?? "—")</td>
-                        <td class="text-end font-bold text-emerald-600">@allocation.AppliedAmount.ToString("N2", trTR) ₺</td>
+                        <td>@row.Date.ToString("dd MMM yyyy", trTR)</td>
+                        <td>@row.Description</td>
+                        <td>@row.AccountName</td>
+                        <td class="text-end font-bold text-emerald-600">@row.Amount.ToString("N2", trTR) ₺</td>
                     </tr>
                 }
                 </tbody>

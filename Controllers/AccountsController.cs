@@ -143,6 +143,24 @@ public class AccountsController(ApplicationDbContext db) : Controller
             .ThenBy(x => x.Period)
             .ToListAsync();
 
+        var effectiveRemaining = OpeningBalanceCreditHelper.BuildEffectiveRemainingMap(openInstallments);
+        var openRows = openInstallments
+            .Select(x => new AccountOpenInstallmentViewModel
+            {
+                Id = x.Id,
+                UnitId = x.UnitId,
+                Period = x.Period,
+                UnitDisplay = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
+                DuesTypeName = x.BillingGroup?.DuesType?.Name ?? "Aidat",
+                DueDate = x.DueDate,
+                RemainingAmount = effectiveRemaining.GetValueOrDefault(x.Id, x.RemainingAmount)
+            })
+            .Where(x => x.RemainingAmount > 0)
+            .OrderBy(x => x.DueDate)
+            .ThenBy(x => x.Period)
+            .ThenBy(x => x.UnitDisplay)
+            .ToList();
+
         var recentAllocations = await db.CollectionAllocations
             .AsNoTracking()
             .Include(x => x.Collection)
@@ -158,11 +176,35 @@ public class AccountsController(ApplicationDbContext db) : Controller
             .Take(20)
             .ToListAsync();
 
+        var openingRows = account.UnitAccounts
+            .Where(x => x.Active && x.Unit is { OpeningBalance: > 0m })
+            .Select(x => new AccountCollectionRowViewModel
+            {
+                Date = x.Unit!.OpeningBalanceDate ?? DateTime.Today,
+                Description = $"{UnitDisplayHelper.Display(x.Unit)} - Devir Bakiyesi",
+                AccountName = "Devir",
+                Amount = x.Unit.OpeningBalance,
+                IsOpeningBalance = true
+            });
+
+        var collectionRows = recentAllocations
+            .Select(x => new AccountCollectionRowViewModel
+            {
+                Date = x.Collection?.Date ?? DateTime.MinValue,
+                Description = $"{x.DuesInstallment?.Period} - {x.DuesInstallment?.BillingGroup?.DuesType?.Name ?? "Aidat"}",
+                AccountName = x.Collection?.CashBox?.Name ?? x.Collection?.BankAccount?.Name ?? "—",
+                Amount = x.AppliedAmount
+            });
+
         return View(new AccountDetailViewModel
         {
             Account = account,
-            OpenInstallments = openInstallments,
-            RecentAllocations = recentAllocations
+            OpenInstallments = openRows,
+            RecentCollections = openingRows
+                .Concat(collectionRows)
+                .OrderByDescending(x => x.Date)
+                .Take(20)
+                .ToList()
         });
     }
 

@@ -282,8 +282,10 @@ public class LedgerTransaction
 {
     public int Id { get; set; }
     public DateTime Date { get; set; }
-    public int IncomeExpenseCategoryId { get; set; }
+    public int? IncomeExpenseCategoryId { get; set; }
     public IncomeExpenseCategory? IncomeExpenseCategory { get; set; }
+    public bool IsTransfer { get; set; }
+    public bool TransferIsIncoming { get; set; }
     public decimal Amount { get; set; }
     public PaymentChannel PaymentChannel { get; set; }
     public int? CashBoxId { get; set; }

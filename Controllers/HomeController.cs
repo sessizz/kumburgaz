@@ -32,10 +32,10 @@ public class HomeController(ApplicationDbContext db) : Controller
         var collectionRate = totalGenerated > 0 ? totalCollections / totalGenerated * 100m : 0m;
 
         var ledgerIncome = await db.LedgerTransactions
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
+            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
             .SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var ledgerExpense = await db.LedgerTransactions
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .SumAsync(x => (decimal?)x.Amount) ?? 0m;
 
         var collections = await db.Collections
@@ -48,6 +48,8 @@ public class HomeController(ApplicationDbContext db) : Controller
                 x.CashBoxId,
                 x.BankAccountId,
                 x.Amount,
+                x.IsTransfer,
+                x.TransferIsIncoming,
                 Type = x.IncomeExpenseCategory != null ? x.IncomeExpenseCategory.Type : CategoryTypeHelper.Gider
             })
             .ToListAsync();
@@ -61,7 +63,9 @@ public class HomeController(ApplicationDbContext db) : Controller
             Name = x.Name,
             Balance = x.OpeningBalance
                 + collections.Where(c => c.CashBoxId == x.Id).Sum(c => c.Amount)
-                + ledgerRows.Where(e => e.CashBoxId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
+                + ledgerRows.Where(e => e.CashBoxId == x.Id).Sum(e => e.IsTransfer
+                    ? (e.TransferIsIncoming ? e.Amount : -e.Amount)
+                    : (e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount))
         }));
         cashBankItems.AddRange(bankAccounts.Select(x => new CashBankListItemViewModel
         {
@@ -69,7 +73,9 @@ public class HomeController(ApplicationDbContext db) : Controller
             Name = string.IsNullOrWhiteSpace(x.Branch) ? x.Name : $"{x.Name} - {x.Branch}",
             Balance = x.OpeningBalance
                 + collections.Where(c => c.BankAccountId == x.Id).Sum(c => c.Amount)
-                + ledgerRows.Where(e => e.BankAccountId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
+                + ledgerRows.Where(e => e.BankAccountId == x.Id).Sum(e => e.IsTransfer
+                    ? (e.TransferIsIncoming ? e.Amount : -e.Amount)
+                    : (e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount))
         }));
 
         var monthCollections = await db.Collections
@@ -144,6 +150,7 @@ public class HomeController(ApplicationDbContext db) : Controller
             .Include(x => x.IncomeExpenseCategory)
             .Where(x => x.Date >= previousStart &&
                         x.Date < monthStart &&
+                        !x.IsTransfer &&
                         x.IncomeExpenseCategory != null &&
                         x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .GroupBy(x => x.IncomeExpenseCategory!.Name)
@@ -188,6 +195,7 @@ public class HomeController(ApplicationDbContext db) : Controller
             .Include(x => x.IncomeExpenseCategory)
             .Where(x => x.Date >= start &&
                         x.Date < monthStart.AddMonths(1) &&
+                        !x.IsTransfer &&
                         x.IncomeExpenseCategory != null &&
                         x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
             .GroupBy(x => new { x.Date.Year, x.Date.Month })

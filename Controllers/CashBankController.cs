@@ -36,6 +36,8 @@ public class CashBankController(
                 x.CashBoxId,
                 x.BankAccountId,
                 x.Amount,
+                x.IsTransfer,
+                x.TransferIsIncoming,
                 Type = x.IncomeExpenseCategory != null ? x.IncomeExpenseCategory.Type : CategoryTypeHelper.Gider
             })
             .ToListAsync();
@@ -61,7 +63,9 @@ public class CashBankController(
             Name = x.Name,
             Balance = x.OpeningBalance
                 + collections.Where(c => c.CashBoxId == x.Id).Sum(c => c.Amount)
-                + ledgerRows.Where(e => e.CashBoxId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
+                + ledgerRows.Where(e => e.CashBoxId == x.Id).Sum(e => e.IsTransfer
+                    ? (e.TransferIsIncoming ? e.Amount : -e.Amount)
+                    : (e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount))
         }));
         items.AddRange(bankAccounts.Select(x => new CashBankListItemViewModel
         {
@@ -71,7 +75,9 @@ public class CashBankController(
             Detail = x.Iban,
             Balance = x.OpeningBalance
                 + collections.Where(c => c.BankAccountId == x.Id).Sum(c => c.Amount)
-                + ledgerRows.Where(e => e.BankAccountId == x.Id).Sum(e => e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount)
+                + ledgerRows.Where(e => e.BankAccountId == x.Id).Sum(e => e.IsTransfer
+                    ? (e.TransferIsIncoming ? e.Amount : -e.Amount)
+                    : (e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount))
         }));
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -340,6 +346,8 @@ public class CashBankController(
                 {
                     Date = DateTimeHelper.EnsureUtc(item.Date),
                     IncomeExpenseCategoryId = item.ExpenseCategoryId!.Value,
+                    IsTransfer = false,
+                    TransferIsIncoming = false,
                     Amount = item.Amount,
                     PaymentChannel = paymentChannel,
                     CashBoxId = model.Kind == "cash" ? model.Id : null,
@@ -801,8 +809,6 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var expenseCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gider);
-        var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
         var descriptionPrefix = model.Kind == "cash" && toChannel == PaymentChannel.Bank ? "Bankaya yatır" : "Para transferi";
         var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
         var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
@@ -811,7 +817,9 @@ public class CashBankController(
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
-            IncomeExpenseCategoryId = expenseCategoryId,
+            IncomeExpenseCategoryId = null,
+            IsTransfer = true,
+            TransferIsIncoming = false,
             Amount = model.Amount,
             PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
             CashBoxId = model.Kind == "cash" ? model.Id : null,
@@ -821,7 +829,9 @@ public class CashBankController(
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
-            IncomeExpenseCategoryId = incomeCategoryId,
+            IncomeExpenseCategoryId = null,
+            IsTransfer = true,
+            TransferIsIncoming = true,
             Amount = model.Amount,
             PaymentChannel = toChannel,
             CashBoxId = toCashBoxId,
@@ -875,8 +885,7 @@ public class CashBankController(
         var currentCashBoxId = model.Kind == "cash" ? model.Id : (int?)null;
         var currentBankAccountId = model.Kind == "bank" ? model.Id : (int?)null;
         var currentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
-        var editingIncomingRow = sourceType == CategoryTypeHelper.Gelir;
+        var editingIncomingRow = source.TransferIsIncoming;
 
         var fromCashBoxId = editingIncomingRow ? counterCashBoxId : currentCashBoxId;
         var fromBankAccountId = editingIncomingRow ? counterBankAccountId : currentBankAccountId;
@@ -891,18 +900,18 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var expenseCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gider);
-        var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
         var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatır" : "Para transferi";
         var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
         var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, source.Date);
         var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
 
-        var expenseRow = sourceType == CategoryTypeHelper.Gider ? source : pair;
-        var incomeRow = sourceType == CategoryTypeHelper.Gelir ? source : pair;
+        var expenseRow = editingIncomingRow ? pair : source;
+        var incomeRow = editingIncomingRow ? source : pair;
 
         expenseRow.Date = utcDate;
-        expenseRow.IncomeExpenseCategoryId = expenseCategoryId;
+        expenseRow.IncomeExpenseCategoryId = null;
+        expenseRow.IsTransfer = true;
+        expenseRow.TransferIsIncoming = false;
         expenseRow.Amount = model.Amount;
         expenseRow.PaymentChannel = fromChannel;
         expenseRow.CashBoxId = fromCashBoxId;
@@ -910,7 +919,9 @@ public class CashBankController(
         expenseRow.Description = description;
 
         incomeRow.Date = utcDate;
-        incomeRow.IncomeExpenseCategoryId = incomeCategoryId;
+        incomeRow.IncomeExpenseCategoryId = null;
+        incomeRow.IsTransfer = true;
+        incomeRow.TransferIsIncoming = true;
         incomeRow.Amount = model.Amount;
         incomeRow.PaymentChannel = toChannel;
         incomeRow.CashBoxId = toCashBoxId;
@@ -947,26 +958,6 @@ public class CashBankController(
         return kind == "bank" ? FinancialAccountHelper.BankKey(id) : FinancialAccountHelper.CashKey(id);
     }
 
-    private async Task<int> EnsureCategoryAsync(string name, string type)
-    {
-        var category = await db.IncomeExpenseCategories
-            .FirstOrDefaultAsync(x => x.Name == name && x.Type == type);
-        if (category is not null)
-        {
-            return category.Id;
-        }
-
-        category = new IncomeExpenseCategory
-        {
-            Name = name,
-            Type = type,
-            Active = true
-        };
-        db.IncomeExpenseCategories.Add(category);
-        await db.SaveChangesAsync();
-        return category.Id;
-    }
-
     private async Task AddTransferRowsAsync(
         string currentKind,
         int currentId,
@@ -992,8 +983,6 @@ public class CashBankController(
         var toCashBoxId = transferToCurrentAccount ? currentCashBoxId : counterCashBoxId;
         var toBankAccountId = transferToCurrentAccount ? currentBankAccountId : counterBankAccountId;
 
-        var expenseCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gider);
-        var incomeCategoryId = await EnsureCategoryAsync("Para Transferi", CategoryTypeHelper.Gelir);
         var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatir" : "Para transferi";
         var description = $"{descriptionPrefix}: {descriptionText}".Trim().TrimEnd(':');
         var utcDate = DateTimeHelper.EnsureUtc(date);
@@ -1001,7 +990,9 @@ public class CashBankController(
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
-            IncomeExpenseCategoryId = expenseCategoryId,
+            IncomeExpenseCategoryId = null,
+            IsTransfer = true,
+            TransferIsIncoming = false,
             Amount = amount,
             PaymentChannel = fromChannel,
             CashBoxId = fromCashBoxId,
@@ -1011,7 +1002,9 @@ public class CashBankController(
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
-            IncomeExpenseCategoryId = incomeCategoryId,
+            IncomeExpenseCategoryId = null,
+            IsTransfer = true,
+            TransferIsIncoming = true,
             Amount = amount,
             PaymentChannel = toChannel,
             CashBoxId = toCashBoxId,
@@ -1024,17 +1017,24 @@ public class CashBankController(
 
     private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
     {
-        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
-        var targetType = sourceType == CategoryTypeHelper.Gelir ? CategoryTypeHelper.Gider : CategoryTypeHelper.Gelir;
+        var sourceIncoming = source.IsTransfer
+            ? source.TransferIsIncoming
+            : source.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
 
         return candidates
-            .Where(x => (x.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider) == targetType)
+            .Where(IsTransferLedger)
+            .Where(x => x.TransferIsIncoming != sourceIncoming)
             .OrderBy(x => Math.Abs(x.Id - source.Id))
             .FirstOrDefault();
     }
 
     private static bool IsTransferLedger(LedgerTransaction tx)
     {
+        if (tx.IsTransfer)
+        {
+            return true;
+        }
+
         var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
         var description = tx.Description ?? string.Empty;
         return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)

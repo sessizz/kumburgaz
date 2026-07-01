@@ -44,7 +44,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
         csvRows.AddRange(rows.Select(x => new[]
         {
-            x.IncomeExpenseCategoryId.ToString(),
+            x.IncomeExpenseCategoryId?.ToString() ?? string.Empty,
             x.IncomeExpenseCategory?.Type ?? string.Empty,
             x.IncomeExpenseCategory?.Name ?? string.Empty,
             x.Date.ToString("yyyy-MM-dd"),
@@ -88,16 +88,18 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     public async Task<IActionResult> Edit(int id)
     {
-        var entity = await db.LedgerTransactions.FindAsync(id);
+        var entity = await db.LedgerTransactions
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsTransfer && x.IncomeExpenseCategoryId.HasValue);
         if (entity is null)
         {
             return NotFound();
         }
 
+        var categoryId = entity.IncomeExpenseCategoryId.GetValueOrDefault();
         var model = new LedgerTransactionCreateViewModel
         {
             Date = entity.Date,
-            IncomeExpenseCategoryId = entity.IncomeExpenseCategoryId,
+            IncomeExpenseCategoryId = categoryId,
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
             AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
@@ -118,7 +120,7 @@ public class LedgerController(ApplicationDbContext db) : Controller
             return View(await BuildAsync(model));
         }
 
-        var entity = await db.LedgerTransactions.FindAsync(id);
+        var entity = await db.LedgerTransactions.FirstOrDefaultAsync(x => x.Id == id && !x.IsTransfer);
         if (entity is null)
         {
             return NotFound();
@@ -327,7 +329,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private static bool TryParseAmount(string value, out decimal amount)
     {
-        return FlexibleDecimalParser.TryParse(value, out amount);
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out amount)
+            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
     }
 
     private static bool TryParsePaymentChannel(string value, out PaymentChannel channel)

@@ -87,8 +87,9 @@ public class CashBankDetailService(ApplicationDbContext db)
 
         foreach (var l in ledgerRaw)
         {
-            var catType = l.IncomeExpenseCategory?.Type ?? "Gider";
+            var catType = l.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
             var kind2 = catType == "Gelir" ? TxKind.Girdi : TxKind.Cikis;
+            var isTransfer = IsTransfer(l);
             allRows.Add(new TxRow
             {
                 Id = l.Id,
@@ -96,10 +97,10 @@ public class CashBankDetailService(ApplicationDbContext db)
                 AccountKind = kind,
                 AccountId = id,
                 IncomeExpenseCategoryId = l.IncomeExpenseCategoryId,
-                Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? "Gider",
+                Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? (isTransfer ? "Para transferi" : "Gider"),
                 Subline = l.IncomeExpenseCategory?.Name,
-                Kind = IsTransfer(l) ? TxKind.Transfer : kind2,
-                Amount = catType == "Gelir" ? l.Amount : -l.Amount,
+                Kind = isTransfer ? TxKind.Transfer : kind2,
+                Amount = SignedLedgerAmount(l),
                 Date = l.Date
             });
         }
@@ -266,6 +267,11 @@ public class CashBankDetailService(ApplicationDbContext db)
 
     private static bool IsTransfer(LedgerTransaction tx)
     {
+        if (tx.IsTransfer)
+        {
+            return true;
+        }
+
         var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
         var description = tx.Description ?? string.Empty;
         return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
@@ -297,17 +303,29 @@ public class CashBankDetailService(ApplicationDbContext db)
 
     private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
     {
-        var sourceType = source.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
-        var targetType = sourceType == CategoryTypeHelper.Gelir ? CategoryTypeHelper.Gider : CategoryTypeHelper.Gelir;
+        var sourceIncoming = IsTransfer(source)
+            ? source.TransferIsIncoming
+            : source.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
 
         return candidates
             .Where(x => x.Id != source.Id)
             .Where(x => x.Amount == source.Amount)
             .Where(x => x.Date == source.Date)
             .Where(x => string.Equals(x.Description, source.Description, StringComparison.Ordinal))
-            .Where(x => (x.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider) == targetType)
+            .Where(IsTransfer)
+            .Where(x => x.TransferIsIncoming != sourceIncoming)
             .OrderBy(x => Math.Abs(x.Id - source.Id))
             .FirstOrDefault();
+    }
+
+    private static decimal SignedLedgerAmount(LedgerTransaction tx)
+    {
+        if (IsTransfer(tx))
+        {
+            return tx.TransferIsIncoming ? tx.Amount : -tx.Amount;
+        }
+
+        return tx.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir ? tx.Amount : -tx.Amount;
     }
 
     private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey)

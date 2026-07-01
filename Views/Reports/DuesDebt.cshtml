@@ -92,8 +92,32 @@
                 @foreach (var row in Model)
                 {
                     <tr>
-                        <td class="font-medium">@row.UnitDisplay</td>
-                        <td class="text-sm">@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "—" : row.ResponsibleAccountName)</td>
+                        <td class="font-medium">
+                            @if (row.UnitId.HasValue)
+                            {
+                                <a class="text-blue-600 hover:underline"
+                                   asp-controller="Units"
+                                   asp-action="Detail"
+                                   asp-route-id="@row.UnitId.Value">@row.UnitDisplay</a>
+                            }
+                            else
+                            {
+                                @row.UnitDisplay
+                            }
+                        </td>
+                        <td class="text-sm">
+                            @if (row.UnitId.HasValue && !string.IsNullOrWhiteSpace(row.ResponsibleAccountName))
+                            {
+                                <a class="text-blue-600 hover:underline"
+                                   asp-controller="Units"
+                                   asp-action="Detail"
+                                   asp-route-id="@row.UnitId.Value">@row.ResponsibleAccountName</a>
+                            }
+                            else
+                            {
+                                @(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "—" : row.ResponsibleAccountName)
+                            }
+                        </td>
                         <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
                         <td>@row.BillingGroupName</td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>

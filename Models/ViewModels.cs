@@ -137,6 +137,7 @@ public class DuesDebtReportQuery
 public class DuesDebtReportRow
 {
     public int? InstallmentId { get; set; }
+    public int? UnitId { get; set; }
     public int BillingGroupId { get; set; }
     public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;

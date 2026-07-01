@@ -45,6 +45,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .Select(x => new DuesDebtReportRow
             {
                 InstallmentId = x.Id,
+                UnitId = x.UnitId,
                 BillingGroupId = x.BillingGroupId,
                 UnitDisplay = x.UnitId.HasValue
                     ? UnitDisplayHelper.Display(x.Unit)
@@ -125,34 +126,52 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             }
         }
 
-        // Devir bakiyesi (önceki yönetimden gelen alacak/borç) — daire bazında ek satır
-        // Pozitif = alacak (kalan negatif), negatif = borç (kalan pozitif)
-        // Sadece bakiyesi sıfır olmayan ve tarihi atanmış daireler eklenir.
+        // Devir bakiyesi ait olduğu yönetim döneminin aidat satırına mahsup edilir.
+        // Örn. 2025 tarihli devir bakiyesi 2025-2026 dönemine uygulanır.
         var openingUnits = await db.Units.AsNoTracking()
             .Include(x => x.Block)
-            .Include(x => x.CombinedUnitMembers)
-            .ThenInclude(x => x.ComponentUnit)
-            .ThenInclude(x => x!.Block)
             .Where(x => x.Active && x.OpeningBalance != 0m && x.OpeningBalanceDate != null)
             .Where(x => query.BlockId == null || x.BlockId == query.BlockId)
             .ToListAsync();
 
         foreach (var unit in openingUnits)
         {
-            rows.Add(new DuesDebtReportRow
+            var openingPeriod = GetPeriodFromDate(unit.OpeningBalanceDate!.Value);
+            if (!string.IsNullOrWhiteSpace(query.Period) && query.Period != openingPeriod)
             {
-                InstallmentId = null,
-                BillingGroupId = 0,
-                UnitDisplay = UnitDisplayHelper.Display(unit),
-                BillingGroupName = "—",
-                DuesTypeName = "Devir Bakiyesi",
-                ResponsibleAccountName = unit.OwnerName ?? string.Empty,
-                Period = "—",
-                AccrualDate = unit.OpeningBalanceDate!.Value,
-                Amount = -unit.OpeningBalance, // pozitif bakiye → negatif borç (alacak)
-                RemainingAmount = -unit.OpeningBalance,
-                UnitsText = UnitDisplayHelper.Display(unit)
-            });
+                continue;
+            }
+
+            var periodRows = rows
+                .Where(x => x.UnitId == unit.Id && x.Period == openingPeriod)
+                .OrderBy(x => x.AccrualDate)
+                .ThenBy(x => x.InstallmentId)
+                .ToList();
+
+            if (periodRows.Count == 0)
+            {
+                continue;
+            }
+
+            if (unit.OpeningBalance > 0)
+            {
+                var credit = unit.OpeningBalance;
+                foreach (var row in periodRows)
+                {
+                    if (credit <= 0)
+                    {
+                        break;
+                    }
+
+                    var reduction = Math.Min(row.RemainingAmount, credit);
+                    row.RemainingAmount -= reduction;
+                    credit -= reduction;
+                }
+            }
+            else
+            {
+                periodRows[0].RemainingAmount += -unit.OpeningBalance;
+            }
         }
 
         return rows
@@ -252,5 +271,10 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 });
             });
         }).GeneratePdf();
+    }
+
+    private static string GetPeriodFromDate(DateTime date)
+    {
+        return $"{date.Year}-{date.Year + 1}";
     }
 }

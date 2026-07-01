@@ -1,8 +1,8 @@
 @model Kumburgaz.Web.Models.CashBankDetailViewModel
 @using System.Globalization
+@using System.Net
 @{
     var q = Model.Query;
-    var actionName = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
     var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
     var currentPage = Math.Min(Math.Max(q.Page, 1), Math.Max(totalPages, 1));
     var pageStart = Math.Max(1, currentPage - 2);
@@ -10,6 +10,22 @@
     var rows = Model.Groups.SelectMany(g => g.Items).ToList();
     var fromValue = q.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var toValue = q.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string BuildUrl(int page, string? type = null, bool export = false)
+    {
+        var query = new List<string>
+        {
+            $"type={WebUtility.UrlEncode(type ?? q.Type ?? "all")}",
+            $"range={WebUtility.UrlEncode(q.Range ?? "all")}",
+            $"page={page}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(fromValue)) query.Add($"from={WebUtility.UrlEncode(fromValue)}");
+        if (!string.IsNullOrWhiteSpace(toValue)) query.Add($"to={WebUtility.UrlEncode(toValue)}");
+        if (!string.IsNullOrWhiteSpace(q.Q)) query.Add($"q={WebUtility.UrlEncode(q.Q)}");
+        if (export) query.Add("export=csv");
+
+        return "?" + string.Join("&", query);
+    }
 }
 
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions>
@@ -28,14 +44,7 @@
                 {
                     var active = (q.Type ?? "all") == val;
                     <a class="seg-tab @(active ? "active" : "")"
-                       asp-action="@actionName"
-                       asp-route-id="@Model.Id"
-                       asp-route-type="@val"
-                       asp-route-range="@(q.Range ?? "all")"
-                       asp-route-from="@fromValue"
-                       asp-route-to="@toValue"
-                       asp-route-q="@q.Q"
-                       asp-route-page="1">
+                       href="@BuildUrl(1, val)">
                         @label <span class="text-gray-400 ml-1">@cnt</span>
                     </a>
                 }
@@ -65,14 +74,7 @@
                     Seç
                 </button>
                 <a class="btn btn-sm btn-outline"
-                   asp-action="@actionName"
-                   asp-route-id="@Model.Id"
-                   asp-route-type="@(q.Type ?? "all")"
-                   asp-route-range="@(q.Range ?? "all")"
-                   asp-route-from="@fromValue"
-                   asp-route-to="@toValue"
-                   asp-route-q="@q.Q"
-                   asp-route-export="csv">
+                   href="@BuildUrl(currentPage, export: true)">
                     <span class="material-symbols-outlined ms-sm">download</span>
                     Dışa aktar
                 </a>
@@ -136,14 +138,7 @@
                 @if (currentPage > 1)
                 {
                     <a class="btn btn-sm btn-ghost"
-                       asp-action="@actionName"
-                       asp-route-id="@Model.Id"
-                       asp-route-type="@(q.Type ?? "all")"
-                       asp-route-range="@(q.Range ?? "all")"
-                       asp-route-from="@fromValue"
-                       asp-route-to="@toValue"
-                       asp-route-q="@q.Q"
-                       asp-route-page="@(currentPage - 1)">
+                       href="@BuildUrl(currentPage - 1)">
                         <span class="material-symbols-outlined">chevron_left</span>
                     </a>
                 }
@@ -154,14 +149,7 @@
                 @if (pageStart > 1)
                 {
                     <a class="btn btn-sm btn-ghost"
-                       asp-action="@actionName"
-                       asp-route-id="@Model.Id"
-                       asp-route-type="@(q.Type ?? "all")"
-                       asp-route-range="@(q.Range ?? "all")"
-                       asp-route-from="@fromValue"
-                       asp-route-to="@toValue"
-                       asp-route-q="@q.Q"
-                       asp-route-page="1">1</a>
+                       href="@BuildUrl(1)">1</a>
                 }
                 @for (int p = pageStart; p <= pageEnd; p++)
                 {
@@ -172,39 +160,18 @@
                     else
                     {
                         <a class="btn btn-sm btn-ghost"
-                           asp-action="@actionName"
-                           asp-route-id="@Model.Id"
-                           asp-route-type="@(q.Type ?? "all")"
-                           asp-route-range="@(q.Range ?? "all")"
-                           asp-route-from="@fromValue"
-                           asp-route-to="@toValue"
-                           asp-route-q="@q.Q"
-                           asp-route-page="@p">@p</a>
+                           href="@BuildUrl(p)">@p</a>
                     }
                 }
                 @if (pageEnd < totalPages)
                 {
                     <a class="btn btn-sm btn-ghost"
-                       asp-action="@actionName"
-                       asp-route-id="@Model.Id"
-                       asp-route-type="@(q.Type ?? "all")"
-                       asp-route-range="@(q.Range ?? "all")"
-                       asp-route-from="@fromValue"
-                       asp-route-to="@toValue"
-                       asp-route-q="@q.Q"
-                       asp-route-page="@totalPages">@totalPages</a>
+                       href="@BuildUrl(totalPages)">@totalPages</a>
                 }
                 @if (currentPage < totalPages)
                 {
                     <a class="btn btn-sm btn-ghost"
-                       asp-action="@actionName"
-                       asp-route-id="@Model.Id"
-                       asp-route-type="@(q.Type ?? "all")"
-                       asp-route-range="@(q.Range ?? "all")"
-                       asp-route-from="@fromValue"
-                       asp-route-to="@toValue"
-                       asp-route-q="@q.Q"
-                       asp-route-page="@(currentPage + 1)">
+                       href="@BuildUrl(currentPage + 1)">
                         <span class="material-symbols-outlined">chevron_right</span>
                     </a>
                 }

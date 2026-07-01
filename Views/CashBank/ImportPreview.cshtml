@@ -4,7 +4,7 @@
     var backAction = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
 }
 
-<div class="max-w-7xl mx-auto space-y-4">
+<div class="max-w-[calc(100vw-4rem)] mx-auto space-y-4">
     <div class="flex items-center gap-3">
         <a class="btn btn-ghost btn-sm btn-square"
            asp-action="@backAction"
@@ -32,20 +32,28 @@
         <input type="hidden" asp-for="Id" />
         <input type="hidden" asp-for="AccountName" />
 
-        <div class="overflow-x-auto">
-            <table class="table table-zebra align-middle table-fixed min-w-[1500px]">
+        <div>
+            <table class="table table-zebra table-sm align-middle table-fixed w-full import-preview-table">
+                <colgroup>
+                    <col class="w-[6%]" />
+                    <col class="w-[10%]" />
+                    <col class="w-[11%]" />
+                    <col class="w-[8%]" />
+                    <col class="w-[34%]" />
+                    <col class="w-[18%]" />
+                    <col class="w-[8%]" />
+                    <col class="w-[5%]" />
+                </colgroup>
                 <thead>
                     <tr>
-                        <th class="w-16">Al</th>
-                        <th class="w-20">Satır</th>
-                        <th class="w-36">Tip</th>
-                        <th class="w-36">Tarih</th>
-                        <th class="w-36 text-end">Tutar</th>
-                        <th class="w-[440px]">Tahsilat / Gider Eşleşmesi</th>
-                        <th class="w-64">Açıklama</th>
-                        <th class="w-40">Referans</th>
-                        <th class="w-52">Not</th>
-                        <th class="w-56">Durum</th>
+                        <th>Satır</th>
+                        <th>Tip</th>
+                        <th>Tarih</th>
+                        <th class="text-end">Tutar</th>
+                        <th>Tahsilat / Gider Eşleşmesi</th>
+                        <th>Açıklama</th>
+                        <th>Makbuz No</th>
+                        <th>Durum</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,29 +62,29 @@
                     var row = Model.Rows[i];
                     <tr class="import-row">
                         <td>
-                            <input type="checkbox" name="Rows[@i].Include" value="true" class="checkbox checkbox-sm" checked="@row.Include" />
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" name="Rows[@i].Include" value="true" class="checkbox checkbox-sm" checked="@row.Include" />
+                                <span class="text-sm text-gray-500">@row.LineNo</span>
+                            </div>
                             <input type="hidden" name="Rows[@i].Include" value="false" />
-                        </td>
-                        <td>
                             <input type="hidden" name="Rows[@i].LineNo" value="@row.LineNo" />
-                            <span class="text-sm text-gray-500">@row.LineNo</span>
                         </td>
                         <td>
-                            <select name="Rows[@i].Type" class="select select-bordered select-sm w-32 import-type">
+                            <select name="Rows[@i].Type" class="select select-bordered select-sm w-full import-type">
                                 <option value="collection" selected="@(row.Type == "collection")">Tahsilat</option>
                                 <option value="expense" selected="@(row.Type == "expense")">Gider</option>
                                 <option value="transfer" selected="@(row.Type == "transfer")">Transfer</option>
                             </select>
                         </td>
                         <td>
-                            <input name="Rows[@i].Date" value="@row.Date" type="date" class="input input-bordered input-sm w-36" />
+                            <input name="Rows[@i].Date" value="@row.Date" type="date" class="input input-bordered input-sm w-full" />
                         </td>
                         <td>
-                            <input name="Rows[@i].Amount" value="@row.Amount" inputmode="decimal" class="input input-bordered input-sm w-32 text-end" />
+                            <input name="Rows[@i].Amount" value="@row.Amount" inputmode="decimal" class="input input-bordered input-sm w-full text-end" />
                         </td>
                         <td>
                             <div class="collection-pick space-y-1 min-w-0">
-                                <input type="search" class="input input-bordered input-sm w-full import-dues-search" placeholder="Daire, isim, dönem ara" />
+                                <input type="search" class="input input-bordered input-sm w-full import-dues-search" placeholder="Eşleşme ara" />
                                 <select name="Rows[@i].DuesInstallmentId" class="select select-bordered select-sm w-full import-dues-select">
                                     <option value="">Aidat borcu seçin</option>
                                     @foreach (var option in Model.DuesOptions)
@@ -113,10 +121,8 @@
                             <input name="Rows[@i].Description" value="@row.Description" class="input input-bordered input-sm w-full" />
                         </td>
                         <td>
-                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-full" />
-                        </td>
-                        <td>
-                            <input name="Rows[@i].Note" value="@row.Note" class="input input-bordered input-sm w-full" />
+                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-full" placeholder="Fiş no" />
+                            <input type="hidden" name="Rows[@i].Note" value="@row.Note" />
                         </td>
                         <td class="text-xs @(string.IsNullOrWhiteSpace(row.Status) ? "text-success" : "text-warning")">
                             @(string.IsNullOrWhiteSpace(row.Status) ? "Hazır" : row.Status)
@@ -141,9 +147,33 @@
     </form>
 </div>
 
+<style>
+.import-preview-table :is(th, td) {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+.import-preview-table :is(input, select) {
+    min-width: 0;
+}
+
+.import-dues-search.is-collapsed {
+    display: none;
+}
+
+.import-dues-select {
+    text-overflow: ellipsis;
+}
+</style>
+
 <script>
 function normalizeImportSearch(value) {
     return (value || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function updateImportSearch(search, select) {
+    if (!search || !select) return;
+    search.classList.toggle('is-collapsed', !!select.value && !search.value);
 }
 
 function updateImportRow(row) {
@@ -151,6 +181,7 @@ function updateImportRow(row) {
     row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
     row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
     row.querySelector('.transfer-pick')?.classList.toggle('hidden', type !== 'transfer');
+    updateImportSearch(row.querySelector('.import-dues-search'), row.querySelector('.import-dues-select'));
 }
 
 document.querySelectorAll('.import-row').forEach(function(row) {
@@ -167,6 +198,16 @@ document.querySelectorAll('.import-row').forEach(function(row) {
             var haystack = normalizeImportSearch(option.dataset.search || option.textContent);
             option.hidden = query.length > 0 && !haystack.includes(query);
         });
+        updateImportSearch(search, select);
+    });
+    select?.addEventListener('change', function() {
+        if (select.value) {
+            search.value = '';
+            Array.from(select.options).forEach(function(option) {
+                option.hidden = false;
+            });
+        }
+        updateImportSearch(search, select);
     });
 });
 </script>

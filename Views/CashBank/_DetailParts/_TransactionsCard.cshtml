@@ -4,6 +4,9 @@
     var q = Model.Query;
     var actionName = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
     var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
+    var currentPage = Math.Min(Math.Max(q.Page, 1), Math.Max(totalPages, 1));
+    var pageStart = Math.Max(1, currentPage - 2);
+    var pageEnd = Math.Min(totalPages, currentPage + 2);
     var rows = Model.Groups.SelectMany(g => g.Items).ToList();
     var fromValue = q.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     var toValue = q.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -125,12 +128,12 @@
     <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50/50">
         <span class="text-sm text-gray-500">
             @Model.TotalCount işlem ·
-            @(((q.Page - 1) * q.PageSize) + 1)-@(Math.Min(q.Page * q.PageSize, Model.TotalCount)) gösteriliyor
+            @(((currentPage - 1) * q.PageSize) + 1)-@(Math.Min(currentPage * q.PageSize, Model.TotalCount)) gösteriliyor
         </span>
         @if (totalPages > 1)
         {
             <div class="flex items-center gap-1">
-                @if (q.Page > 1)
+                @if (currentPage > 1)
                 {
                     <a class="btn btn-sm btn-ghost"
                        asp-action="@actionName"
@@ -140,7 +143,7 @@
                        asp-route-from="@fromValue"
                        asp-route-to="@toValue"
                        asp-route-q="@q.Q"
-                       asp-route-page="@(q.Page - 1)">
+                       asp-route-page="@(currentPage - 1)">
                         <span class="material-symbols-outlined">chevron_left</span>
                     </a>
                 }
@@ -148,9 +151,21 @@
                 {
                     <button class="btn btn-sm btn-ghost" disabled><span class="material-symbols-outlined">chevron_left</span></button>
                 }
-                @for (int p = 1; p <= Math.Min(totalPages, 5); p++)
+                @if (pageStart > 1)
                 {
-                    if (p == q.Page)
+                    <a class="btn btn-sm btn-ghost"
+                       asp-action="@actionName"
+                       asp-route-id="@Model.Id"
+                       asp-route-type="@(q.Type ?? "all")"
+                       asp-route-range="@(q.Range ?? "all")"
+                       asp-route-from="@fromValue"
+                       asp-route-to="@toValue"
+                       asp-route-q="@q.Q"
+                       asp-route-page="1">1</a>
+                }
+                @for (int p = pageStart; p <= pageEnd; p++)
+                {
+                    if (p == currentPage)
                     {
                         <button class="btn btn-sm btn-primary">@p</button>
                     }
@@ -167,7 +182,7 @@
                            asp-route-page="@p">@p</a>
                     }
                 }
-                @if (q.Page < totalPages)
+                @if (pageEnd < totalPages)
                 {
                     <a class="btn btn-sm btn-ghost"
                        asp-action="@actionName"
@@ -177,9 +192,25 @@
                        asp-route-from="@fromValue"
                        asp-route-to="@toValue"
                        asp-route-q="@q.Q"
-                       asp-route-page="@(q.Page + 1)">
+                       asp-route-page="@totalPages">@totalPages</a>
+                }
+                @if (currentPage < totalPages)
+                {
+                    <a class="btn btn-sm btn-ghost"
+                       asp-action="@actionName"
+                       asp-route-id="@Model.Id"
+                       asp-route-type="@(q.Type ?? "all")"
+                       asp-route-range="@(q.Range ?? "all")"
+                       asp-route-from="@fromValue"
+                       asp-route-to="@toValue"
+                       asp-route-q="@q.Q"
+                       asp-route-page="@(currentPage + 1)">
                         <span class="material-symbols-outlined">chevron_right</span>
                     </a>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-ghost" disabled><span class="material-symbols-outlined">chevron_right</span></button>
                 }
             </div>
         }

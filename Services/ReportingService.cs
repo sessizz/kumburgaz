@@ -3,7 +3,6 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
-using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 namespace Kumburgaz.Web.Services;
@@ -12,6 +11,30 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
 {
     public async Task<List<DuesDebtReportRow>> GetDuesDebtReportAsync(DuesDebtReportQuery query)
     {
+        query.Period = null;
+
+        var units = await db.Units
+            .AsNoTracking()
+            .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => x.Active)
+            .Where(x => query.BlockId == null || x.BlockId == query.BlockId)
+            .ToListAsync();
+
+        var rowsByKey = units.ToDictionary(
+            x => UnitKey(x.Id),
+            x => new DuesDebtReportRow
+            {
+                UnitId = x.Id,
+                UnitDisplay = UnitDisplayHelper.Display(x),
+                ResponsibleAccountName = x.OwnerName ?? string.Empty,
+                DuesTypeName = "Tüm",
+                BillingGroupName = "Tüm",
+                UnitsText = UnitDisplayHelper.Display(x)
+            });
+
         var installments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
@@ -33,178 +56,108 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
             .Include(x => x.ResponsibleAccount)
-            .Where(x => query.Period == null || x.Period == query.Period)
             .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
             .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
-            .Where(x => query.BlockId == null || x.BillingGroup!.Units.Any(u => u.Unit!.Active && u.Unit.BlockId == query.BlockId))
+            .Where(x => query.BlockId == null || (x.UnitId != null && x.Unit!.BlockId == query.BlockId))
             .OrderBy(x => x.Period)
-            .ThenBy(x => x.BillingGroup!.Name)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Id)
             .ToListAsync();
 
-        var rows = installments
-            .Select(x => new DuesDebtReportRow
+        foreach (var installment in installments.Where(x => x.UnitId.HasValue))
+        {
+            var key = UnitKey(installment.UnitId!.Value);
+            if (!rowsByKey.TryGetValue(key, out var row))
             {
-                InstallmentId = x.Id,
-                UnitId = x.UnitId,
-                BillingGroupId = x.BillingGroupId,
-                UnitDisplay = x.UnitId.HasValue
-                    ? UnitDisplayHelper.Display(x.Unit)
-                    : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
-                BillingGroupName = x.BillingGroup!.Name,
-                DuesTypeName = x.BillingGroup.DuesType!.Name,
-                ResponsibleAccountName = x.ResponsibleAccount?.Name ?? string.Empty,
-                Period = x.Period,
-                AccrualDate = x.AccrualDate,
-                Amount = x.Amount,
-                RemainingAmount = x.RemainingAmount,
-                UnitsText = string.Join(", ", x.BillingGroup.Units
-                    .Where(u => u.Unit is { Active: true })
-                    .Select(u => UnitDisplayHelper.Display(u.Unit))
-                    .OrderBy(v => v))
+                continue;
+            }
+
+            row.Amount += installment.Amount;
+            row.RemainingAmount += installment.RemainingAmount;
+            row.ResponsibleAccountName = string.IsNullOrWhiteSpace(installment.ResponsibleAccount?.Name)
+                ? row.ResponsibleAccountName
+                : installment.ResponsibleAccount.Name;
+            row.DuesTypeName = AddDistinctName(row.DuesTypeName, installment.BillingGroup?.DuesType?.Name);
+            row.BillingGroupName = AddDistinctName(row.BillingGroupName, installment.BillingGroup?.Name);
+        }
+
+        foreach (var group in installments.Where(x => x.UnitId == null).GroupBy(x => x.BillingGroupId))
+        {
+            var first = group.First();
+            rowsByKey[GroupKey(group.Key)] = new DuesDebtReportRow
+            {
+                BillingGroupId = group.Key,
+                UnitDisplay = BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup),
+                ResponsibleAccountName = first.ResponsibleAccount?.Name ?? string.Empty,
+                DuesTypeName = first.BillingGroup?.DuesType?.Name ?? "Aidat",
+                BillingGroupName = first.BillingGroup?.Name ?? string.Empty,
+                Amount = group.Sum(x => x.Amount),
+                RemainingAmount = group.Sum(x => x.RemainingAmount),
+                UnitsText = BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup)
+            };
+        }
+
+        if (query.BillingGroupId is null && query.DuesTypeId is null)
+        {
+            foreach (var unit in units)
+            {
+                if (rowsByKey.TryGetValue(UnitKey(unit.Id), out var row))
+                {
+                    row.RemainingAmount -= unit.OpeningBalance;
+                }
+            }
+        }
+
+        var collectionCredits = await db.Collections
+            .AsNoTracking()
+            .Include(x => x.Unit)
+            .Include(x => x.BillingGroup)
+            .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
+            .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
+            .Where(x => query.BlockId == null || x.Unit!.BlockId == query.BlockId)
+            .Select(x => new
+            {
+                x.UnitId,
+                Credit = x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault()
             })
-            .OrderBy(x => x.UnitDisplay)
-            .ThenBy(x => x.Period)
-            .ToList();
-
-        var billingGroupIds = rows.Select(x => x.BillingGroupId).Distinct().ToList();
-        if (billingGroupIds.Count > 0)
-        {
-            var creditByGroup = await db.Collections
-                .AsNoTracking()
-                .Where(x => billingGroupIds.Contains(x.BillingGroupId))
-                .Select(x => new
-                {
-                    x.BillingGroupId,
-                    Credit = x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault()
-                })
-                .GroupBy(x => x.BillingGroupId)
-                .Select(x => new { BillingGroupId = x.Key, Credit = x.Sum(v => v.Credit) })
-                .ToDictionaryAsync(x => x.BillingGroupId, x => x.Credit);
-
-            foreach (var groupedRows in rows.GroupBy(x => x.BillingGroupId))
-            {
-                if (!creditByGroup.TryGetValue(groupedRows.Key, out var credit) || credit <= 0)
-                {
-                    continue;
-                }
-
-                var orderedRows = groupedRows
-                    .OrderBy(x => x.Period)
-                    .ThenBy(x => x.Amount)
-                    .ToList();
-
-                foreach (var row in orderedRows)
-                {
-                    if (credit <= 0)
-                    {
-                        break;
-                    }
-
-                    var reduction = Math.Min(row.RemainingAmount, credit);
-                    row.RemainingAmount -= reduction;
-                    credit -= reduction;
-                }
-
-                if (credit > 0)
-                {
-                    var anchor = orderedRows.Last();
-                    rows.Add(new DuesDebtReportRow
-                    {
-                        InstallmentId = null,
-                        BillingGroupId = anchor.BillingGroupId,
-                        UnitDisplay = anchor.UnitDisplay,
-                        BillingGroupName = anchor.BillingGroupName,
-                        DuesTypeName = "Fazla Ödeme",
-                        ResponsibleAccountName = anchor.ResponsibleAccountName,
-                        Period = anchor.Period,
-                        AccrualDate = anchor.AccrualDate,
-                        Amount = 0,
-                        RemainingAmount = -credit,
-                        UnitsText = anchor.UnitsText
-                    });
-                }
-            }
-        }
-
-        // Devir bakiyesi ait olduğu yönetim döneminin aidat satırına mahsup edilir.
-        // Örn. 2025 tarihli devir bakiyesi 2025-2026 dönemine uygulanır.
-        var openingUnits = await db.Units.AsNoTracking()
-            .Include(x => x.Block)
-            .Where(x => x.Active && x.OpeningBalance != 0m && x.OpeningBalanceDate != null)
-            .Where(x => query.BlockId == null || x.BlockId == query.BlockId)
+            .Where(x => x.Credit > 0)
             .ToListAsync();
 
-        foreach (var unit in openingUnits)
+        foreach (var credit in collectionCredits)
         {
-            var openingPeriod = GetPeriodFromDate(unit.OpeningBalanceDate!.Value);
-            if (!string.IsNullOrWhiteSpace(query.Period) && query.Period != openingPeriod)
+            if (rowsByKey.TryGetValue(UnitKey(credit.UnitId), out var row))
             {
-                continue;
-            }
-
-            var periodRows = rows
-                .Where(x => x.UnitId == unit.Id && x.Period == openingPeriod)
-                .OrderBy(x => x.AccrualDate)
-                .ThenBy(x => x.InstallmentId)
-                .ToList();
-
-            if (periodRows.Count == 0)
-            {
-                continue;
-            }
-
-            if (unit.OpeningBalance > 0)
-            {
-                var credit = unit.OpeningBalance;
-                foreach (var row in periodRows)
-                {
-                    if (credit <= 0)
-                    {
-                        break;
-                    }
-
-                    var reduction = Math.Min(row.RemainingAmount, credit);
-                    row.RemainingAmount -= reduction;
-                    credit -= reduction;
-                }
-            }
-            else
-            {
-                periodRows[0].RemainingAmount += -unit.OpeningBalance;
+                row.RemainingAmount -= credit.Credit;
             }
         }
 
-        return rows
+        return rowsByKey.Values
             .OrderBy(x => x.UnitDisplay)
-            .ThenBy(x => x.Period)
             .ToList();
     }
 
     public byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows)
     {
         using var wb = new XLWorkbook();
-        var ws = wb.Worksheets.Add("Aidat Borç");
-        ws.Cell(1, 1).Value = "Dönem";
-        ws.Cell(1, 2).Value = "Tahakkuk Tarihi";
-        ws.Cell(1, 3).Value = "Daire/Birleşik";
-        ws.Cell(1, 4).Value = "Aidat Tipi";
-        ws.Cell(1, 5).Value = "Aidat Grubu";
-        ws.Cell(1, 6).Value = "Sorumlu Hesap";
-        ws.Cell(1, 7).Value = "Tutar";
-        ws.Cell(1, 8).Value = "Kalan";
+        var ws = wb.Worksheets.Add("Daire Bakiye");
+        ws.Cell(1, 1).Value = "Daire/Birleşik";
+        ws.Cell(1, 2).Value = "Sorumlu Hesap";
+        ws.Cell(1, 3).Value = "Aidat Tipi";
+        ws.Cell(1, 4).Value = "Aidat Grubu";
+        ws.Cell(1, 5).Value = "Tahakkuk Toplamı";
+        ws.Cell(1, 6).Value = "Net Bakiye";
+        ws.Cell(1, 7).Value = "Durum";
 
         var rowIndex = 2;
         foreach (var row in rows)
         {
-            ws.Cell(rowIndex, 1).Value = row.Period;
-            ws.Cell(rowIndex, 2).Value = row.AccrualDate;
-            ws.Cell(rowIndex, 2).Style.DateFormat.Format = "dd.MM.yyyy";
-            ws.Cell(rowIndex, 3).Value = row.UnitDisplay;
-            ws.Cell(rowIndex, 4).Value = row.DuesTypeName;
-            ws.Cell(rowIndex, 5).Value = row.BillingGroupName;
-            ws.Cell(rowIndex, 6).Value = row.ResponsibleAccountName;
-            ws.Cell(rowIndex, 7).Value = row.Amount;
-            ws.Cell(rowIndex, 8).Value = row.RemainingAmount;
+            ws.Cell(rowIndex, 1).Value = row.UnitDisplay;
+            ws.Cell(rowIndex, 2).Value = row.ResponsibleAccountName;
+            ws.Cell(rowIndex, 3).Value = row.DuesTypeName;
+            ws.Cell(rowIndex, 4).Value = row.BillingGroupName;
+            ws.Cell(rowIndex, 5).Value = row.Amount;
+            ws.Cell(rowIndex, 6).Value = Math.Abs(row.RemainingAmount);
+            ws.Cell(rowIndex, 7).Value = BalanceStatus(row.RemainingAmount);
             rowIndex++;
         }
 
@@ -223,43 +176,37 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             container.Page(page =>
             {
                 page.Margin(20);
-                page.Header().Text("Aidat Borç Raporu").FontSize(18).Bold();
+                page.Header().Text("Daire Borç/Alacak Raporu").FontSize(18).Bold();
                 page.Content().Table(table =>
                 {
                     table.ColumnsDefinition(c =>
                     {
-                        c.RelativeColumn(1);
-                        c.RelativeColumn(1);
-                        c.RelativeColumn(2);
                         c.RelativeColumn(2);
                         c.RelativeColumn(3);
                         c.RelativeColumn(2);
+                        c.RelativeColumn(3);
                         c.RelativeColumn(1);
                         c.RelativeColumn(1);
                     });
 
                     table.Header(header =>
                     {
-                        header.Cell().Text("Dönem");
-                        header.Cell().Text("Tahakkuk");
                         header.Cell().Text("Daire/Birleşik");
-                        header.Cell().Text("Tip");
-                        header.Cell().Text("Aidat Grubu");
                         header.Cell().Text("Sorumlu");
-                        header.Cell().Text("Tutar");
-                        header.Cell().Text("Kalan");
+                        header.Cell().Text("Aidat Tipi");
+                        header.Cell().Text("Aidat Grubu");
+                        header.Cell().Text("Bakiye");
+                        header.Cell().Text("Durum");
                     });
 
                     foreach (var row in rows)
                     {
-                        table.Cell().Text(row.Period);
-                        table.Cell().Text(row.AccrualDate.ToString("dd.MM.yyyy"));
                         table.Cell().Text(row.UnitDisplay);
+                        table.Cell().Text(row.ResponsibleAccountName);
                         table.Cell().Text(row.DuesTypeName);
                         table.Cell().Text(row.BillingGroupName);
-                        table.Cell().Text(row.ResponsibleAccountName);
-                        table.Cell().Text(row.Amount.ToString("N2"));
-                        table.Cell().Text(row.RemainingAmount.ToString("N2"));
+                        table.Cell().Text(Math.Abs(row.RemainingAmount).ToString("N2"));
+                        table.Cell().Text(BalanceStatus(row.RemainingAmount));
                     }
                 });
                 page.Footer().AlignCenter().Text(x =>
@@ -273,8 +220,30 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         }).GeneratePdf();
     }
 
-    private static string GetPeriodFromDate(DateTime date)
+    private static string AddDistinctName(string current, string? name)
     {
-        return $"{date.Year}-{date.Year + 1}";
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.IsNullOrWhiteSpace(current) ? "Tüm" : current;
+        }
+
+        if (string.IsNullOrWhiteSpace(current) || current == "Tüm")
+        {
+            return name;
+        }
+
+        var parts = current.Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        return parts.Contains(name, StringComparer.OrdinalIgnoreCase)
+            ? current
+            : $"{current}, {name}";
     }
+
+    private static string BalanceStatus(decimal balance)
+    {
+        return balance > 0 ? "Borç" : balance < 0 ? "Alacak" : "Yok";
+    }
+
+    private static string UnitKey(int unitId) => $"U:{unitId}";
+
+    private static string GroupKey(int billingGroupId) => $"G:{billingGroupId}";
 }

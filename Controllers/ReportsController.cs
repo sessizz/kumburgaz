@@ -15,7 +15,6 @@ public class ReportsController(
 {
     public async Task<IActionResult> DuesDebt([FromQuery] DuesDebtReportQuery query)
     {
-        query.Period ??= PeriodHelper.CurrentFiscalPeriod(DateTime.Today);
         await PopulateFiltersAsync();
         var rows = await reportingService.GetDuesDebtReportAsync(query);
         ViewBag.Query = query;

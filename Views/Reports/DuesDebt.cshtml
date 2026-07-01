@@ -4,13 +4,12 @@
 @{
     ViewData["Title"] = "Aidat Borç Raporu";
     var query = (DuesDebtReportQuery)ViewBag.Query;
-    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 <div class="space-y-4">
     <div>
-        <h2 class="text-2xl font-extrabold">Aidat Borç Raporu</h2>
-        <p class="text-sm text-gray-400">Filtre uygulayarak görüntüleyebilir ve dışa aktarabilirsiniz.</p>
+        <h2 class="text-2xl font-extrabold">Daire Borç/Alacak Raporu</h2>
+        <p class="text-sm text-gray-400">Her dairenin toplam borç veya alacak bakiyesini görüntüleyebilirsiniz.</p>
     </div>
 
     @if (TempData["Success"] is string successMessage)
@@ -31,11 +30,7 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
             <form method="get" class="space-y-4">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <fieldset class="fieldset">
-                        <legend class="fieldset-legend">Dönem</legend>
-                        <input class="input input-bordered" name="Period" value="@query.Period" />
-                    </fieldset>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Blok</legend>
                         <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
@@ -61,7 +56,6 @@
                         Filtrele
                     </button>
                     <a class="btn btn-outline btn-success" asp-action="DuesDebtExcel"
-                       asp-route-Period="@query.Period"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
                        asp-route-BillingGroupId="@query.BillingGroupId">
@@ -69,7 +63,6 @@
                         Excel
                     </a>
                     <a class="btn btn-outline btn-error" asp-action="DuesDebtPdf"
-                       asp-route-Period="@query.Period"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
                        asp-route-BillingGroupId="@query.BillingGroupId">
@@ -86,52 +79,31 @@
             <table class="table table-zebra">
                 <thead>
                     <tr>
-                        <th>Dönem</th>
-                        <th>Tahakkuk</th>
                         <th>Daire/Birleşik</th>
                         <th>Sorumlu Hesap</th>
                         <th>Aidat Tipi</th>
                         <th>Aidat Grubu</th>
-                        <th class="text-end">Tutar</th>
-                        <th class="text-end">Kalan</th>
-                        <th class="text-end">İşlem</th>
+                        <th class="text-end">Tahakkuk Toplamı</th>
+                        <th class="text-end">Bakiye</th>
+                        <th>Durum</th>
                     </tr>
                 </thead>
                 <tbody>
                 @foreach (var row in Model)
                 {
                     <tr>
-                        <td><span class="badge badge-ghost">@row.Period</span></td>
-                        <td>@row.AccrualDate.ToString("dd.MM.yyyy")</td>
                         <td class="font-medium">@row.UnitDisplay</td>
                         <td class="text-sm">@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "—" : row.ResponsibleAccountName)</td>
                         <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
                         <td>@row.BillingGroupName</td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
                         <td class="text-end font-bold @(row.RemainingAmount > 0 ? "text-error" : row.RemainingAmount < 0 ? "text-info" : "text-success")">
-                            @row.RemainingAmount.ToString("N2")
+                            @Math.Abs(row.RemainingAmount).ToString("N2")
                         </td>
                         <td>
-                            @if (row.InstallmentId.HasValue)
-                            {
-                                <div class="flex justify-end gap-1">
-                                    <a class="btn btn-xs btn-ghost"
-                                       asp-action="EditInstallment"
-                                       asp-route-id="@row.InstallmentId.Value"
-                                       asp-route-returnUrl="@returnUrl">
-                                        <span class="material-symbols-outlined ms-sm">edit</span>
-                                    </a>
-                                    <form asp-action="DeleteInstallment" method="post"
-                                          onsubmit="return confirm('Bu borç kaydı silinsin mi?');">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@row.InstallmentId.Value" />
-                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                        <button class="btn btn-xs btn-ghost text-error" type="submit">
-                                            <span class="material-symbols-outlined ms-sm">delete</span>
-                                        </button>
-                                    </form>
-                                </div>
-                            }
+                            <span class="badge @(row.RemainingAmount > 0 ? "badge-error badge-soft" : row.RemainingAmount < 0 ? "badge-info badge-soft" : "badge-success badge-soft")">
+                                @(row.RemainingAmount > 0 ? "Borç" : row.RemainingAmount < 0 ? "Alacak" : "Yok")
+                            </span>
                         </td>
                     </tr>
                 }

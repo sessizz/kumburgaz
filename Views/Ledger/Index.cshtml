@@ -1,4 +1,4 @@
-@model List<Kumburgaz.Web.Models.LedgerTransaction>
+@model Kumburgaz.Web.Models.LedgerIndexViewModel
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Giderler";
@@ -11,7 +11,11 @@
             <p class="text-sm text-gray-400">Aidat dışı gelir/gider hareketleri</p>
         </div>
         <div class="flex gap-2">
-            <a class="btn btn-outline btn-sm" asp-action="ExportCsv">
+            <a class="btn btn-outline btn-sm"
+               asp-action="ExportCsv"
+               asp-route-categoryId="@Model.CategoryId"
+               asp-route-startDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+               asp-route-endDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))">
                 <span class="material-symbols-outlined ms-sm">download</span>
                 CSV
             </a>
@@ -51,6 +55,36 @@
         </div>
     }
 
+    <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Gider kategorisi</legend>
+                <select name="categoryId" class="select select-bordered w-full">
+                    <option value="">Tüm kategoriler</option>
+                    @foreach (var option in Model.CategoryOptions)
+                    {
+                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input type="date" name="startDate" value="@(Model.StartDate?.ToString("yyyy-MM-dd"))" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input type="date" name="endDate" value="@(Model.EndDate?.ToString("yyyy-MM-dd"))" class="input input-bordered w-full" />
+            </fieldset>
+            <div class="flex gap-2">
+                <button class="btn btn-primary flex-1" type="submit">
+                    <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                    Filtrele
+                </button>
+                <a class="btn btn-ghost" asp-action="Index">Temizle</a>
+            </div>
+        </div>
+    </form>
+
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
             <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
@@ -82,7 +116,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model)
+                @foreach (var row in Model.Rows)
                 {
                     <tr>
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
@@ -108,6 +142,12 @@
                                 </form>
                             </div>
                         </td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-sm text-gray-500 py-8">Filtreye uygun gider bulunamadı.</td>
                     </tr>
                 }
                 </tbody>

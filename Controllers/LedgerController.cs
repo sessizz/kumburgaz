@@ -12,27 +12,26 @@ namespace Kumburgaz.Web.Controllers;
 [Authorize]
 public class LedgerController(ApplicationDbContext db) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await db.LedgerTransactions.AsNoTracking()
-            .Include(x => x.IncomeExpenseCategory)
-            .Include(x => x.CashBox)
-            .Include(x => x.BankAccount)
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+        var rows = await BuildExpenseQuery(categoryId, startDate, endDate)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
-        return View(rows);
+        return View(new LedgerIndexViewModel
+        {
+            CategoryId = categoryId,
+            StartDate = startDate,
+            EndDate = endDate,
+            CategoryOptions = await BuildExpenseCategoryOptionsAsync(categoryId),
+            Rows = rows
+        });
     }
 
-    public async Task<IActionResult> ExportCsv()
+    public async Task<IActionResult> ExportCsv(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await db.LedgerTransactions.AsNoTracking()
-            .Include(x => x.IncomeExpenseCategory)
-            .Include(x => x.CashBox)
-            .Include(x => x.BankAccount)
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+        var rows = await BuildExpenseQuery(categoryId, startDate, endDate)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
@@ -237,17 +236,50 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private async Task<LedgerTransactionCreateViewModel> BuildAsync(LedgerTransactionCreateViewModel model)
     {
-        model.CategoryOptions = await db.IncomeExpenseCategories
-            .AsNoTracking()
-            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gider)
-            .OrderBy(x => x.Type)
-            .ThenBy(x => x.Name)
-            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString()))
-            .ToListAsync();
+        model.CategoryOptions = await BuildExpenseCategoryOptionsAsync(model.IncomeExpenseCategoryId);
 
         model.AccountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, model.AccountKey);
 
         return model;
+    }
+
+    private IQueryable<LedgerTransaction> BuildExpenseQuery(int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
+        var query = db.LedgerTransactions.AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
+            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider);
+
+        if (categoryId.HasValue)
+        {
+            query = query.Where(x => x.IncomeExpenseCategoryId == categoryId.Value);
+        }
+
+        if (startDate.HasValue)
+        {
+            var start = DateTimeHelper.EnsureUtc(startDate.Value.Date);
+            query = query.Where(x => x.Date >= start);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endExclusive = DateTimeHelper.EnsureUtc(endDate.Value.Date.AddDays(1));
+            query = query.Where(x => x.Date < endExclusive);
+        }
+
+        return query;
+    }
+
+    private async Task<List<SelectListItem>> BuildExpenseCategoryOptionsAsync(int? selectedId)
+    {
+        return await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gider)
+            .OrderBy(x => x.Type)
+            .ThenBy(x => x.Name)
+            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString(), selectedId == x.Id))
+            .ToListAsync();
     }
 
     private static PaymentChannel ResolvePaymentChannel(LedgerTransactionCreateViewModel model, out int? cashBoxId, out int? bankAccountId)

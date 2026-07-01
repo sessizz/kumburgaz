@@ -331,6 +331,17 @@ public class LedgerTransactionCreateViewModel
     public List<SelectListItem> AccountOptions { get; set; } = [];
 }
 
+public class LedgerIndexViewModel
+{
+    public int? CategoryId { get; set; }
+    [DataType(DataType.Date)]
+    public DateTime? StartDate { get; set; }
+    [DataType(DataType.Date)]
+    public DateTime? EndDate { get; set; }
+    public List<SelectListItem> CategoryOptions { get; set; } = [];
+    public List<LedgerTransaction> Rows { get; set; } = [];
+}
+
 public class CashBoxFormViewModel
 {
     [Required, MaxLength(80)]

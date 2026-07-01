@@ -77,6 +77,30 @@ public class UnitStatementService(ApplicationDbContext db)
             }
         }
 
+        var unitCollections = await db.Collections.AsNoTracking()
+            .Include(x => x.Allocations)
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Where(x => x.UnitId == unitId)
+            .ToListAsync();
+
+        foreach (var collection in unitCollections)
+        {
+            var advanceAmount = collection.Amount - collection.Allocations.Sum(x => x.AppliedAmount);
+            if (advanceAmount <= 0)
+            {
+                continue;
+            }
+
+            entries.Add(new StatementEntry
+            {
+                Kind = StatementEntryKind.Collection,
+                Date = collection.Date,
+                Description = $"{collection.BillingGroup?.DuesType?.Name ?? "Aidat"} Avans Tahsilatı",
+                Amount = -advanceAmount
+            });
+        }
+
         // Tarihe göre sırala (en eski önce) ve yürüyen bakiyeyi hesapla
         var ordered = entries
             .OrderBy(x => x.Date)

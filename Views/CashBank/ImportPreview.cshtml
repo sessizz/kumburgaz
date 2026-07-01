@@ -181,6 +181,15 @@ function updateImportRow(row) {
     row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
     row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
     row.querySelector('.transfer-pick')?.classList.toggle('hidden', type !== 'transfer');
+    row.querySelectorAll('.collection-pick select, .collection-pick input').forEach(function(input) {
+        input.disabled = type !== 'collection';
+    });
+    row.querySelectorAll('.expense-pick select, .expense-pick input').forEach(function(input) {
+        input.disabled = type !== 'expense';
+    });
+    row.querySelectorAll('.transfer-pick select, .transfer-pick input').forEach(function(input) {
+        input.disabled = type !== 'transfer';
+    });
     updateImportSearch(row.querySelector('.import-dues-search'), row.querySelector('.import-dues-select'));
 }
 

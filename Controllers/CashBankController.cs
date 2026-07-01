@@ -182,6 +182,7 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequestFormLimits(ValueCountLimit = 50000, MultipartBodyLengthLimit = 104857600)]
     public async Task<IActionResult> PreviewImport(string kind, int id, IFormFile? file)
     {
         if (file is null || file.Length == 0)
@@ -219,6 +220,7 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [RequestFormLimits(ValueCountLimit = 50000)]
     public async Task<IActionResult> CommitImport(CashBankImportPreviewViewModel model)
     {
         var detail = await detailService.BuildAsync(model.Kind, model.Id, new CashBankDetailQuery());

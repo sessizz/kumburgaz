@@ -15,10 +15,17 @@ public class ReportsController(
 {
     public async Task<IActionResult> DuesDebt([FromQuery] DuesDebtReportQuery query)
     {
-        await PopulateFiltersAsync();
+        var ledgerQuery = BuildLedgerQueryFromRequest();
+        await PopulateFiltersAsync(query, ledgerQuery);
         var rows = await reportingService.GetDuesDebtReportAsync(query);
-        ViewBag.Query = query;
-        return View(rows);
+        var ledgerRows = await GetLedgerReportRowsAsync(ledgerQuery);
+        return View(new ReportsOverviewViewModel
+        {
+            DuesQuery = query,
+            DuesRows = rows,
+            LedgerQuery = ledgerQuery,
+            LedgerRows = ledgerRows
+        });
     }
 
     public async Task<IActionResult> DuesDebtExcel([FromQuery] DuesDebtReportQuery query)
@@ -175,24 +182,119 @@ public class ReportsController(
         return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
     }
 
-    private async Task PopulateFiltersAsync()
+    private async Task PopulateFiltersAsync(DuesDebtReportQuery duesQuery, LedgerReportQuery ledgerQuery)
     {
         ViewBag.Blocks = await db.Blocks
             .AsNoTracking()
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), duesQuery.BlockId == x.Id))
             .ToListAsync();
 
         ViewBag.DuesTypes = await db.DuesTypes
             .AsNoTracking()
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), duesQuery.DuesTypeId == x.Id))
             .ToListAsync();
 
         ViewBag.BillingGroups = await db.BillingGroups
             .AsNoTracking()
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), duesQuery.BillingGroupId == x.Id))
+            .ToListAsync();
+
+        var selectedLedgerCategories = ledgerQuery.LedgerCategoryIds.ToHashSet();
+        ViewBag.LedgerCategories = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .OrderBy(x => x.Type)
+            .ThenBy(x => x.Name)
+            .Select(x => new SelectListItem(
+                $"{CategoryTypeHelper.Display(x.Type)} - {x.Name}",
+                x.Id.ToString(),
+                selectedLedgerCategories.Contains(x.Id)))
+            .ToListAsync();
+    }
+
+    private LedgerReportQuery BuildLedgerQueryFromRequest()
+    {
+        var selectedCategories = Request.Query["LedgerCategoryIds"]
+            .SelectMany(x => x?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [])
+            .Select(x => int.TryParse(x, out var id) ? id : (int?)null)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Distinct()
+            .ToList();
+
+        return new LedgerReportQuery
+        {
+            LedgerType = Request.Query["LedgerType"].FirstOrDefault(),
+            LedgerCategoryIds = selectedCategories,
+            LedgerStartDate = TryReadDate("LedgerStartDate"),
+            LedgerEndDate = TryReadDate("LedgerEndDate")
+        };
+    }
+
+    private DateTime? TryReadDate(string key)
+    {
+        return DateTime.TryParse(Request.Query[key].FirstOrDefault(), out var value)
+            ? value.Date
+            : null;
+    }
+
+    private async Task<List<LedgerReportRow>> GetLedgerReportRowsAsync(LedgerReportQuery query)
+    {
+        var ledgerType = CategoryTypeHelper.Normalize(query.LedgerType);
+        var filterByType = !string.IsNullOrWhiteSpace(query.LedgerType)
+            && ledgerType is CategoryTypeHelper.Gelir or CategoryTypeHelper.Gider;
+        var categoryIds = query.LedgerCategoryIds.ToHashSet();
+
+        var rowsQuery = db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
+            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null);
+
+        if (filterByType)
+        {
+            rowsQuery = rowsQuery.Where(x => x.IncomeExpenseCategory!.Type == ledgerType);
+        }
+
+        if (categoryIds.Count > 0)
+        {
+            rowsQuery = rowsQuery.Where(x => x.IncomeExpenseCategoryId.HasValue && categoryIds.Contains(x.IncomeExpenseCategoryId.Value));
+        }
+
+        if (query.LedgerStartDate.HasValue)
+        {
+            var start = DateTimeHelper.EnsureUtc(query.LedgerStartDate.Value.Date);
+            rowsQuery = rowsQuery.Where(x => x.Date >= start);
+        }
+
+        if (query.LedgerEndDate.HasValue)
+        {
+            var endExclusive = DateTimeHelper.EnsureUtc(query.LedgerEndDate.Value.Date.AddDays(1));
+            rowsQuery = rowsQuery.Where(x => x.Date < endExclusive);
+        }
+
+        return await rowsQuery
+            .OrderByDescending(x => x.Date)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new LedgerReportRow
+            {
+                Id = x.Id,
+                Date = x.Date,
+                CategoryType = x.IncomeExpenseCategory!.Type,
+                CategoryName = x.IncomeExpenseCategory.Name,
+                Amount = x.Amount,
+                PaymentChannelName = EnumDisplayHelper.Display(x.PaymentChannel),
+                AccountName = x.CashBox != null
+                    ? x.CashBox.Name
+                    : x.BankAccount != null
+                        ? x.BankAccount.Name
+                        : string.Empty,
+                Description = x.Description ?? string.Empty
+            })
             .ToListAsync();
     }
 

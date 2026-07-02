@@ -189,7 +189,7 @@
                     {
                         <option value="@option.Id"
                                 data-billing-group-id="@option.BillingGroupId"
-                                data-amount="@option.RemainingAmount.ToString("0.##", trTR)"
+                                data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                 data-search="@option.SearchText">@option.Text</option>
                     }
                 </select>

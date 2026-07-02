@@ -1,7 +1,6 @@
 using System.Globalization;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
-using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -55,10 +54,10 @@ public class OpeningBalancesController(ApplicationDbContext db) : Controller
         {
             if (!unitMap.TryGetValue(unitIds[i], out var unit)) continue;
 
-            var raw = (balances[i] ?? string.Empty).Trim();
+            var raw = (balances[i] ?? string.Empty).Trim().Replace(',', '.');
             if (string.IsNullOrWhiteSpace(raw)) raw = "0";
 
-            if (!FlexibleDecimalParser.TryParse(raw, out var newValue))
+            if (!decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var newValue))
             {
                 invalidCount++;
                 continue;

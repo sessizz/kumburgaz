@@ -80,7 +80,9 @@ public class CollectionsController(
     {
         try
         {
-            if (!FlexibleDecimalParser.TryParse(amount, out var parsedAmount) || parsedAmount <= 0)
+            // Türkçe virgüllü tutarı destekle
+            var rawAmount = (amount ?? "0").Trim().Replace(',', '.');
+            if (!decimal.TryParse(rawAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedAmount) || parsedAmount <= 0)
             {
                 TempData["ActionError"] = "Geçerli bir tutar giriniz.";
                 return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
@@ -475,7 +477,8 @@ public class CollectionsController(
 
     private static bool TryParseAmount(string value, out decimal amount)
     {
-        return FlexibleDecimalParser.TryParse(value, out amount);
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out amount)
+            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
     }
 
     private static bool TryParsePaymentChannel(string value, out PaymentChannel channel)

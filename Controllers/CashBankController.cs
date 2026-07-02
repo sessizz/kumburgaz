@@ -387,6 +387,16 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateAccount(CashBankAccountEditViewModel model)
     {
+        ModelState.Remove(nameof(model.OpeningBalance));
+        if (!TryReadFormDecimal(nameof(model.OpeningBalance), out var openingBalance, _ => true))
+        {
+            ModelState.AddModelError(nameof(model.OpeningBalance), "Geçerli bir açılış bakiyesi giriniz.");
+        }
+        else
+        {
+            model.OpeningBalance = openingBalance;
+        }
+
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Hesap bilgilerini kontrol edin.";
@@ -400,12 +410,16 @@ public class CashBankController(
             bank.Name = model.Name;
             bank.Branch = model.Branch;
             bank.Iban = model.Iban;
+            bank.OpeningBalance = model.OpeningBalance;
+            bank.OpeningBalanceDate = DateTimeHelper.EnsureUtc(model.OpeningBalanceDate);
         }
         else
         {
             var cash = await db.CashBoxes.FindAsync(model.Id);
             if (cash is null) return NotFound();
             cash.Name = model.Name;
+            cash.OpeningBalance = model.OpeningBalance;
+            cash.OpeningBalanceDate = DateTimeHelper.EnsureUtc(model.OpeningBalanceDate);
         }
 
         await db.SaveChangesAsync();

@@ -455,6 +455,12 @@ public class CashBankAccountEditViewModel
 
     [MaxLength(34)]
     public string? Iban { get; set; }
+
+    public decimal OpeningBalance { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
 }
 
 public class CashBankOpeningBalanceViewModel

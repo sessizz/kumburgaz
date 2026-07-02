@@ -97,6 +97,16 @@
                 <legend class="fieldset-legend">Ad</legend>
                 <input name="Name" value="@Model.Name" class="input input-bordered w-full" required />
             </fieldset>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Açılış Bakiyesi</legend>
+                    <input name="OpeningBalance" type="text" inputmode="decimal" value="@Model.OpeningBalance.ToString("0.##", trTR)" class="input input-bordered w-full" required />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Açılış Tarihi</legend>
+                    <input name="OpeningBalanceDate" type="date" value="@Model.OpeningDate.ToString("yyyy-MM-dd")" class="input input-bordered w-full" required />
+                </fieldset>
+            </div>
             @if (Model.Kind == "bank")
             {
                 <fieldset class="fieldset">

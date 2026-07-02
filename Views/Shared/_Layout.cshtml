@@ -148,7 +148,7 @@
             <a class="dk-nav @IsActive("Requests")" asp-controller="Requests" asp-action="Index"><span class="mi material-symbols-outlined">support_agent</span>Talepler</a>
             <div class="dk-section">Arşiv &amp; Raporlar</div>
             <a class="dk-nav @IsActive("Documents")" asp-controller="Documents" asp-action="Index"><span class="mi material-symbols-outlined">folder</span>Belgeler</a>
-            <a class="dk-nav @IsActive("Reports")" asp-controller="Reports" asp-action="DuesDebt"><span class="mi material-symbols-outlined">bar_chart</span>Raporlar</a>
+            <a class="dk-nav @IsActive("Reports")" asp-controller="Reports" asp-action="Index"><span class="mi material-symbols-outlined">bar_chart</span>Raporlar</a>
             <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
         </nav>
 

@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Raporlar";
+}
+
+<div class="bg-white border border-gray-200 shadow-sm">
+    <section class="p-6">
+        <h2 class="text-xl font-medium text-sky-500 mb-7">Finansal Raporlar</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-24 gap-y-3 text-[17px] text-gray-700">
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="CashBankStatement">Kasa - Banka Ekstreleri</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="DuesDebt">Hesap Ekstresi</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="Balance">Bilanço</a>
+            <a class="hover:text-sky-600" asp-controller="Ledger" asp-action="Index">Gelirler / Giderler</a>
+        </div>
+    </section>
+
+    <div class="h-5 bg-gray-100 border-y border-gray-200"></div>
+
+    <section class="p-6">
+        <h2 class="text-xl font-medium text-sky-500 mb-7">Yönetimsel Raporlar</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-24 gap-y-3 text-[17px] text-gray-400">
+            <span>Daire Listesi</span>
+            <span>Kullanıcı Giriş Bilgileri</span>
+            <span>Hazirun Cetveli</span>
+            <span>Personeller</span>
+            <span>Hane Bilgileri</span>
+        </div>
+    </section>
+</div>

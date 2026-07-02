@@ -1,0 +1,96 @@
+@model Kumburgaz.Web.Models.CashBankStatementViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Kasa - Banka Ekstresi";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+}
+
+<div class="space-y-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Kasa - Banka Ekstresi</h2>
+            <p class="text-sm text-gray-400">Seçilen kasa veya banka hesabının tarih aralığına göre ekstresi.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Raporlar
+        </a>
+    </div>
+
+    <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_180px_180px_auto] gap-3 items-end">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Kasa / Banka</legend>
+                <select class="select select-bordered w-full" name="AccountKey" asp-items="Model.AccountOptions">
+                    <option value="">Hesap seçin</option>
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input class="input input-bordered w-full" type="date" name="StartDate" value="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input class="input input-bordered w-full" type="date" name="EndDate" value="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                Ekstre Al
+            </button>
+        </div>
+    </form>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="text-xs text-gray-500">Hesap</div>
+            <div class="mt-1 font-bold text-gray-900">@(!string.IsNullOrWhiteSpace(Model.AccountName) ? Model.AccountName : "-")</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="text-xs text-gray-500">Devir</div>
+            <div class="mt-1 font-bold tabular-nums @(Model.OpeningBalance < 0 ? "text-error" : "text-gray-900")">@Money(Model.OpeningBalance)</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="text-xs text-gray-500">Giriş / Çıkış</div>
+            <div class="mt-1 font-bold tabular-nums"><span class="text-success">@Money(Model.TotalIncome)</span> / <span class="text-error">@Money(Model.TotalExpense)</span></div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="text-xs text-gray-500">Son Bakiye</div>
+            <div class="mt-1 font-bold tabular-nums @(Model.ClosingBalance < 0 ? "text-error" : "text-gray-900")">@Money(Model.ClosingBalance)</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Tip</th>
+                        <th>Açıklama</th>
+                        <th class="text-end">Tutar</th>
+                        <th class="text-end">Bakiye</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.Date.ToString("dd.MM.yyyy")</td>
+                        <td><span class="badge badge-ghost">@row.Type</span></td>
+                        <td>@row.Description</td>
+                        <td class="text-end font-bold @(row.Amount < 0 ? "text-error" : "text-success")">@Money(row.Amount)</td>
+                        <td class="text-end font-bold tabular-nums">@Money(row.RunningBalance)</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-sm text-gray-500 py-8">Seçilen filtreye uygun ekstre hareketi bulunamadı.</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

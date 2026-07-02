@@ -135,19 +135,70 @@ public class DuesDebtReportQuery
     public int? DuesTypeId { get; set; }
 }
 
-public class ReportsOverviewViewModel
+public class CashBankStatementQuery
 {
-    public DuesDebtReportQuery DuesQuery { get; set; } = new();
-    public List<DuesDebtReportRow> DuesRows { get; set; } = [];
-    public LedgerReportQuery LedgerQuery { get; set; } = new();
-    public List<LedgerReportRow> LedgerRows { get; set; } = [];
-    public decimal LedgerIncomeTotal => LedgerRows
-        .Where(x => x.CategoryType == "Gelir")
-        .Sum(x => x.Amount);
-    public decimal LedgerExpenseTotal => LedgerRows
-        .Where(x => x.CategoryType == "Gider")
-        .Sum(x => x.Amount);
-    public decimal LedgerNetTotal => LedgerIncomeTotal - LedgerExpenseTotal;
+    public string? AccountKey { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime? StartDate { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime? EndDate { get; set; }
+}
+
+public class CashBankStatementViewModel
+{
+    public CashBankStatementQuery Query { get; set; } = new();
+    public List<SelectListItem> AccountOptions { get; set; } = [];
+    public string AccountName { get; set; } = string.Empty;
+    public decimal OpeningBalance { get; set; }
+    public decimal ClosingBalance { get; set; }
+    public decimal TotalIncome => Rows.Where(x => x.Amount > 0).Sum(x => x.Amount);
+    public decimal TotalExpense => Rows.Where(x => x.Amount < 0).Sum(x => Math.Abs(x.Amount));
+    public List<CashBankStatementRow> Rows { get; set; } = [];
+}
+
+public class CashBankStatementRow
+{
+    public DateTime Date { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public decimal RunningBalance { get; set; }
+}
+
+public class BalanceReportQuery
+{
+    [DataType(DataType.Date)]
+    public DateTime? StartDate { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime? EndDate { get; set; }
+}
+
+public class BalanceReportViewModel
+{
+    public BalanceReportQuery Query { get; set; } = new();
+    public decimal OpeningCash { get; set; }
+    public decimal OpeningBank { get; set; }
+    public decimal OpeningTotal => OpeningCash + OpeningBank;
+    public decimal ClosingCash { get; set; }
+    public decimal ClosingBank { get; set; }
+    public decimal ClosingTotal => ClosingCash + ClosingBank;
+    public decimal CarriedDebt { get; set; }
+    public decimal CarriedCredit { get; set; }
+    public List<BalanceCategoryTotal> IncomeRows { get; set; } = [];
+    public List<BalanceCategoryTotal> ExpenseRows { get; set; } = [];
+    public decimal IncomeTotal => IncomeRows.Sum(x => x.Amount);
+    public decimal ExpenseTotal => ExpenseRows.Sum(x => x.Amount);
+    public decimal Net => IncomeTotal - ExpenseTotal;
+}
+
+public class BalanceCategoryTotal
+{
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal DelayAmount { get; set; }
+    public decimal Amount { get; set; }
 }
 
 public class DuesDebtReportRow
@@ -164,30 +215,6 @@ public class DuesDebtReportRow
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
     public string UnitsText { get; set; } = string.Empty;
-}
-
-public class LedgerReportQuery
-{
-    public string? LedgerType { get; set; }
-    public List<int> LedgerCategoryIds { get; set; } = [];
-
-    [DataType(DataType.Date)]
-    public DateTime? LedgerStartDate { get; set; }
-
-    [DataType(DataType.Date)]
-    public DateTime? LedgerEndDate { get; set; }
-}
-
-public class LedgerReportRow
-{
-    public int Id { get; set; }
-    public DateTime Date { get; set; }
-    public string CategoryType { get; set; } = string.Empty;
-    public string CategoryName { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
-    public string PaymentChannelName { get; set; } = string.Empty;
-    public string AccountName { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
 }
 
 public class DuesListItemViewModel

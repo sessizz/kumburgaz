@@ -1,0 +1,167 @@
+@model Kumburgaz.Web.Models.BalanceReportViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Bilanço";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+    var startText = Model.Query.StartDate?.ToString("dd MMMM yyyy", trTR) ?? "";
+    var endText = Model.Query.EndDate?.ToString("dd MMMM yyyy", trTR) ?? "";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Bilanço</h2>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input class="input input-bordered input-sm" type="date" name="StartDate" value="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input class="input input-bordered input-sm" type="date" name="EndDate" value="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <button class="btn btn-sm btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">calendar_month</span>
+                Filtrele
+            </button>
+            <a class="btn btn-sm btn-ghost" asp-action="Index">Raporlar</a>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[0.82fr_1.18fr] gap-7">
+        <div class="space-y-5">
+            <div class="bg-white border border-gray-200 overflow-hidden">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th colspan="2" class="text-center bg-gray-50 text-base">GİDER TABLOSU</th></tr>
+                        <tr>
+                            <th>Gider Kategorisi</th>
+                            <th class="text-end">Tutar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.ExpenseRows)
+                    {
+                        <tr>
+                            <td>@row.CategoryName</td>
+                            <td class="text-end font-bold">@Money(row.Amount)</td>
+                        </tr>
+                    }
+                    @if (Model.ExpenseRows.Count == 0)
+                    {
+                        <tr>
+                            <td class="text-gray-400">Kayıt yok</td>
+                            <td class="text-end font-bold">0,00</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Toplam</th>
+                            <th class="text-end">@Money(Model.ExpenseTotal)</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="bg-white border border-gray-200 overflow-hidden">
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th colspan="3" class="text-center bg-gray-50 text-base">GELİR TABLOSU</th></tr>
+                        <tr>
+                            <th>Gelir Kategorisi</th>
+                            <th class="text-end">Gecikme</th>
+                            <th class="text-end">Tutar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.IncomeRows)
+                    {
+                        <tr>
+                            <td>@row.CategoryName</td>
+                            <td class="text-end font-bold">@Money(row.DelayAmount)</td>
+                            <td class="text-end font-bold">@Money(row.Amount)</td>
+                        </tr>
+                    }
+                    @if (Model.IncomeRows.Count == 0)
+                    {
+                        <tr>
+                            <td class="text-gray-400">Kayıt yok</td>
+                            <td class="text-end font-bold">0,00</td>
+                            <td class="text-end font-bold">0,00</td>
+                        </tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Toplam</th>
+                            <th class="text-end">@Money(Model.IncomeRows.Sum(x => x.DelayAmount))</th>
+                            <th class="text-end">@Money(Model.IncomeTotal)</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 overflow-hidden">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th colspan="2" class="text-center bg-gray-50 text-base">@startText - @endText GELİR GİDER TABLOSU</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>@startText Tarihine Devredilen Kasa</td>
+                        <td class="text-end tabular-nums">@Money(Model.OpeningCash)</td>
+                    </tr>
+                    <tr>
+                        <td>@startText Tarihine Devredilen Banka</td>
+                        <td class="text-end tabular-nums">@Money(Model.OpeningBank)</td>
+                    </tr>
+                    <tr>
+                        <td>@startText Tarihine Devredilen Toplam</td>
+                        <td class="text-end tabular-nums">@Money(Model.OpeningTotal)</td>
+                    </tr>
+                    <tr><td colspan="2" class="h-8"></td></tr>
+                    <tr>
+                        <td>Giderler Toplamı</td>
+                        <td class="text-end tabular-nums">@Money(Model.ExpenseTotal)</td>
+                    </tr>
+                    <tr>
+                        <td>Gelirler Toplamı</td>
+                        <td class="text-end tabular-nums">@Money(Model.IncomeTotal)</td>
+                    </tr>
+                    <tr>
+                        <td>Gelir - Gider Farkı</td>
+                        <td class="text-end tabular-nums">@Money(Model.Net)</td>
+                    </tr>
+                    <tr><td colspan="2" class="h-10"></td></tr>
+                    <tr>
+                        <td>Dönem Sonrasına Devreden Borç</td>
+                        <td class="text-end tabular-nums">@Money(Model.CarriedDebt)</td>
+                    </tr>
+                    <tr>
+                        <td>Dönem Sonrasına Devreden Alacak</td>
+                        <td class="text-end tabular-nums">@Money(Model.CarriedCredit)</td>
+                    </tr>
+                    <tr><td colspan="2" class="h-8"></td></tr>
+                    <tr>
+                        <td>Dönem Sonrasına Devreden Kasa</td>
+                        <td class="text-end tabular-nums">@Money(Model.ClosingCash)</td>
+                    </tr>
+                    <tr>
+                        <td>Dönem Sonrasına Devreden Banka</td>
+                        <td class="text-end tabular-nums">@Money(Model.ClosingBank)</td>
+                    </tr>
+                    <tr>
+                        <th>Dönem Sonrasına Devreden</th>
+                        <th class="text-end tabular-nums">@Money(Model.ClosingTotal)</th>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

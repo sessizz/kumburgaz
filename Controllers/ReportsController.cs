@@ -13,19 +13,172 @@ public class ReportsController(
     ApplicationDbContext db,
     IReportingService reportingService) : Controller
 {
+    public IActionResult Index()
+    {
+        return View();
+    }
+
+    public async Task<IActionResult> CashBankStatement([FromQuery] CashBankStatementQuery query)
+    {
+        var accountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, query.AccountKey);
+        if (string.IsNullOrWhiteSpace(query.AccountKey) && accountOptions.Count > 0)
+        {
+            query.AccountKey = accountOptions[0].Value;
+            accountOptions[0].Selected = true;
+        }
+
+        var model = new CashBankStatementViewModel
+        {
+            Query = query,
+            AccountOptions = accountOptions
+        };
+
+        if (!FinancialAccountHelper.TryParse(query.AccountKey, out _, out var cashBoxId, out var bankAccountId))
+        {
+            return View(model);
+        }
+
+        var rows = await BuildCashBankRowsAsync(cashBoxId, bankAccountId);
+        var accountInfo = await GetFinancialAccountInfoAsync(cashBoxId, bankAccountId);
+        if (accountInfo is null)
+        {
+            return NotFound();
+        }
+
+        var start = query.StartDate?.Date;
+        var endExclusive = query.EndDate?.Date.AddDays(1);
+        var openingBalance = rows
+            .Where(x => start.HasValue && x.Date < start.Value)
+            .Sum(x => x.Amount);
+
+        var statementRows = rows
+            .Where(x => !start.HasValue || x.Date >= start.Value)
+            .Where(x => !endExclusive.HasValue || x.Date < endExclusive.Value)
+            .OrderBy(x => x.Date)
+            .ThenBy(x => x.Id)
+            .ToList();
+
+        var running = openingBalance;
+        foreach (var row in statementRows)
+        {
+            running += row.Amount;
+            row.RunningBalance = running;
+        }
+
+        model.AccountName = accountInfo.Value.Name;
+        model.OpeningBalance = openingBalance;
+        model.ClosingBalance = running;
+        model.Rows = statementRows
+            .OrderByDescending(x => x.Date)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new CashBankStatementRow
+            {
+                Date = x.Date,
+                Type = x.Type,
+                Description = x.Description,
+                Amount = x.Amount,
+                RunningBalance = x.RunningBalance
+            })
+            .ToList();
+
+        return View(model);
+    }
+
+    public async Task<IActionResult> Balance([FromQuery] BalanceReportQuery query)
+    {
+        var today = DateTime.Today;
+        query.StartDate ??= new DateTime(today.Year, today.Month, 1);
+        query.EndDate ??= today;
+
+        var start = query.StartDate.Value.Date;
+        var endExclusive = query.EndDate.Value.Date.AddDays(1);
+        var startUtc = DateTimeHelper.EnsureUtc(start);
+        var endExclusiveUtc = DateTimeHelper.EnsureUtc(endExclusive);
+
+        var cashRows = await BuildCashBankRowsAsync(null, null);
+        var openingCash = cashRows
+            .Where(x => x.AccountKind == "cash" && x.Date < start)
+            .Sum(x => x.Amount);
+        var openingBank = cashRows
+            .Where(x => x.AccountKind == "bank" && x.Date < start)
+            .Sum(x => x.Amount);
+        var closingCash = cashRows
+            .Where(x => x.AccountKind == "cash" && x.Date < endExclusive)
+            .Sum(x => x.Amount);
+        var closingBank = cashRows
+            .Where(x => x.AccountKind == "bank" && x.Date < endExclusive)
+            .Sum(x => x.Amount);
+
+        var collectionsByCategory = await db.Collections
+            .AsNoTracking()
+            .Where(x => x.Date >= startUtc && x.Date < endExclusiveUtc)
+            .GroupBy(_ => "Aidat Tahsilatı")
+            .Select(g => new BalanceCategoryTotal
+            {
+                CategoryName = g.Key,
+                Amount = g.Sum(x => x.Amount)
+            })
+            .ToListAsync();
+
+        var ledgerIncomeRows = await db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
+            .Where(x => x.Date >= startUtc && x.Date < endExclusiveUtc)
+            .GroupBy(x => x.IncomeExpenseCategory!.Name)
+            .Select(g => new BalanceCategoryTotal
+            {
+                CategoryName = g.Key,
+                Amount = g.Sum(x => x.Amount)
+            })
+            .ToListAsync();
+
+        var expenseRows = await db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+            .Where(x => x.Date >= startUtc && x.Date < endExclusiveUtc)
+            .GroupBy(x => x.IncomeExpenseCategory!.Name)
+            .Select(g => new BalanceCategoryTotal
+            {
+                CategoryName = g.Key,
+                Amount = g.Sum(x => x.Amount)
+            })
+            .ToListAsync();
+
+        var duesRows = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery());
+        var carriedDebt = duesRows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
+        var carriedCredit = duesRows.Where(x => x.RemainingAmount < 0).Sum(x => Math.Abs(x.RemainingAmount));
+
+        return View(new BalanceReportViewModel
+        {
+            Query = query,
+            OpeningCash = openingCash,
+            OpeningBank = openingBank,
+            ClosingCash = closingCash,
+            ClosingBank = closingBank,
+            IncomeRows = collectionsByCategory.Concat(ledgerIncomeRows)
+                .GroupBy(x => x.CategoryName)
+                .Select(g => new BalanceCategoryTotal
+                {
+                    CategoryName = g.Key,
+                    Amount = g.Sum(x => x.Amount),
+                    DelayAmount = g.Sum(x => x.DelayAmount)
+                })
+                .OrderBy(x => x.CategoryName)
+                .ToList(),
+            ExpenseRows = expenseRows.OrderBy(x => x.CategoryName).ToList(),
+            CarriedDebt = carriedDebt,
+            CarriedCredit = carriedCredit
+        });
+    }
+
     public async Task<IActionResult> DuesDebt([FromQuery] DuesDebtReportQuery query)
     {
-        var ledgerQuery = BuildLedgerQueryFromRequest();
-        await PopulateFiltersAsync(query, ledgerQuery);
+        await PopulateFiltersAsync(query);
         var rows = await reportingService.GetDuesDebtReportAsync(query);
-        var ledgerRows = await GetLedgerReportRowsAsync(ledgerQuery);
-        return View(new ReportsOverviewViewModel
-        {
-            DuesQuery = query,
-            DuesRows = rows,
-            LedgerQuery = ledgerQuery,
-            LedgerRows = ledgerRows
-        });
+        ViewBag.Query = query;
+        return View(rows);
     }
 
     public async Task<IActionResult> DuesDebtExcel([FromQuery] DuesDebtReportQuery query)
@@ -182,7 +335,7 @@ public class ReportsController(
         return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
     }
 
-    private async Task PopulateFiltersAsync(DuesDebtReportQuery duesQuery, LedgerReportQuery ledgerQuery)
+    private async Task PopulateFiltersAsync(DuesDebtReportQuery duesQuery)
     {
         ViewBag.Blocks = await db.Blocks
             .AsNoTracking()
@@ -201,101 +354,126 @@ public class ReportsController(
             .OrderBy(x => x.Name)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString(), duesQuery.BillingGroupId == x.Id))
             .ToListAsync();
-
-        var selectedLedgerCategories = ledgerQuery.LedgerCategoryIds.ToHashSet();
-        ViewBag.LedgerCategories = await db.IncomeExpenseCategories
-            .AsNoTracking()
-            .Where(x => x.Active)
-            .OrderBy(x => x.Type)
-            .ThenBy(x => x.Name)
-            .Select(x => new SelectListItem(
-                $"{CategoryTypeHelper.Display(x.Type)} - {x.Name}",
-                x.Id.ToString(),
-                selectedLedgerCategories.Contains(x.Id)))
-            .ToListAsync();
     }
 
-    private LedgerReportQuery BuildLedgerQueryFromRequest()
+    private async Task<(string Name, decimal OpeningBalance, DateTime OpeningDate)?> GetFinancialAccountInfoAsync(int? cashBoxId, int? bankAccountId)
     {
-        var selectedCategories = Request.Query["LedgerCategoryIds"]
-            .SelectMany(x => x?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [])
-            .Select(x => int.TryParse(x, out var id) ? id : (int?)null)
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
-            .Distinct()
-            .ToList();
-
-        return new LedgerReportQuery
+        if (cashBoxId.HasValue)
         {
-            LedgerType = Request.Query["LedgerType"].FirstOrDefault(),
-            LedgerCategoryIds = selectedCategories,
-            LedgerStartDate = TryReadDate("LedgerStartDate"),
-            LedgerEndDate = TryReadDate("LedgerEndDate")
-        };
+            var cash = await db.CashBoxes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == cashBoxId.Value);
+            return cash is null ? null : (cash.Name, cash.OpeningBalance, cash.OpeningBalanceDate);
+        }
+
+        if (bankAccountId.HasValue)
+        {
+            var bank = await db.BankAccounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == bankAccountId.Value);
+            if (bank is null)
+            {
+                return null;
+            }
+
+            var name = string.IsNullOrWhiteSpace(bank.Branch) ? bank.Name : $"{bank.Name} / {bank.Branch}";
+            return (name, bank.OpeningBalance, bank.OpeningBalanceDate);
+        }
+
+        return null;
     }
 
-    private DateTime? TryReadDate(string key)
+    private async Task<List<StatementSourceRow>> BuildCashBankRowsAsync(int? cashBoxId, int? bankAccountId)
     {
-        return DateTime.TryParse(Request.Query[key].FirstOrDefault(), out var value)
-            ? value.Date
-            : null;
-    }
+        var rows = new List<StatementSourceRow>();
 
-    private async Task<List<LedgerReportRow>> GetLedgerReportRowsAsync(LedgerReportQuery query)
-    {
-        var ledgerType = CategoryTypeHelper.Normalize(query.LedgerType);
-        var filterByType = !string.IsNullOrWhiteSpace(query.LedgerType)
-            && ledgerType is CategoryTypeHelper.Gelir or CategoryTypeHelper.Gider;
-        var categoryIds = query.LedgerCategoryIds.ToHashSet();
+        if (cashBoxId.HasValue || (!cashBoxId.HasValue && !bankAccountId.HasValue))
+        {
+            var cashBoxes = await db.CashBoxes
+                .AsNoTracking()
+                .Where(x => !cashBoxId.HasValue || x.Id == cashBoxId.Value)
+                .ToListAsync();
+            rows.AddRange(cashBoxes.Select(x => new StatementSourceRow
+            {
+                Id = 0,
+                AccountKind = "cash",
+                AccountId = x.Id,
+                Date = x.OpeningBalanceDate,
+                Type = "Açılış",
+                Description = $"{x.Name} açılış bakiyesi",
+                Amount = x.OpeningBalance
+            }));
+        }
 
-        var rowsQuery = db.LedgerTransactions
+        if (bankAccountId.HasValue || (!cashBoxId.HasValue && !bankAccountId.HasValue))
+        {
+            var bankAccounts = await db.BankAccounts
+                .AsNoTracking()
+                .Where(x => !bankAccountId.HasValue || x.Id == bankAccountId.Value)
+                .ToListAsync();
+            rows.AddRange(bankAccounts.Select(x => new StatementSourceRow
+            {
+                Id = 0,
+                AccountKind = "bank",
+                AccountId = x.Id,
+                Date = x.OpeningBalanceDate,
+                Type = "Açılış",
+                Description = $"{x.Name} açılış bakiyesi",
+                Amount = x.OpeningBalance
+            }));
+        }
+
+        var collections = await db.Collections
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => !cashBoxId.HasValue || x.CashBoxId == cashBoxId.Value)
+            .Where(x => !bankAccountId.HasValue || x.BankAccountId == bankAccountId.Value)
+            .ToListAsync();
+        rows.AddRange(collections.Select(x => new StatementSourceRow
+        {
+            Id = x.Id,
+            AccountKind = x.CashBoxId.HasValue ? "cash" : "bank",
+            AccountId = x.CashBoxId ?? x.BankAccountId ?? 0,
+            Date = x.Date,
+            Type = "Tahsilat",
+            Description = $"{x.BillingGroup?.Name ?? "Aidat"} - {UnitDisplayHelper.Display(x.Unit)}",
+            Amount = x.Amount
+        }));
+
+        var ledgerRows = await db.LedgerTransactions
             .AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
             .Include(x => x.CashBox)
             .Include(x => x.BankAccount)
-            .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null);
-
-        if (filterByType)
+            .Where(x => !cashBoxId.HasValue || x.CashBoxId == cashBoxId.Value)
+            .Where(x => !bankAccountId.HasValue || x.BankAccountId == bankAccountId.Value)
+            .ToListAsync();
+        rows.AddRange(ledgerRows.Select(x =>
         {
-            rowsQuery = rowsQuery.Where(x => x.IncomeExpenseCategory!.Type == ledgerType);
-        }
-
-        if (categoryIds.Count > 0)
-        {
-            rowsQuery = rowsQuery.Where(x => x.IncomeExpenseCategoryId.HasValue && categoryIds.Contains(x.IncomeExpenseCategoryId.Value));
-        }
-
-        if (query.LedgerStartDate.HasValue)
-        {
-            var start = DateTimeHelper.EnsureUtc(query.LedgerStartDate.Value.Date);
-            rowsQuery = rowsQuery.Where(x => x.Date >= start);
-        }
-
-        if (query.LedgerEndDate.HasValue)
-        {
-            var endExclusive = DateTimeHelper.EnsureUtc(query.LedgerEndDate.Value.Date.AddDays(1));
-            rowsQuery = rowsQuery.Where(x => x.Date < endExclusive);
-        }
-
-        return await rowsQuery
-            .OrderByDescending(x => x.Date)
-            .ThenByDescending(x => x.Id)
-            .Select(x => new LedgerReportRow
+            var signedAmount = SignedLedgerAmount(x);
+            return new StatementSourceRow
             {
                 Id = x.Id,
+                AccountKind = x.CashBoxId.HasValue ? "cash" : "bank",
+                AccountId = x.CashBoxId ?? x.BankAccountId ?? 0,
                 Date = x.Date,
-                CategoryType = x.IncomeExpenseCategory!.Type,
-                CategoryName = x.IncomeExpenseCategory.Name,
-                Amount = x.Amount,
-                PaymentChannelName = EnumDisplayHelper.Display(x.PaymentChannel),
-                AccountName = x.CashBox != null
-                    ? x.CashBox.Name
-                    : x.BankAccount != null
-                        ? x.BankAccount.Name
-                        : string.Empty,
-                Description = x.Description ?? string.Empty
-            })
-            .ToListAsync();
+                Type = x.IsTransfer ? "Transfer" : signedAmount >= 0 ? "Gelir" : "Gider",
+                Description = x.Description ?? x.IncomeExpenseCategory?.Name ?? "Muhasebe fişi",
+                Amount = signedAmount
+            };
+        }));
+
+        return rows;
+    }
+
+    private static decimal SignedLedgerAmount(LedgerTransaction transaction)
+    {
+        if (transaction.IsTransfer)
+        {
+            return transaction.TransferIsIncoming ? transaction.Amount : -transaction.Amount;
+        }
+
+        return transaction.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir
+            ? transaction.Amount
+            : -transaction.Amount;
     }
 
     private static InstallmentStatus ResolveInstallmentStatus(decimal amount, decimal remainingAmount)
@@ -311,5 +489,17 @@ public class ReportsController(
         }
 
         return InstallmentStatus.Open;
+    }
+
+    private sealed class StatementSourceRow
+    {
+        public int Id { get; set; }
+        public string AccountKind { get; set; } = string.Empty;
+        public int AccountId { get; set; }
+        public DateTime Date { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public decimal RunningBalance { get; set; }
     }
 }

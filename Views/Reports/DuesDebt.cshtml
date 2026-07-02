@@ -1,16 +1,21 @@
-@model Kumburgaz.Web.Models.ReportsOverviewViewModel
+@model List<Kumburgaz.Web.Models.DuesDebtReportRow>
+@using Kumburgaz.Web.Models
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
-    ViewData["Title"] = "Raporlar";
-    var query = Model.DuesQuery;
-    var ledgerQuery = Model.LedgerQuery;
-    var ledgerCategories = (IEnumerable<SelectListItem>)ViewBag.LedgerCategories;
+    ViewData["Title"] = "Hesap Ekstresi";
+    var query = (DuesDebtReportQuery)ViewBag.Query;
 }
 
 <div class="space-y-4">
-    <div>
-        <h2 class="text-2xl font-extrabold">Raporlar</h2>
-        <p class="text-sm text-gray-400">Aidat borç/alacaklarını ve aidat harici gelir-gider hareketlerini görüntüleyebilirsiniz.</p>
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Hesap Ekstresi</h2>
+            <p class="text-sm text-gray-400">Aidat tahakkuklarını, kalan borçları ve alacak bakiyelerini görüntüleyebilirsiniz.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Raporlar
+        </a>
     </div>
 
     @if (TempData["Success"] is string successMessage)
@@ -30,16 +35,7 @@
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
-            <h3 class="text-lg font-bold mb-3">Daire Borç/Alacak Raporu</h3>
             <form method="get" class="space-y-4">
-                <input type="hidden" name="LedgerType" value="@ledgerQuery.LedgerType" />
-                @foreach (var categoryId in ledgerQuery.LedgerCategoryIds)
-                {
-                    <input type="hidden" name="LedgerCategoryIds" value="@categoryId" />
-                }
-                <input type="hidden" name="LedgerStartDate" value="@(ledgerQuery.LedgerStartDate?.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="LedgerEndDate" value="@(ledgerQuery.LedgerEndDate?.ToString("yyyy-MM-dd"))" />
-
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Blok</legend>
@@ -99,7 +95,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var row in Model.DuesRows)
+                @foreach (var row in Model)
                 {
                     <tr>
                         <td class="font-medium">
@@ -141,121 +137,13 @@
                         </td>
                     </tr>
                 }
-                @if (Model.DuesRows.Count == 0)
+                @if (Model.Count == 0)
                 {
                     <tr>
-                        <td colspan="7" class="text-center text-sm text-gray-500 py-8">Filtreye uygun aidat bakiyesi bulunamadı.</td>
+                        <td colspan="7" class="text-center text-sm text-gray-500 py-8">Filtreye uygun hesap ekstresi bulunamadı.</td>
                     </tr>
                 }
                 </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="p-6">
-            <h3 class="text-lg font-bold mb-3">Gelir/Gider Raporu</h3>
-            <form method="get" class="space-y-4">
-                <input type="hidden" name="BlockId" value="@query.BlockId" />
-                <input type="hidden" name="DuesTypeId" value="@query.DuesTypeId" />
-                <input type="hidden" name="BillingGroupId" value="@query.BillingGroupId" />
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <fieldset class="fieldset">
-                        <legend class="fieldset-legend">Tip</legend>
-                        <select class="select select-bordered" name="LedgerType">
-                            <option value="" selected="@(string.IsNullOrWhiteSpace(ledgerQuery.LedgerType))">Tümü</option>
-                            <option value="Gelir" selected="@(ledgerQuery.LedgerType == "Gelir")">Gelir</option>
-                            <option value="Gider" selected="@(ledgerQuery.LedgerType == "Gider")">Gider</option>
-                        </select>
-                    </fieldset>
-                    <fieldset class="fieldset md:col-span-2">
-                        <legend class="fieldset-legend">Gelir/Gider Kategorileri</legend>
-                        <select class="select select-bordered min-h-32" name="LedgerCategoryIds" multiple size="6">
-                            @foreach (var option in ledgerCategories)
-                            {
-                                <option value="@option.Value" selected="@option.Selected">@option.Text</option>
-                            }
-                        </select>
-                    </fieldset>
-                    <div class="grid grid-cols-1 gap-4">
-                        <fieldset class="fieldset">
-                            <legend class="fieldset-legend">Başlangıç</legend>
-                            <input class="input input-bordered" type="date" name="LedgerStartDate" value="@(ledgerQuery.LedgerStartDate?.ToString("yyyy-MM-dd"))" />
-                        </fieldset>
-                        <fieldset class="fieldset">
-                            <legend class="fieldset-legend">Bitiş</legend>
-                            <input class="input input-bordered" type="date" name="LedgerEndDate" value="@(ledgerQuery.LedgerEndDate?.ToString("yyyy-MM-dd"))" />
-                        </fieldset>
-                    </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                    <button class="btn btn-primary" type="submit">
-                        <span class="material-symbols-outlined ms-sm">filter_alt</span>
-                        Filtrele
-                    </button>
-                    <a class="btn btn-ghost" asp-action="DuesDebt">Temizle</a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="table table-zebra">
-                <thead>
-                    <tr>
-                        <th>Tarih</th>
-                        <th>Tip</th>
-                        <th>Kategori</th>
-                        <th>Kasa / Banka</th>
-                        <th>Açıklama</th>
-                        <th class="text-end">Tutar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var row in Model.LedgerRows)
-                {
-                    <tr>
-                        <td>@row.Date.ToString("dd.MM.yyyy")</td>
-                        <td>
-                            <span class="badge @(row.CategoryType == "Gelir" ? "badge-success badge-soft" : "badge-error badge-soft")">
-                                @row.CategoryType
-                            </span>
-                        </td>
-                        <td><span class="badge badge-info badge-soft">@row.CategoryName</span></td>
-                        <td>
-                            <span class="badge badge-ghost">
-                                @(string.IsNullOrWhiteSpace(row.AccountName) ? row.PaymentChannelName : row.AccountName)
-                            </span>
-                        </td>
-                        <td class="text-sm text-gray-500">@row.Description</td>
-                        <td class="text-end font-bold @(row.CategoryType == "Gelir" ? "text-success" : "text-error")">
-                            @row.Amount.ToString("N2")
-                        </td>
-                    </tr>
-                }
-                @if (Model.LedgerRows.Count == 0)
-                {
-                    <tr>
-                        <td colspan="6" class="text-center text-sm text-gray-500 py-8">Filtreye uygun gelir/gider kaydı bulunamadı.</td>
-                    </tr>
-                }
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <th colspan="5" class="text-end">Gelir Toplamı</th>
-                        <th class="text-end text-success">@Model.LedgerIncomeTotal.ToString("N2")</th>
-                    </tr>
-                    <tr>
-                        <th colspan="5" class="text-end">Gider Toplamı</th>
-                        <th class="text-end text-error">@Model.LedgerExpenseTotal.ToString("N2")</th>
-                    </tr>
-                    <tr>
-                        <th colspan="5" class="text-end">Net Toplam</th>
-                        <th class="text-end @(Model.LedgerNetTotal >= 0 ? "text-success" : "text-error")">@Model.LedgerNetTotal.ToString("N2")</th>
-                    </tr>
-                </tfoot>
             </table>
         </div>
     </div>

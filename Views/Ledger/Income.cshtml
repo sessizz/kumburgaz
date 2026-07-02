@@ -1,0 +1,121 @@
+@model Kumburgaz.Web.Models.LedgerIndexViewModel
+@using Kumburgaz.Web.Services
+@{
+    ViewData["Title"] = "Gelirler";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Gelirler</h2>
+            <p class="text-sm text-gray-400">Aidat dışı gelir hareketleri</p>
+        </div>
+        <div class="flex gap-2">
+            <a class="btn btn-outline btn-sm"
+               asp-action="ExportIncomeCsv"
+               asp-route-categoryId="@Model.CategoryId"
+               asp-route-startDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+               asp-route-endDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))">
+                <span class="material-symbols-outlined ms-sm">download</span>
+                CSV
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ImportSuccess"] is string successMessage)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
+    }
+    @if (TempData["ImportError"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Gelir kategorisi</legend>
+                <select name="categoryId" class="select select-bordered w-full">
+                    <option value="">Tüm kategoriler</option>
+                    @foreach (var option in Model.CategoryOptions)
+                    {
+                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input type="date" name="startDate" value="@(Model.StartDate?.ToString("yyyy-MM-dd"))" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input type="date" name="endDate" value="@(Model.EndDate?.ToString("yyyy-MM-dd"))" class="input input-bordered w-full" />
+            </fieldset>
+            <div class="flex gap-2">
+                <button class="btn btn-primary flex-1" type="submit">
+                    <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                    Filtrele
+                </button>
+                <a class="btn btn-ghost" asp-action="Income">Temizle</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Kategori</th>
+                        <th class="text-end">Tutar</th>
+                        <th>Kasa / Banka</th>
+                        <th>Açıklama</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.Date.ToString("dd.MM.yyyy")</td>
+                        <td><span class="badge badge-info badge-soft">@row.IncomeExpenseCategory?.Name</span></td>
+                        <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
+                        <td>
+                            <span class="badge badge-ghost">
+                                @(row.CashBox?.Name ?? row.BankAccount?.Name ?? EnumDisplayHelper.Display(row.PaymentChannel))
+                            </span>
+                        </td>
+                        <td class="text-sm text-gray-500">@row.Description</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-sm text-gray-500 py-8">Filtreye uygun gelir bulunamadı.</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

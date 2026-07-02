@@ -1,9 +1,16 @@
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
     var settingsControllers = new[] { "Settings", "DuesTypes", "BillingGroups", "IncomeExpenseCategories", "Blocks", "OpeningBalances" };
 
     string IsActive(params string[] controllers) =>
         controllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : string.Empty;
+
+    string IsActiveAction(string controller, string action) =>
+        string.Equals(currentController, controller, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(currentAction, action, StringComparison.OrdinalIgnoreCase)
+            ? "active"
+            : string.Empty;
 
     string PageTitle() => ViewData["Title"]?.ToString() ?? "Kumburgaz Yönetim";
 }
@@ -141,7 +148,8 @@
             <a class="dk-nav @IsActive("Accounts")" asp-controller="Accounts" asp-action="Index"><span class="mi material-symbols-outlined">contacts</span>Hesaplar</a>
             <div class="dk-section">Finans</div>
             <a class="dk-nav @IsActive("Dues", "Collections", "DuesGeneration")" asp-controller="Dues" asp-action="Index"><span class="mi material-symbols-outlined">receipt_long</span>Aidatlar</a>
-            <a class="dk-nav @IsActive("Ledger")" asp-controller="Ledger" asp-action="Index"><span class="mi material-symbols-outlined">payments</span>Giderler</a>
+            <a class="dk-nav @IsActiveAction("Ledger", "Income")" asp-controller="Ledger" asp-action="Income"><span class="mi material-symbols-outlined">trending_up</span>Gelirler</a>
+            <a class="dk-nav @IsActiveAction("Ledger", "Index")" asp-controller="Ledger" asp-action="Index"><span class="mi material-symbols-outlined">payments</span>Giderler</a>
             <a class="dk-nav @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index"><span class="mi material-symbols-outlined">account_balance_wallet</span>Kasa &amp; Banka</a>
             <div class="dk-section">İşlemler</div>
             <a class="dk-nav @IsActive("Announcements")" asp-controller="Announcements" asp-action="Index"><span class="mi material-symbols-outlined">campaign</span>Duyurular</a>

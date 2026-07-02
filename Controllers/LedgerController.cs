@@ -56,6 +56,50 @@ public class LedgerController(ApplicationDbContext db) : Controller
         return File(bytes, "text/csv; charset=utf-8", "giderler.csv");
     }
 
+    public async Task<IActionResult> Income(int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
+        var rows = await BuildIncomeQuery(categoryId, startDate, endDate)
+            .OrderByDescending(x => x.Date)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        return View(new LedgerIndexViewModel
+        {
+            CategoryId = categoryId,
+            StartDate = startDate,
+            EndDate = endDate,
+            CategoryOptions = await BuildIncomeCategoryOptionsAsync(categoryId),
+            Rows = rows
+        });
+    }
+
+    public async Task<IActionResult> ExportIncomeCsv(int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
+        var rows = await BuildIncomeQuery(categoryId, startDate, endDate)
+            .OrderByDescending(x => x.Date)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        var csvRows = new List<string[]>
+        {
+            new[] { "GelirKategoriId", "KategoriTipi", "KategoriAdi", "Tarih", "Tutar", "OdemeKanali", "Aciklama" }
+        };
+
+        csvRows.AddRange(rows.Select(x => new[]
+        {
+            x.IncomeExpenseCategoryId?.ToString() ?? string.Empty,
+            x.IncomeExpenseCategory?.Type ?? string.Empty,
+            x.IncomeExpenseCategory?.Name ?? string.Empty,
+            x.Date.ToString("yyyy-MM-dd"),
+            x.Amount.ToString(CultureInfo.InvariantCulture),
+            EnumDisplayHelper.Display(x.PaymentChannel),
+            x.Description ?? string.Empty
+        }));
+
+        var bytes = CsvExportHelper.BuildCsv(csvRows.ToArray());
+        return File(bytes, "text/csv; charset=utf-8", "gelirler.csv");
+    }
+
     public async Task<IActionResult> Create()
     {
         return View(await BuildAsync(new LedgerTransactionCreateViewModel()));
@@ -245,11 +289,21 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private IQueryable<LedgerTransaction> BuildExpenseQuery(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
+        return BuildLedgerQuery(CategoryTypeHelper.Gider, categoryId, startDate, endDate);
+    }
+
+    private IQueryable<LedgerTransaction> BuildIncomeQuery(int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
+        return BuildLedgerQuery(CategoryTypeHelper.Gelir, categoryId, startDate, endDate);
+    }
+
+    private IQueryable<LedgerTransaction> BuildLedgerQuery(string categoryType, int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
         var query = db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
             .Include(x => x.CashBox)
             .Include(x => x.BankAccount)
-            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider);
+            .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == categoryType);
 
         if (categoryId.HasValue)
         {
@@ -273,9 +327,19 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private async Task<List<SelectListItem>> BuildExpenseCategoryOptionsAsync(int? selectedId)
     {
+        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gider, selectedId);
+    }
+
+    private async Task<List<SelectListItem>> BuildIncomeCategoryOptionsAsync(int? selectedId)
+    {
+        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gelir, selectedId);
+    }
+
+    private async Task<List<SelectListItem>> BuildCategoryOptionsAsync(string categoryType, int? selectedId)
+    {
         return await db.IncomeExpenseCategories
             .AsNoTracking()
-            .Where(x => x.Active && x.Type == CategoryTypeHelper.Gider)
+            .Where(x => x.Active && x.Type == categoryType)
             .OrderBy(x => x.Type)
             .ThenBy(x => x.Name)
             .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString(), selectedId == x.Id))

@@ -51,8 +51,29 @@ public class UnitStatementService(ApplicationDbContext db)
             });
         }
 
-        // 3) Tahsilatlar — bu dairenin taksitlerine yapılan tahsisler
+        // 3) Tahsilatlar - cari hareket olarak gerçek tahsilat kaydı tek satır gösterilir.
         var installmentIds = installments.Select(x => x.Id).ToList();
+        var displayedCollectionIds = new HashSet<int>();
+
+        var unitCollections = await db.Collections.AsNoTracking()
+            .Include(x => x.Allocations)
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Where(x => x.UnitId == unitId)
+            .ToListAsync();
+
+        foreach (var collection in unitCollections)
+        {
+            displayedCollectionIds.Add(collection.Id);
+            entries.Add(new StatementEntry
+            {
+                Kind = StatementEntryKind.Collection,
+                Date = collection.Date,
+                Description = $"{collection.BillingGroup?.DuesType?.Name ?? "Aidat"} Tahsilatı",
+                Amount = -collection.Amount
+            });
+        }
+
         if (installmentIds.Count > 0)
         {
             var allocations = await db.CollectionAllocations.AsNoTracking()
@@ -65,6 +86,11 @@ public class UnitStatementService(ApplicationDbContext db)
 
             foreach (var alloc in allocations.Where(a => a.Collection is not null))
             {
+                if (displayedCollectionIds.Contains(alloc.Collection!.Id))
+                {
+                    continue;
+                }
+
                 var period = alloc.DuesInstallment?.Period ?? "";
                 var typeName = alloc.DuesInstallment?.BillingGroup?.DuesType?.Name ?? "Aidat";
                 entries.Add(new StatementEntry
@@ -77,31 +103,7 @@ public class UnitStatementService(ApplicationDbContext db)
             }
         }
 
-        var unitCollections = await db.Collections.AsNoTracking()
-            .Include(x => x.Allocations)
-            .Include(x => x.BillingGroup)
-            .ThenInclude(x => x!.DuesType)
-            .Where(x => x.UnitId == unitId)
-            .ToListAsync();
-
-        foreach (var collection in unitCollections)
-        {
-            var advanceAmount = collection.Amount - collection.Allocations.Sum(x => x.AppliedAmount);
-            if (advanceAmount <= 0)
-            {
-                continue;
-            }
-
-            entries.Add(new StatementEntry
-            {
-                Kind = StatementEntryKind.Collection,
-                Date = collection.Date,
-                Description = $"{collection.BillingGroup?.DuesType?.Name ?? "Aidat"} Avans Tahsilatı",
-                Amount = -advanceAmount
-            });
-        }
-
-        // Tarihe göre sırala (en eski önce), borcu aşan tahsilatları avans olarak ayır ve yürüyen bakiyeyi hesapla
+        // Tarihe göre sırala (en eski önce) ve yürüyen bakiyeyi cari hesap gibi hesapla.
         var orderedRaw = entries
             .OrderBy(x => x.Date)
             .ThenBy(x => x.Kind == StatementEntryKind.Debt ? 0 : 1)
@@ -111,30 +113,6 @@ public class UnitStatementService(ApplicationDbContext db)
         decimal running = 0m;
         foreach (var entry in orderedRaw)
         {
-            if (entry.Kind == StatementEntryKind.Collection && entry.Amount < 0)
-            {
-                var collectionAmount = -entry.Amount;
-                if (running <= 0)
-                {
-                    AddStatementEntry(ordered, entry, -collectionAmount, BuildAdvanceDescription(entry.Description), ref running);
-                    continue;
-                }
-
-                var appliedToDebt = Math.Min(running, collectionAmount);
-                if (appliedToDebt > 0)
-                {
-                    AddStatementEntry(ordered, entry, -appliedToDebt, entry.Description, ref running);
-                }
-
-                var advanceAmount = collectionAmount - appliedToDebt;
-                if (advanceAmount > 0)
-                {
-                    AddStatementEntry(ordered, entry, -advanceAmount, BuildAdvanceDescription(entry.Description), ref running);
-                }
-
-                continue;
-            }
-
             AddStatementEntry(ordered, entry, entry.Amount, entry.Description, ref running);
         }
 
@@ -157,22 +135,5 @@ public class UnitStatementService(ApplicationDbContext db)
             Amount = amount,
             RunningBalance = running
         });
-    }
-
-    private static string BuildAdvanceDescription(string description)
-    {
-        if (description.Contains("Avans", StringComparison.OrdinalIgnoreCase))
-        {
-            return description;
-        }
-
-        var text = description.Replace(" Tahsilatı", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-        var separatorIndex = text.LastIndexOf(" - ", StringComparison.Ordinal);
-        if (separatorIndex >= 0)
-        {
-            text = text[(separatorIndex + 3)..].Trim();
-        }
-
-        return $"{text} Avans Tahsilatı";
     }
 }

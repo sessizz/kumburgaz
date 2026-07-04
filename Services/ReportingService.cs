@@ -108,26 +108,17 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             }
         }
 
-        var collectionCredits = await db.Collections
-            .AsNoTracking()
-            .Include(x => x.Unit)
-            .Include(x => x.BillingGroup)
-            .Where(x => query.BillingGroupId == null || x.BillingGroupId == query.BillingGroupId)
-            .Where(x => query.DuesTypeId == null || x.BillingGroup!.DuesTypeId == query.DuesTypeId)
-            .Where(x => query.BlockId == null || x.Unit!.BlockId == query.BlockId)
-            .Select(x => new
-            {
-                x.UnitId,
-                Credit = x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault()
-            })
-            .Where(x => x.Credit > 0)
-            .ToListAsync();
+        var collectionCredits = await CollectionCreditHelper.BuildUnitCreditMapAsync(
+            db,
+            query.BlockId,
+            query.BillingGroupId,
+            query.DuesTypeId);
 
         foreach (var credit in collectionCredits)
         {
-            if (rowsByKey.TryGetValue(UnitKey(credit.UnitId), out var row))
+            if (rowsByKey.TryGetValue(UnitKey(credit.Key), out var row))
             {
-                row.RemainingAmount -= credit.Credit;
+                row.RemainingAmount -= credit.Value;
             }
         }
 

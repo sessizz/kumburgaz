@@ -217,14 +217,17 @@ public class DuesController(
             .ToListAsync();
         if (units.Count == 0) return;
 
+        var collectionCredits = await CollectionCreditHelper.BuildUnitCreditMapAsync(db);
+
         foreach (var unit in units)
         {
             var unitRows = rows.Where(r => r.UnitId == unit.Id).ToList();
+            var collectionCredit = collectionCredits.GetValueOrDefault(unit.Id);
 
             if (unit.OpeningBalance > 0)
             {
                 // Alacak: ödenmemiş taksitlerin kalanından düş (en eski tarihten başla)
-                var credit = unit.OpeningBalance;
+                var credit = unit.OpeningBalance + collectionCredit;
                 foreach (var row in unitRows.Where(r => !r.IsPaid).OrderBy(r => r.AccrualDate).ThenBy(r => r.PaymentOrDueDate))
                 {
                     if (credit <= 0) break;
@@ -250,9 +253,13 @@ public class DuesController(
             }
             else
             {
-                // Borç: ek satır olarak ekle (sadece tarihi varsa)
-                if (unit.OpeningBalanceDate.HasValue)
-                    rows.Add(BuildOpeningBalanceRow(unit, -unit.OpeningBalance));
+                // Borç: tahsis edilmemiş tahsilat fazlası varsa önce devreden borcu kapatır.
+                var debt = -unit.OpeningBalance;
+                var appliedCredit = Math.Min(debt, collectionCredit);
+                debt -= appliedCredit;
+
+                if (debt > 0 && unit.OpeningBalanceDate.HasValue)
+                    rows.Add(BuildOpeningBalanceRow(unit, debt));
             }
         }
     }

@@ -354,6 +354,13 @@ public class ReportsController(
             .OrderBy(x => x.Name)
             .Select(x => new SelectListItem(x.Name, x.Id.ToString(), duesQuery.BillingGroupId == x.Id))
             .ToListAsync();
+
+        ViewBag.BalanceStatuses = new List<SelectListItem>
+        {
+            new("Borçlular", "debt", string.Equals(duesQuery.BalanceStatus, "debt", StringComparison.OrdinalIgnoreCase)),
+            new("Alacaklılar", "credit", string.Equals(duesQuery.BalanceStatus, "credit", StringComparison.OrdinalIgnoreCase)),
+            new("Bakiyesizler", "clear", string.Equals(duesQuery.BalanceStatus, "clear", StringComparison.OrdinalIgnoreCase))
+        };
     }
 
     private async Task<(string Name, decimal OpeningBalance, DateTime OpeningDate)?> GetFinancialAccountInfoAsync(int? cashBoxId, int? bankAccountId)

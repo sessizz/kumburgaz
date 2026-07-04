@@ -122,7 +122,16 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             }
         }
 
-        return rowsByKey.Values
+        var rows = rowsByKey.Values.AsEnumerable();
+        rows = query.BalanceStatus?.Trim().ToLowerInvariant() switch
+        {
+            "debt" => rows.Where(x => x.RemainingAmount > 0),
+            "credit" => rows.Where(x => x.RemainingAmount < 0),
+            "clear" => rows.Where(x => x.RemainingAmount == 0),
+            _ => rows
+        };
+
+        return rows
             .OrderBy(x => x.UnitDisplay)
             .ToList();
     }

@@ -133,6 +133,7 @@ public class DuesDebtReportQuery
     public int? BlockId { get; set; }
     public int? BillingGroupId { get; set; }
     public int? DuesTypeId { get; set; }
+    public string? BalanceStatus { get; set; }
 }
 
 public class CashBankStatementQuery

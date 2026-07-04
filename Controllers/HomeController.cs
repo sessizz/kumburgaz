@@ -128,6 +128,7 @@ public class HomeController(
     private async Task<DashboardDebtSnapshot> BuildDebtSnapshotAsync()
     {
         var reportRows = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery());
+        var summary = DuesDebtSummaryHelper.Build(reportRows);
         var debtorRows = reportRows
             .Where(x => x.RemainingAmount > 0)
             .OrderByDescending(x => x.RemainingAmount)
@@ -135,8 +136,8 @@ public class HomeController(
             .ToList();
 
         return new DashboardDebtSnapshot(
-            debtorRows.Sum(x => x.RemainingAmount),
-            debtorRows.Count,
+            summary.TotalDebt,
+            summary.DebtorCount,
             debtorRows
                 .Take(5)
                 .Select(x => new DashboardOverdueItem

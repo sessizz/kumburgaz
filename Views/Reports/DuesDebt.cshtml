@@ -1,15 +1,11 @@
 @model List<Kumburgaz.Web.Models.DuesDebtReportRow>
 @using Kumburgaz.Web.Models
+@using Kumburgaz.Web.Services
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "Hesap Ekstresi";
     var query = (DuesDebtReportQuery)ViewBag.Query;
-    var debtorRows = Model.Where(x => x.RemainingAmount > 0).ToList();
-    var creditorRows = Model.Where(x => x.RemainingAmount < 0).ToList();
-    var clearRows = Model.Where(x => x.RemainingAmount == 0).ToList();
-    var totalDebt = debtorRows.Sum(x => x.RemainingAmount);
-    var totalCredit = creditorRows.Sum(x => Math.Abs(x.RemainingAmount));
-    var totalAccrual = Model.Sum(x => x.Amount);
+    var summary = DuesDebtSummaryHelper.Build(Model);
 }
 
 <div class="space-y-4">
@@ -42,7 +38,7 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
             <form method="get" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Blok</legend>
                         <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
@@ -61,6 +57,12 @@
                             <option value="">Tüm</option>
                         </select>
                     </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Borç Durumu</legend>
+                        <select class="select select-bordered" name="BalanceStatus" asp-items="(IEnumerable<SelectListItem>)ViewBag.BalanceStatuses">
+                            <option value="">Tümü</option>
+                        </select>
+                    </fieldset>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button class="btn btn-primary" type="submit">
@@ -70,14 +72,16 @@
                     <a class="btn btn-outline btn-success" asp-action="DuesDebtExcel"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
-                       asp-route-BillingGroupId="@query.BillingGroupId">
+                       asp-route-BillingGroupId="@query.BillingGroupId"
+                       asp-route-BalanceStatus="@query.BalanceStatus">
                         <span class="material-symbols-outlined ms-sm">table_chart</span>
                         Excel
                     </a>
                     <a class="btn btn-outline btn-error" asp-action="DuesDebtPdf"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
-                       asp-route-BillingGroupId="@query.BillingGroupId">
+                       asp-route-BillingGroupId="@query.BillingGroupId"
+                       asp-route-BalanceStatus="@query.BalanceStatus">
                         <span class="material-symbols-outlined ms-sm">picture_as_pdf</span>
                         PDF
                     </a>
@@ -161,23 +165,23 @@
         <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Borçlu</div>
-                <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@debtorRows.Count</div>
-                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@totalDebt.ToString("N2") TL</div>
+                <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@summary.DebtorCount</div>
+                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@summary.TotalDebt.ToString("N2") TL</div>
             </div>
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Alacaklı</div>
-                <div class="mt-2 text-2xl font-extrabold text-info tabular-nums">@creditorRows.Count</div>
-                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@totalCredit.ToString("N2") TL</div>
+                <div class="mt-2 text-2xl font-extrabold text-info tabular-nums">@summary.CreditorCount</div>
+                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@summary.TotalCredit.ToString("N2") TL</div>
             </div>
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Bakiyesiz</div>
-                <div class="mt-2 text-2xl font-extrabold text-success tabular-nums">@clearRows.Count</div>
+                <div class="mt-2 text-2xl font-extrabold text-success tabular-nums">@summary.ClearCount</div>
                 <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">0,00 TL</div>
             </div>
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Net Bakiye</div>
-                <div class="mt-2 text-2xl font-extrabold @(totalDebt - totalCredit > 0 ? "text-error" : totalDebt - totalCredit < 0 ? "text-info" : "text-success") tabular-nums">@Math.Abs(totalDebt - totalCredit).ToString("N2") TL</div>
-                <div class="mt-1 text-sm text-gray-500 tabular-nums">Tahakkuk: @totalAccrual.ToString("N2") TL</div>
+                <div class="mt-2 text-2xl font-extrabold @(summary.NetBalance > 0 ? "text-error" : summary.NetBalance < 0 ? "text-info" : "text-success") tabular-nums">@Math.Abs(summary.NetBalance).ToString("N2") TL</div>
+                <div class="mt-1 text-sm text-gray-500 tabular-nums">Tahakkuk: @summary.TotalAccrual.ToString("N2") TL</div>
             </div>
         </div>
     </div>

@@ -56,9 +56,9 @@
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
             <div class="ico" style="background:#fef2f2;"><span class="material-symbols-outlined" style="color:#ef4444;">error</span></div>
             <div class="min-w-0 flex-1">
-                <div class="text-xs text-gray-500 font-medium">Geciken Borç</div>
+                <div class="text-xs text-gray-500 font-medium">Borçlu Bakiye</div>
                 <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.OverdueDebt)</div>
-                <div class="text-xs mt-1"><span class="text-red-600 font-semibold">@Model.OverdueUnitCount</span> <span class="text-gray-400">daire</span></div>
+                <div class="text-xs mt-1"><span class="text-red-600 font-semibold">@Model.OverdueUnitCount</span> <span class="text-gray-400">borçlu</span></div>
             </div>
         </div>
 
@@ -186,16 +186,15 @@
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold text-gray-900">Geciken Aidatlar</h3>
+                <h3 class="text-sm font-bold text-gray-900">Borçlu Hesaplar</h3>
                 <a class="text-xs text-blue-600 hover:underline font-medium" asp-controller="Reports" asp-action="DuesDebt">Tümünü Gör</a>
             </div>
-            <div class="tbl-row tbl-h" style="grid-template-columns: 1fr 90px 62px;"><span>Daire</span><span class="text-right">Geciken</span><span class="text-right">Gün</span></div>
+            <div class="tbl-row tbl-h" style="grid-template-columns: 1fr 100px;"><span>Daire</span><span class="text-right">Bakiye</span></div>
             @foreach (var row in Model.OverdueItems)
             {
-                <div class="tbl-row text-sm" style="grid-template-columns: 1fr 90px 62px;">
+                <div class="tbl-row text-sm" style="grid-template-columns: 1fr 100px;">
                     <span class="font-medium text-gray-900 truncate">@row.UnitDisplay</span>
                     <span class="text-right tabular-nums font-semibold text-gray-900">@ShortMoney(row.Amount)</span>
-                    <span class="text-right text-red-600 font-semibold tabular-nums">@row.Days gün</span>
                 </div>
             }
         </div>

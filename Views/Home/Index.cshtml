@@ -168,10 +168,16 @@
                     var groupX = 62 + i * 98;
                     var incomeHeight = (double)(row.Income / maxCash * 170m);
                     var expenseHeight = (double)(row.Expense / maxCash * 170m);
-                    <g>
+                    var groupTop = 220 - Math.Max(incomeHeight, expenseHeight);
+                    <g class="cf-group">
+                        <rect x="@(groupX - 12)" y="20" width="70" height="220" fill="transparent" />
                         <rect x="@groupX" y="@SvgNum(220 - incomeHeight)" width="22" height="@SvgNum(incomeHeight)" rx="3" fill="#10b981" />
                         <rect x="@(groupX + 24)" y="@SvgNum(220 - expenseHeight)" width="22" height="@SvgNum(expenseHeight)" rx="3" fill="#ef4444" />
                         <text x="@(groupX + 23)" y="250" text-anchor="middle" font-family="Inter" font-size="11" fill="#9ca3af">@row.Month</text>
+                        <g class="cf-val" font-family="Inter, sans-serif" font-size="10" font-weight="700" text-anchor="middle">
+                            <text x="@(groupX + 23)" y="@SvgNum(groupTop - 18)" fill="#059669">@row.Income.ToString("N0")</text>
+                            <text x="@(groupX + 23)" y="@SvgNum(groupTop - 6)" fill="#dc2626">@row.Expense.ToString("N0")</text>
+                        </g>
                     </g>
                 }
                 <polyline fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="@points" />

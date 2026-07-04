@@ -81,6 +81,9 @@
         .day.is-today .num { background:#fff; color:#2563eb; width:32px; height:32px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
         .day.is-today .marker { background:rgba(255,255,255,.85); }
         .hbar-track { height:8px; border-radius:999px; background:#f1f5f9; overflow:hidden; }
+        .cf-val { opacity:0; transition:opacity .15s ease; pointer-events:none; }
+        .cf-val text { paint-order:stroke; stroke:#fff; stroke-width:3px; stroke-linejoin:round; }
+        .cf-group:hover .cf-val { opacity:1; }
         .hbar-fill { height:100%; border-radius:999px; }
         .tbl-row { display:grid; align-items:center; padding:8px 0; }
         .tbl-row + .tbl-row { border-top:1px solid #f3f4f6; }

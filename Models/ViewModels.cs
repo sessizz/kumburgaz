@@ -708,6 +708,7 @@ public class ExpenseForecastItem
     public decimal Amount { get; set; }
     public decimal Percent { get; set; }
     public string Color { get; set; } = "#3b82f6";
+    public string Basis { get; set; } = string.Empty;
 }
 
 public class DashboardOverdueItem
@@ -755,6 +756,8 @@ public class DashboardViewModel
     public decimal NetPosition { get; set; }
     public int ActiveUnits { get; set; }
     public int OpenRequestCount { get; set; }
+    public int ForecastConfidence { get; set; }
+    public string ForecastMonthLabel { get; set; } = string.Empty;
     public List<ExpenseForecastItem> ExpenseForecast { get; set; } = [];
     public List<DashboardCashflowMonth> Cashflow { get; set; } = [];
     public List<DashboardOverdueItem> OverdueItems { get; set; } = [];

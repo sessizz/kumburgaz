@@ -120,17 +120,17 @@
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div class="flex items-center justify-between mb-5">
-                <div class="flex items-center gap-2">
+                <div>
                     <h3 class="text-base font-bold text-gray-900">Gider Tahmin Dağılımı</h3>
-                    <span class="material-symbols-outlined text-gray-300" style="font-size:18px;">info</span>
+                    <div class="text-xs text-gray-400 mt-0.5">@Model.ForecastMonthLabel tahmini</div>
                 </div>
-                <span class="pill pill-info">Tahmin güveni %82</span>
+                <span class="pill pill-info" title="Kategori bazlı tahmin yöntemlerinin tutar ağırlıklı güven ortalaması">Tahmin güveni %@Model.ForecastConfidence</span>
             </div>
 
             <div class="space-y-4">
                 @foreach (var item in Model.ExpenseForecast)
                 {
-                    <div class="grid grid-cols-[90px_1fr_130px_58px] items-center gap-3 text-sm">
+                    <div class="grid grid-cols-[minmax(0,150px)_1fr_110px_50px] items-center gap-3 text-sm" title="@item.Basis">
                         <span class="text-gray-700 font-medium truncate">@item.Name</span>
                         <div class="hbar-track"><div class="hbar-fill" style="width:@item.Percent.ToString("N1", System.Globalization.CultureInfo.InvariantCulture)%; background:@item.Color;"></div></div>
                         <span class="text-right text-gray-900 font-semibold tabular-nums">@ShortMoney(item.Amount)</span>
@@ -142,6 +142,9 @@
             <div class="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
                 <span class="text-sm text-gray-500">Toplam Tahmini Gider</span>
                 <span class="text-base font-extrabold text-gray-900 tabular-nums">@Money(Model.ForecastExpense)</span>
+            </div>
+            <div class="mt-2 text-[11px] leading-relaxed text-gray-400">
+                Maaş 6 aylık dönemlerde sabit kabul edilir, yeni dönemde son zam oranı uygulanır; SGK ve ikramiye maaşa endekslidir; diğer kalemler geçmiş aylara ve mevsimselliğe göre tahmin edilir. Satırların üzerine gelerek yöntemi görebilirsiniz.
             </div>
         </div>
 

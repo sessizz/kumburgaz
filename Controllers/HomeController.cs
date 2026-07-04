@@ -9,7 +9,8 @@ namespace Kumburgaz.Web.Controllers;
 
 public class HomeController(
     ApplicationDbContext db,
-    IReportingService reportingService) : Controller
+    IReportingService reportingService,
+    IExpenseForecastService expenseForecastService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -78,12 +79,13 @@ public class HomeController(
             .SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var monthCollectionCount = await db.Collections.CountAsync(x => x.Date >= monthStart && x.Date < nextMonthStart);
 
-        var expenseForecast = await BuildExpenseForecastAsync(monthStart);
-        var forecastExpense = expenseForecast.Sum(x => x.Amount);
+        var forecast = await expenseForecastService.BuildAsync(monthStart);
+        var expenseForecast = forecast.Items;
+        var forecastExpense = forecast.Total;
 
         var debtSnapshot = await BuildDebtSnapshotAsync();
 
-        var upcomingExpenses = expenseForecast.Take(5).Select((x, index) => new DashboardUpcomingExpense
+        var upcomingExpenses = expenseForecast.Where(x => x.Name != "Diğer").Take(5).Select((x, index) => new DashboardUpcomingExpense
         {
             Name = x.Name,
             Amount = x.Amount,
@@ -104,6 +106,8 @@ public class HomeController(
             NetPosition = monthCollections - forecastExpense,
             ActiveUnits = await db.Units.CountAsync(x => x.Active),
             OpenRequestCount = await db.ServiceRequests.CountAsync(x => x.Status == ServiceRequestStatus.Open || x.Status == ServiceRequestStatus.InProgress),
+            ForecastConfidence = forecast.Confidence,
+            ForecastMonthLabel = monthStart.ToString("MMMM yyyy"),
             ExpenseForecast = expenseForecast,
             Cashflow = await BuildCashflowAsync(monthStart),
             OverdueItems = debtSnapshot.Items,
@@ -147,45 +151,6 @@ public class HomeController(
                     Amount = x.RemainingAmount
                 })
                 .ToList());
-    }
-
-    private async Task<List<ExpenseForecastItem>> BuildExpenseForecastAsync(DateTime monthStart)
-    {
-        var previousStart = monthStart.AddMonths(-6);
-        var rows = await db.LedgerTransactions.AsNoTracking()
-            .Include(x => x.IncomeExpenseCategory)
-            .Where(x => x.Date >= previousStart &&
-                        x.Date < monthStart &&
-                        !x.IsTransfer &&
-                        x.IncomeExpenseCategory != null &&
-                        x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
-            .GroupBy(x => x.IncomeExpenseCategory!.Name)
-            .Select(x => new { Name = x.Key, Amount = x.Sum(t => t.Amount) / 6m })
-            .OrderByDescending(x => x.Amount)
-            .ToListAsync();
-
-        if (rows.Count == 0)
-        {
-            rows =
-            [
-                new { Name = "Maaşlar", Amount = 186000m },
-                new { Name = "Elektrik", Amount = 72000m },
-                new { Name = "Temizlik", Amount = 48000m },
-                new { Name = "Güvenlik", Amount = 46000m },
-                new { Name = "Bakım", Amount = 36900m },
-                new { Name = "Ortak Alan", Amount = 24000m }
-            ];
-        }
-
-        var total = rows.Sum(x => x.Amount);
-        var colors = new[] { "#3b82f6", "#06b6d4", "#10b981", "#f59e0b", "#fb923c", "#ef4444" };
-        return rows.Take(6).Select((x, index) => new ExpenseForecastItem
-        {
-            Name = x.Name,
-            Amount = x.Amount,
-            Percent = total > 0 ? x.Amount / total * 100m : 0m,
-            Color = colors[index % colors.Length]
-        }).ToList();
     }
 
     private async Task<List<DashboardCashflowMonth>> BuildCashflowAsync(DateTime monthStart)

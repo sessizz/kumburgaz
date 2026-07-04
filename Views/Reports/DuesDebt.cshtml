@@ -4,6 +4,12 @@
 @{
     ViewData["Title"] = "Hesap Ekstresi";
     var query = (DuesDebtReportQuery)ViewBag.Query;
+    var debtorRows = Model.Where(x => x.RemainingAmount > 0).ToList();
+    var creditorRows = Model.Where(x => x.RemainingAmount < 0).ToList();
+    var clearRows = Model.Where(x => x.RemainingAmount == 0).ToList();
+    var totalDebt = debtorRows.Sum(x => x.RemainingAmount);
+    var totalCredit = creditorRows.Sum(x => Math.Abs(x.RemainingAmount));
+    var totalAccrual = Model.Sum(x => x.Amount);
 }
 
 <div class="space-y-4">
@@ -145,6 +151,34 @@
                 }
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-extrabold text-gray-900">İcmal</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Borçlu</div>
+                <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@debtorRows.Count</div>
+                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@totalDebt.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Alacaklı</div>
+                <div class="mt-2 text-2xl font-extrabold text-info tabular-nums">@creditorRows.Count</div>
+                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">@totalCredit.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Bakiyesiz</div>
+                <div class="mt-2 text-2xl font-extrabold text-success tabular-nums">@clearRows.Count</div>
+                <div class="mt-1 text-sm font-bold text-gray-900 tabular-nums">0,00 TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Net Bakiye</div>
+                <div class="mt-2 text-2xl font-extrabold @(totalDebt - totalCredit > 0 ? "text-error" : totalDebt - totalCredit < 0 ? "text-info" : "text-success") tabular-nums">@Math.Abs(totalDebt - totalCredit).ToString("N2") TL</div>
+                <div class="mt-1 text-sm text-gray-500 tabular-nums">Tahakkuk: @totalAccrual.ToString("N2") TL</div>
+            </div>
         </div>
     </div>
 </div>

@@ -15,21 +15,14 @@ public class HomeController(ApplicationDbContext db) : Controller
         var monthStart = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var nextMonthStart = monthStart.AddMonths(1);
 
-        var overdueRemaining = await db.DuesInstallments
-            .Where(x => x.RemainingAmount > 0 && x.DueDate < todayUtc)
-            .SumAsync(x => (decimal?)x.RemainingAmount) ?? 0m;
-        var pendingRemaining = await db.DuesInstallments
-            .Where(x => x.RemainingAmount > 0 && x.DueDate >= todayUtc)
-            .SumAsync(x => (decimal?)x.RemainingAmount) ?? 0m;
-
         var openingCredit = await db.Units.Where(x => x.Active && x.OpeningBalance > 0).SumAsync(x => (decimal?)x.OpeningBalance) ?? 0m;
         var openingDebt   = await db.Units.Where(x => x.Active && x.OpeningBalance < 0).SumAsync(x => (decimal?)(-x.OpeningBalance)) ?? 0m;
 
         var actualCollections = await db.Collections.SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var totalGenerated = await db.DuesInstallments.SumAsync(x => (decimal?)x.Amount) ?? 0m;
+        var totalCharge = totalGenerated + openingDebt;
         var totalCollections = actualCollections + openingCredit;
-        var totalDebt = overdueRemaining + openingDebt;
-        var collectionRate = totalGenerated > 0 ? totalCollections / totalGenerated * 100m : 0m;
+        var collectionRate = totalCharge > 0 ? Math.Min(100m, totalCollections / totalCharge * 100m) : 0m;
 
         var ledgerIncome = await db.LedgerTransactions
             .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
@@ -86,20 +79,7 @@ public class HomeController(ApplicationDbContext db) : Controller
         var expenseForecast = await BuildExpenseForecastAsync(monthStart);
         var forecastExpense = expenseForecast.Sum(x => x.Amount);
 
-        var overdueItems = await db.DuesInstallments.AsNoTracking()
-            .Include(x => x.Unit).ThenInclude(x => x!.Block)
-            .Include(x => x.ResponsibleAccount)
-            .Where(x => x.RemainingAmount > 0 && x.DueDate < todayUtc)
-            .OrderBy(x => x.DueDate)
-            .Take(5)
-            .Select(x => new DashboardOverdueItem
-            {
-                UnitDisplay = x.Unit == null ? x.BillingGroup!.Name : (x.Unit.Block!.Name + " No " + x.Unit.UnitNo),
-                OwnerName = x.ResponsibleAccount != null ? x.ResponsibleAccount.Name : (x.Unit == null ? "" : (x.Unit.OwnerName ?? "")),
-                Amount = x.RemainingAmount,
-                Days = Math.Max(1, (int)(todayUtc - x.DueDate.Date).TotalDays)
-            })
-            .ToListAsync();
+        var overdueSnapshot = await BuildOverdueSnapshotAsync(todayUtc);
 
         var upcomingExpenses = expenseForecast.Take(5).Select((x, index) => new DashboardUpcomingExpense
         {
@@ -113,8 +93,8 @@ public class HomeController(ApplicationDbContext db) : Controller
         {
             CollectionRate = collectionRate,
             TotalGenerated = totalGenerated,
-            OverdueDebt = totalDebt,
-            OverdueUnitCount = await db.DuesInstallments.Where(x => x.RemainingAmount > 0 && x.DueDate < todayUtc).Select(x => x.UnitId).Distinct().CountAsync(),
+            OverdueDebt = overdueSnapshot.TotalDebt,
+            OverdueUnitCount = overdueSnapshot.UnitCount,
             ForecastExpense = forecastExpense,
             MonthCollections = monthCollections,
             MonthCollectionCount = monthCollectionCount,
@@ -124,7 +104,7 @@ public class HomeController(ApplicationDbContext db) : Controller
             OpenRequestCount = await db.ServiceRequests.CountAsync(x => x.Status == ServiceRequestStatus.Open || x.Status == ServiceRequestStatus.InProgress),
             ExpenseForecast = expenseForecast,
             Cashflow = await BuildCashflowAsync(monthStart),
-            OverdueItems = overdueItems,
+            OverdueItems = overdueSnapshot.Items,
             UpcomingExpenses = upcomingExpenses,
             RecentRequests = await db.ServiceRequests.AsNoTracking()
                 .Include(x => x.Unit).ThenInclude(x => x!.Block)
@@ -141,6 +121,122 @@ public class HomeController(ApplicationDbContext db) : Controller
         };
 
         return View(vm);
+    }
+
+    private async Task<DashboardOverdueSnapshot> BuildOverdueSnapshotAsync(DateTime todayUtc)
+    {
+        var installments = await db.DuesInstallments.AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.ResponsibleAccount)
+            .Where(x => x.RemainingAmount > 0)
+            .Where(x => x.UnitId == null || x.Unit!.Active)
+            .OrderBy(x => x.UnitId)
+            .ThenBy(x => x.AccrualDate)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Id)
+            .ToListAsync();
+
+        var collectionCredits = await CollectionCreditHelper.BuildUnitCreditMapAsync(db);
+        var items = new List<DashboardOverdueItem>();
+
+        foreach (var group in installments.Where(x => x.UnitId.HasValue).GroupBy(x => x.UnitId!.Value))
+        {
+            var first = group.First();
+            var unit = first.Unit;
+            if (unit is null)
+            {
+                continue;
+            }
+
+            var credit = collectionCredits.GetValueOrDefault(unit.Id);
+            if (unit.OpeningBalance > 0)
+            {
+                credit += unit.OpeningBalance;
+            }
+
+            var overdueAmount = 0m;
+            var oldestOverdueDate = DateTime.MaxValue;
+
+            if (unit.OpeningBalance < 0)
+            {
+                var openingDebt = -unit.OpeningBalance;
+                var appliedCredit = Math.Min(openingDebt, credit);
+                openingDebt -= appliedCredit;
+                credit -= appliedCredit;
+
+                var openingDate = unit.OpeningBalanceDate?.Date ?? DateTime.MinValue;
+                if (openingDebt > 0 && openingDate < todayUtc)
+                {
+                    overdueAmount += openingDebt;
+                    oldestOverdueDate = openingDate;
+                }
+            }
+
+            foreach (var installment in group)
+            {
+                var remaining = installment.RemainingAmount;
+                if (credit > 0)
+                {
+                    var reduction = Math.Min(remaining, credit);
+                    remaining -= reduction;
+                    credit -= reduction;
+                }
+
+                if (remaining <= 0 || installment.DueDate.Date >= todayUtc)
+                {
+                    continue;
+                }
+
+                overdueAmount += remaining;
+                if (installment.DueDate.Date < oldestOverdueDate)
+                {
+                    oldestOverdueDate = installment.DueDate.Date;
+                }
+            }
+
+            if (overdueAmount <= 0)
+            {
+                continue;
+            }
+
+            items.Add(new DashboardOverdueItem
+            {
+                UnitDisplay = UnitDisplayHelper.Display(unit),
+                OwnerName = first.ResponsibleAccount?.Name ?? unit.OwnerName ?? string.Empty,
+                Amount = overdueAmount,
+                Days = Math.Max(1, (int)(todayUtc - oldestOverdueDate).TotalDays)
+            });
+        }
+
+        var overdueUnitCount = items.Count;
+
+        foreach (var installment in installments.Where(x => !x.UnitId.HasValue && x.DueDate.Date < todayUtc))
+        {
+            items.Add(new DashboardOverdueItem
+            {
+                UnitDisplay = installment.BillingGroup?.Name ?? "Aidat",
+                OwnerName = installment.ResponsibleAccount?.Name ?? string.Empty,
+                Amount = installment.RemainingAmount,
+                Days = Math.Max(1, (int)(todayUtc - installment.DueDate.Date).TotalDays)
+            });
+        }
+
+        return new DashboardOverdueSnapshot(
+            items.Sum(x => x.Amount),
+            overdueUnitCount,
+            items
+                .OrderByDescending(x => x.Amount)
+                .ThenByDescending(x => x.Days)
+                .ThenBy(x => x.UnitDisplay)
+                .Take(5)
+                .ToList());
     }
 
     private async Task<List<ExpenseForecastItem>> BuildExpenseForecastAsync(DateTime monthStart)
@@ -251,4 +347,6 @@ public class HomeController(ApplicationDbContext db) : Controller
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
+
+    private sealed record DashboardOverdueSnapshot(decimal TotalDebt, int UnitCount, List<DashboardOverdueItem> Items);
 }

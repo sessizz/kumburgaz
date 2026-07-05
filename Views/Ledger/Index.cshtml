@@ -13,6 +13,8 @@
         var categoryQuery = string.Join("&", Model.CategoryIds.Select(id => $"categoryIds={id}"));
         exportUrl = $"{exportUrl}{(exportUrl.Contains('?') ? "&" : "?")}{categoryQuery}";
     }
+
+    string CategoryBadgeClass(int? categoryId) => $"badge ledger-category-badge ledger-category-{Math.Abs(categoryId.GetValueOrDefault()) % 12}";
 }
 
 <div class="space-y-4">
@@ -129,7 +131,7 @@
                 {
                     <tr>
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
-                        <td><span class="badge badge-info badge-soft">@row.IncomeExpenseCategory?.Name</span></td>
+                        <td><span class="@CategoryBadgeClass(row.IncomeExpenseCategoryId)">@row.IncomeExpenseCategory?.Name</span></td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
                         <td>
                             <span class="badge badge-ghost">
@@ -203,7 +205,7 @@
                     {
                         var share = Model.TotalAmount == 0 ? 0 : row.TotalAmount / Model.TotalAmount * 100;
                         <tr>
-                            <td><span class="badge badge-info badge-soft">@row.CategoryName</span></td>
+                            <td><span class="@CategoryBadgeClass(row.CategoryId)">@row.CategoryName</span></td>
                             <td class="text-end tabular-nums">@row.Count</td>
                             <td class="text-end font-bold tabular-nums">@row.TotalAmount.ToString("N2") TL</td>
                             <td class="text-end tabular-nums">@share.ToString("N1")%</td>

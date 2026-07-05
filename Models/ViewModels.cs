@@ -417,6 +417,7 @@ public class LedgerIndexViewModel
 
 public class LedgerCategorySummaryRow
 {
+    public int? CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public int Count { get; set; }
     public decimal TotalAmount { get; set; }

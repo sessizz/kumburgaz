@@ -104,3 +104,68 @@ body {
   border-color:#94a3b8 !important;
   color:#f8fafc !important;
 }
+
+html[data-theme="light"] body .badge.ledger-category-badge {
+  color:#fff !important;
+  font-weight:700;
+}
+html[data-theme="light"] body .badge.ledger-category-0 {
+  background-color:#2563eb !important;
+  border-color:#2563eb !important;
+  color:#eff6ff !important;
+}
+html[data-theme="light"] body .badge.ledger-category-1 {
+  background-color:#f59e0b !important;
+  border-color:#f59e0b !important;
+  color:#fffbeb !important;
+}
+html[data-theme="light"] body .badge.ledger-category-2 {
+  background-color:#10b981 !important;
+  border-color:#10b981 !important;
+  color:#ecfdf5 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-3 {
+  background-color:#8b5cf6 !important;
+  border-color:#8b5cf6 !important;
+  color:#f5f3ff !important;
+}
+html[data-theme="light"] body .badge.ledger-category-4 {
+  background-color:#f43f5e !important;
+  border-color:#f43f5e !important;
+  color:#fff1f2 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-5 {
+  background-color:#14b8a6 !important;
+  border-color:#14b8a6 !important;
+  color:#f0fdfa !important;
+}
+html[data-theme="light"] body .badge.ledger-category-6 {
+  background-color:#6366f1 !important;
+  border-color:#6366f1 !important;
+  color:#eef2ff !important;
+}
+html[data-theme="light"] body .badge.ledger-category-7 {
+  background-color:#84cc16 !important;
+  border-color:#84cc16 !important;
+  color:#f7fee7 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-8 {
+  background-color:#d946ef !important;
+  border-color:#d946ef !important;
+  color:#fdf4ff !important;
+}
+html[data-theme="light"] body .badge.ledger-category-9 {
+  background-color:#f97316 !important;
+  border-color:#f97316 !important;
+  color:#fff7ed !important;
+}
+html[data-theme="light"] body .badge.ledger-category-10 {
+  background-color:#06b6d4 !important;
+  border-color:#06b6d4 !important;
+  color:#ecfeff !important;
+}
+html[data-theme="light"] body .badge.ledger-category-11 {
+  background-color:#64748b !important;
+  border-color:#64748b !important;
+  color:#f8fafc !important;
+}

@@ -340,10 +340,15 @@ public class LedgerController(ApplicationDbContext db) : Controller
     private static List<LedgerCategorySummaryRow> BuildCategorySummaryRows(List<LedgerTransaction> rows)
     {
         return rows
-            .GroupBy(x => x.IncomeExpenseCategory?.Name ?? "Kategorisiz")
+            .GroupBy(x => new
+            {
+                x.IncomeExpenseCategoryId,
+                Name = x.IncomeExpenseCategory?.Name ?? "Kategorisiz"
+            })
             .Select(x => new LedgerCategorySummaryRow
             {
-                CategoryName = x.Key,
+                CategoryId = x.Key.IncomeExpenseCategoryId,
+                CategoryName = x.Key.Name,
                 Count = x.Count(),
                 TotalAmount = x.Sum(row => row.Amount)
             })

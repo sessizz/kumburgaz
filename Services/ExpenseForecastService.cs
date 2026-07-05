@@ -9,7 +9,9 @@ namespace Kumburgaz.Web.Services;
 /// - Maaş: 6 aylık dönemler (Şubat-Temmuz / Ağustos-Ocak) içinde sabittir. Dönem içi ay tahmin
 ///   edilirken son gözlenen maaş aynen kullanılır; yeni (henüz gözlenmemiş) dönem tahmin edilirken
 ///   son zam oranı tekrar uygulanır (yıllık enflasyona yakın bir varsayım).
-/// - SGK / ikramiye: maaşa endekslidir; mevcut dönem ortalaması maaş zam katsayısıyla ölçeklenir.
+/// - İkramiye: yalnızca Ramazan ve Kurban bayramı aylarında ödenir. Bayram ayları Hicri takvimden
+///   hesaplanır, gözlenen ödeme gecikmesi veriden kalibre edilir; tutar maaş zammıyla ölçeklenir.
+/// - SGK: maaşa endekslidir; mevcut dönem ortalaması maaş zam katsayısıyla ölçeklenir.
 /// - Diğer kategoriler (elektrik, su, doğalgaz, bakım onarım...): mevsimseldir; geçen yılın aynı ayı
 ///   yıllık artış katsayısıyla ölçeklenir, geçen yıl verisi yoksa son ayların ağırlıklı ortalaması alınır.
 /// </summary>
@@ -61,6 +63,10 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
                 forecast = salaryForecast > 0
                     ? new CategoryForecast(name, salaryForecast, salaryBasis, salaryConfidence)
                     : null;
+            }
+            else if (IsBonus(name))
+            {
+                forecast = ForecastBayramBonus(name, months, monthStart, salaryEntry.Value, salaryForecast, salaryFactor);
             }
             else if (IsSalaryIndexed(name))
             {
@@ -117,7 +123,9 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
 
     private static bool IsSalary(string name) => Contains(name, "maaş");
 
-    private static bool IsSalaryIndexed(string name) => Contains(name, "sgk") || Contains(name, "ikramiye");
+    private static bool IsBonus(string name) => Contains(name, "ikramiye");
+
+    private static bool IsSalaryIndexed(string name) => Contains(name, "sgk");
 
     private static bool Contains(string name, string keyword) =>
         name.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
@@ -179,7 +187,7 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
             return null;
         }
 
-        // Son gözlenen maaş dönemi içindeki aylık ortalama (ikramiye gibi düzensiz ödemeleri aya yayar).
+        // Son gözlenen maaş dönemi içindeki aylık ortalama (atlanan/çift ödenen ayları düzler).
         var latestPeriod = months.Keys.Select(SalaryPeriodStart).Max();
         var periodEnd = latestPeriod.AddMonths(6) < target ? latestPeriod.AddMonths(6) : target;
         var elapsed = Math.Max(1, (periodEnd.Year - latestPeriod.Year) * 12 + periodEnd.Month - latestPeriod.Month);
@@ -193,6 +201,77 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
             : "Maaşa endeksli: mevcut dönem ortalaması";
         return new CategoryForecast(name, amount, basis, factor > 1m ? 70 : 85);
     }
+
+    private static readonly System.Globalization.UmAlQuraCalendar Hijri = new();
+
+    /// <summary>İlgili tarihin çevresindeki Ramazan (1 Şevval) ve Kurban (10 Zilhicce) bayramı günleri.</summary>
+    private static List<(DateTime Day, string Name)> BayramDays(DateTime around)
+    {
+        var result = new List<(DateTime, string)>();
+        var hijriYear = Hijri.GetYear(around);
+        for (var hy = hijriYear - 3; hy <= hijriYear + 1; hy++)
+        {
+            result.Add((Hijri.ToDateTime(hy, 10, 1, 0, 0, 0, 0), "Ramazan Bayramı"));
+            result.Add((Hijri.ToDateTime(hy, 12, 10, 0, 0, 0, 0), "Kurban Bayramı"));
+        }
+        return result;
+    }
+
+    private static CategoryForecast? ForecastBayramBonus(
+        string name, Dictionary<DateTime, decimal> months, DateTime target,
+        Dictionary<DateTime, decimal>? salaryMonths, decimal salaryForecast, decimal salaryFactor)
+    {
+        var payments = months.Where(x => x.Value > 0).OrderBy(x => x.Key).ToList();
+        if (payments.Count == 0)
+        {
+            return null;
+        }
+
+        var bayramlar = BayramDays(target);
+
+        // Ödemeler bayram ayının kendisine değil bir sonraki aya kaydedilmiş olabilir;
+        // gecikme, gözlenen ödemelerin en yakın bayrama uzaklığından kalibre edilir.
+        var offset = payments
+            .Select(p => bayramlar
+                .Select(b => MonthDiff(p.Key, new DateTime(b.Day.Year, b.Day.Month, 1)))
+                .OrderBy(Math.Abs)
+                .ThenByDescending(d => d) // eşitlikte "bayramdan sonra ödendi" varsayılır
+                .First())
+            .GroupBy(x => x)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => Math.Abs(g.Key))
+            .First().Key;
+
+        var due = bayramlar
+            .Where(b => new DateTime(b.Day.Year, b.Day.Month, 1).AddMonths(offset) == target)
+            .Select(b => b.Name)
+            .FirstOrDefault();
+        if (due == null)
+        {
+            return null; // bu ay bayram ikramiyesi ayı değil
+        }
+
+        // Tutar maaşa endekslidir: son ikramiyenin, ödendiği dönemin maaşına oranı korunarak
+        // hedef ayın maaş tahminine uygulanır (veride ikramiye = 1 maaş).
+        var lastPayment = payments[^1];
+        var amount = lastPayment.Value;
+        if (salaryMonths is { Count: > 0 } && salaryForecast > 0)
+        {
+            var paymentPeriod = SalaryPeriodStart(lastPayment.Key);
+            var periodSalary = salaryMonths
+                .Where(x => SalaryPeriodStart(x.Key) == paymentPeriod)
+                .OrderByDescending(x => x.Key)
+                .Select(x => x.Value)
+                .FirstOrDefault();
+            amount = periodSalary > 0
+                ? lastPayment.Value / periodSalary * salaryForecast
+                : lastPayment.Value * salaryFactor;
+        }
+
+        return new CategoryForecast(name, Math.Round(amount, 2), $"{due} ikramiyesi (maaşa endeksli)", 85);
+    }
+
+    private static int MonthDiff(DateTime a, DateTime b) => (a.Year - b.Year) * 12 + a.Month - b.Month;
 
     private static CategoryForecast? ForecastSeasonal(
         string name, Dictionary<DateTime, decimal> months, DateTime target)

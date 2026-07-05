@@ -12,27 +12,30 @@ namespace Kumburgaz.Web.Controllers;
 [Authorize]
 public class LedgerController(ApplicationDbContext db) : Controller
 {
-    public async Task<IActionResult> Index(int? categoryId, DateTime? startDate, DateTime? endDate)
+    public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await BuildExpenseQuery(categoryId, startDate, endDate)
+        var selectedCategoryIds = NormalizeCategoryIds(categoryIds, categoryId);
+        var rows = await BuildExpenseQuery(selectedCategoryIds, startDate, endDate)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
         return View(new LedgerIndexViewModel
         {
-            CategoryId = categoryId,
+            CategoryId = selectedCategoryIds.Count == 1 ? selectedCategoryIds[0] : null,
+            CategoryIds = selectedCategoryIds,
             StartDate = startDate,
             EndDate = endDate,
-            CategoryOptions = await BuildExpenseCategoryOptionsAsync(categoryId),
+            CategoryOptions = await BuildExpenseCategoryOptionsAsync(selectedCategoryIds),
             Rows = rows,
             CategorySummaryRows = BuildCategorySummaryRows(rows)
         });
     }
 
-    public async Task<IActionResult> ExportCsv(int? categoryId, DateTime? startDate, DateTime? endDate)
+    public async Task<IActionResult> ExportCsv(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await BuildExpenseQuery(categoryId, startDate, endDate)
+        var selectedCategoryIds = NormalizeCategoryIds(categoryIds, categoryId);
+        var rows = await BuildExpenseQuery(selectedCategoryIds, startDate, endDate)
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
@@ -282,24 +285,24 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private async Task<LedgerTransactionCreateViewModel> BuildAsync(LedgerTransactionCreateViewModel model)
     {
-        model.CategoryOptions = await BuildExpenseCategoryOptionsAsync(model.IncomeExpenseCategoryId);
+        model.CategoryOptions = await BuildExpenseCategoryOptionsAsync(NormalizeCategoryIds([], model.IncomeExpenseCategoryId));
 
         model.AccountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, model.AccountKey);
 
         return model;
     }
 
-    private IQueryable<LedgerTransaction> BuildExpenseQuery(int? categoryId, DateTime? startDate, DateTime? endDate)
+    private IQueryable<LedgerTransaction> BuildExpenseQuery(IReadOnlyCollection<int> categoryIds, DateTime? startDate, DateTime? endDate)
     {
-        return BuildLedgerQuery(CategoryTypeHelper.Gider, categoryId, startDate, endDate);
+        return BuildLedgerQuery(CategoryTypeHelper.Gider, categoryIds, startDate, endDate);
     }
 
     private IQueryable<LedgerTransaction> BuildIncomeQuery(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        return BuildLedgerQuery(CategoryTypeHelper.Gelir, categoryId, startDate, endDate);
+        return BuildLedgerQuery(CategoryTypeHelper.Gelir, NormalizeCategoryIds([], categoryId), startDate, endDate);
     }
 
-    private IQueryable<LedgerTransaction> BuildLedgerQuery(string categoryType, int? categoryId, DateTime? startDate, DateTime? endDate)
+    private IQueryable<LedgerTransaction> BuildLedgerQuery(string categoryType, IReadOnlyCollection<int> categoryIds, DateTime? startDate, DateTime? endDate)
     {
         var query = db.LedgerTransactions.AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
@@ -307,9 +310,11 @@ public class LedgerController(ApplicationDbContext db) : Controller
             .Include(x => x.BankAccount)
             .Where(x => x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == categoryType);
 
-        if (categoryId.HasValue)
+        if (categoryIds.Count > 0)
         {
-            query = query.Where(x => x.IncomeExpenseCategoryId == categoryId.Value);
+            query = query.Where(x =>
+                x.IncomeExpenseCategoryId.HasValue &&
+                categoryIds.Contains(x.IncomeExpenseCategoryId.Value));
         }
 
         if (startDate.HasValue)
@@ -327,9 +332,9 @@ public class LedgerController(ApplicationDbContext db) : Controller
         return query;
     }
 
-    private async Task<List<SelectListItem>> BuildExpenseCategoryOptionsAsync(int? selectedId)
+    private async Task<List<SelectListItem>> BuildExpenseCategoryOptionsAsync(IReadOnlyCollection<int> selectedIds)
     {
-        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gider, selectedId);
+        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gider, selectedIds);
     }
 
     private static List<LedgerCategorySummaryRow> BuildCategorySummaryRows(List<LedgerTransaction> rows)
@@ -349,18 +354,33 @@ public class LedgerController(ApplicationDbContext db) : Controller
 
     private async Task<List<SelectListItem>> BuildIncomeCategoryOptionsAsync(int? selectedId)
     {
-        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gelir, selectedId);
+        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gelir, NormalizeCategoryIds([], selectedId));
     }
 
-    private async Task<List<SelectListItem>> BuildCategoryOptionsAsync(string categoryType, int? selectedId)
+    private async Task<List<SelectListItem>> BuildCategoryOptionsAsync(string categoryType, IReadOnlyCollection<int> selectedIds)
     {
         return await db.IncomeExpenseCategories
             .AsNoTracking()
             .Where(x => x.Active && x.Type == categoryType)
             .OrderBy(x => x.Type)
             .ThenBy(x => x.Name)
-            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString(), selectedId == x.Id))
+            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Type)} - {x.Name}", x.Id.ToString(), selectedIds.Contains(x.Id)))
             .ToListAsync();
+    }
+
+    private static List<int> NormalizeCategoryIds(IEnumerable<int> categoryIds, int? categoryId)
+    {
+        var selected = categoryIds
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+        if (selected.Count == 0 && categoryId.HasValue && categoryId.Value > 0)
+        {
+            selected.Add(categoryId.Value);
+        }
+
+        return selected;
     }
 
     private static PaymentChannel ResolvePaymentChannel(LedgerTransactionCreateViewModel model, out int? cashBoxId, out int? bankAccountId)

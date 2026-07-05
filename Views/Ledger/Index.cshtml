@@ -2,6 +2,17 @@
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Giderler";
+    var exportUrl = Url.Action("ExportCsv", "Ledger", new
+    {
+        startDate = Model.StartDate?.ToString("yyyy-MM-dd"),
+        endDate = Model.EndDate?.ToString("yyyy-MM-dd")
+    }) ?? "#";
+
+    if (Model.CategoryIds.Count > 0)
+    {
+        var categoryQuery = string.Join("&", Model.CategoryIds.Select(id => $"categoryIds={id}"));
+        exportUrl = $"{exportUrl}{(exportUrl.Contains('?') ? "&" : "?")}{categoryQuery}";
+    }
 }
 
 <div class="space-y-4">
@@ -11,11 +22,7 @@
             <p class="text-sm text-gray-400">Aidat dışı gelir/gider hareketleri</p>
         </div>
         <div class="flex gap-2">
-            <a class="btn btn-outline btn-sm"
-               asp-action="ExportCsv"
-               asp-route-categoryId="@Model.CategoryId"
-               asp-route-startDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
-               asp-route-endDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))">
+            <a class="btn btn-outline btn-sm" href="@exportUrl">
                 <span class="material-symbols-outlined ms-sm">download</span>
                 CSV
             </a>
@@ -56,16 +63,18 @@
     }
 
     <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-            <fieldset class="fieldset">
-                <legend class="fieldset-legend">Gider kategorisi</legend>
-                <select name="categoryId" class="select select-bordered w-full">
-                    <option value="">Tüm kategoriler</option>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <fieldset class="fieldset md:col-span-2">
+                <legend class="fieldset-legend">Gider kategorileri</legend>
+                <div class="rounded-lg border border-gray-300 max-h-36 overflow-y-auto p-2">
                     @foreach (var option in Model.CategoryOptions)
                     {
-                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                        <label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-gray-50">
+                            <input type="checkbox" name="categoryIds" value="@option.Value" checked="@option.Selected" class="checkbox checkbox-sm" />
+                            <span>@option.Text</span>
+                        </label>
                     }
-                </select>
+                </div>
             </fieldset>
             <fieldset class="fieldset">
                 <legend class="fieldset-legend">Başlangıç</legend>

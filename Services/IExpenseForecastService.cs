@@ -4,7 +4,7 @@ namespace Kumburgaz.Web.Services;
 
 public interface IExpenseForecastService
 {
-    Task<ExpenseForecastResult> BuildAsync(DateTime monthStartUtc);
+    Task<ExpenseForecastResult> BuildAsync(DateTime monthStartUtc, int maxItems = 6);
 }
 
 public class ExpenseForecastResult

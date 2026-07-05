@@ -408,6 +408,17 @@ public class LedgerIndexViewModel
     public DateTime? EndDate { get; set; }
     public List<SelectListItem> CategoryOptions { get; set; } = [];
     public List<LedgerTransaction> Rows { get; set; } = [];
+    public List<LedgerCategorySummaryRow> CategorySummaryRows { get; set; } = [];
+    public decimal TotalAmount => Rows.Sum(x => x.Amount);
+    public decimal AverageAmount => Rows.Count == 0 ? 0 : TotalAmount / Rows.Count;
+    public decimal MaxAmount => Rows.Count == 0 ? 0 : Rows.Max(x => x.Amount);
+}
+
+public class LedgerCategorySummaryRow
+{
+    public string CategoryName { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public decimal TotalAmount { get; set; }
 }
 
 public class CashBoxFormViewModel

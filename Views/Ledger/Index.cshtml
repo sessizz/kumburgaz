@@ -154,4 +154,55 @@
             </table>
         </div>
     </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-extrabold text-gray-900">İcmal</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Toplam Gider</div>
+                <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Model.TotalAmount.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Kayıt Sayısı</div>
+                <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.Rows.Count</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Ortalama Gider</div>
+                <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.AverageAmount.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">En Yüksek Gider</div>
+                <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.MaxAmount.ToString("N2") TL</div>
+            </div>
+        </div>
+        @if (Model.CategorySummaryRows.Count > 0)
+        {
+            <div class="border-t border-gray-100 overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Kategori</th>
+                            <th class="text-end">Kayıt</th>
+                            <th class="text-end">Toplam</th>
+                            <th class="text-end">Pay</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.CategorySummaryRows)
+                    {
+                        var share = Model.TotalAmount == 0 ? 0 : row.TotalAmount / Model.TotalAmount * 100;
+                        <tr>
+                            <td><span class="badge badge-info badge-soft">@row.CategoryName</span></td>
+                            <td class="text-end tabular-nums">@row.Count</td>
+                            <td class="text-end font-bold tabular-nums">@row.TotalAmount.ToString("N2") TL</td>
+                            <td class="text-end tabular-nums">@share.ToString("N1")%</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
 </div>

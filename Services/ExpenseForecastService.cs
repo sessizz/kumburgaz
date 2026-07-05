@@ -22,7 +22,7 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
 
     private sealed record CategoryForecast(string Name, decimal Amount, string Basis, int Confidence);
 
-    public async Task<ExpenseForecastResult> BuildAsync(DateTime monthStartUtc)
+    public async Task<ExpenseForecastResult> BuildAsync(DateTime monthStartUtc, int maxItems = 6)
     {
         var monthStart = new DateTime(monthStartUtc.Year, monthStartUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var historyStart = monthStart.AddMonths(-HistoryMonths);
@@ -89,15 +89,15 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
             ? (int)Math.Round(forecasts.Sum(x => x.Amount * x.Confidence) / total)
             : 0;
 
-        var top = forecasts.Take(Colors.Length).ToList();
-        var restAmount = forecasts.Skip(Colors.Length).Sum(x => x.Amount);
+        var top = forecasts.Take(maxItems).ToList();
+        var restAmount = forecasts.Skip(maxItems).Sum(x => x.Amount);
 
         var items = top.Select((x, index) => new ExpenseForecastItem
         {
             Name = x.Name,
             Amount = x.Amount,
             Percent = total > 0 ? x.Amount / total * 100m : 0m,
-            Color = Colors[index],
+            Color = Colors[index % Colors.Length],
             Basis = x.Basis
         }).ToList();
 

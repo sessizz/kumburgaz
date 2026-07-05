@@ -25,7 +25,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
             StartDate = startDate,
             EndDate = endDate,
             CategoryOptions = await BuildExpenseCategoryOptionsAsync(categoryId),
-            Rows = rows
+            Rows = rows,
+            CategorySummaryRows = BuildCategorySummaryRows(rows)
         });
     }
 
@@ -69,7 +70,8 @@ public class LedgerController(ApplicationDbContext db) : Controller
             StartDate = startDate,
             EndDate = endDate,
             CategoryOptions = await BuildIncomeCategoryOptionsAsync(categoryId),
-            Rows = rows
+            Rows = rows,
+            CategorySummaryRows = BuildCategorySummaryRows(rows)
         });
     }
 
@@ -328,6 +330,21 @@ public class LedgerController(ApplicationDbContext db) : Controller
     private async Task<List<SelectListItem>> BuildExpenseCategoryOptionsAsync(int? selectedId)
     {
         return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gider, selectedId);
+    }
+
+    private static List<LedgerCategorySummaryRow> BuildCategorySummaryRows(List<LedgerTransaction> rows)
+    {
+        return rows
+            .GroupBy(x => x.IncomeExpenseCategory?.Name ?? "Kategorisiz")
+            .Select(x => new LedgerCategorySummaryRow
+            {
+                CategoryName = x.Key,
+                Count = x.Count(),
+                TotalAmount = x.Sum(row => row.Amount)
+            })
+            .OrderByDescending(x => x.TotalAmount)
+            .ThenBy(x => x.CategoryName)
+            .ToList();
     }
 
     private async Task<List<SelectListItem>> BuildIncomeCategoryOptionsAsync(int? selectedId)

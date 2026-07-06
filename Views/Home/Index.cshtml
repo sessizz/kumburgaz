@@ -212,7 +212,13 @@
             @foreach (var row in Model.OverdueItems)
             {
                 <div class="tbl-row text-sm" style="grid-template-columns: 1fr 100px;">
-                    <span class="font-medium text-gray-900 truncate">@row.UnitDisplay</span>
+                    <span class="min-w-0">
+                        <span class="block font-medium text-gray-900 truncate">@row.UnitDisplay</span>
+                        @if (!string.IsNullOrWhiteSpace(row.OwnerName))
+                        {
+                            <span class="block text-xs text-gray-400 truncate" title="@row.OwnerName">@row.OwnerName</span>
+                        }
+                    </span>
                     <span class="text-right tabular-nums font-semibold text-gray-900">@ShortMoney(row.Amount)</span>
                 </div>
             }

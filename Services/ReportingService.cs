@@ -104,6 +104,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
                 if (rowsByKey.TryGetValue(UnitKey(unit.Id), out var row))
                 {
                     row.RemainingAmount -= unit.OpeningBalance;
+                    row.OpeningBalance = unit.OpeningBalance;
                 }
             }
         }
@@ -119,6 +120,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             if (rowsByKey.TryGetValue(UnitKey(credit.Key), out var row))
             {
                 row.RemainingAmount -= credit.Value;
+                row.UnallocatedCredit = credit.Value;
             }
         }
 

@@ -59,6 +59,16 @@
                 <div class="text-xs text-gray-500 font-medium">Borçlu Bakiye</div>
                 <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.OverdueDebt)</div>
                 <div class="text-xs mt-1"><span class="text-red-600 font-semibold">@Model.OverdueUnitCount</span> <span class="text-gray-400">borçlu</span></div>
+                <div class="text-xs text-gray-500 mt-1.5 space-y-0.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-gray-400">Eski devirden</span>
+                        <span class="tabular-nums font-semibold text-gray-700">@Money(Model.OverdueCarriedDebt)</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-gray-400">Aidattan</span>
+                        <span class="tabular-nums font-semibold text-gray-700">@Money(Model.OverdueDuesDebt)</span>
+                    </div>
+                </div>
             </div>
         </div>
 

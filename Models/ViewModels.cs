@@ -215,6 +215,8 @@ public class DuesDebtReportRow
     public DateTime AccrualDate { get; set; }
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
+    public decimal OpeningBalance { get; set; }
+    public decimal UnallocatedCredit { get; set; }
     public string UnitsText { get; set; } = string.Empty;
 }
 
@@ -762,6 +764,8 @@ public class DashboardViewModel
     public decimal TotalGenerated { get; set; }
     public decimal OverdueDebt { get; set; }
     public int OverdueUnitCount { get; set; }
+    public decimal OverdueCarriedDebt { get; set; }
+    public decimal OverdueDuesDebt { get; set; }
     public decimal ForecastExpense { get; set; }
     public decimal MonthCollections { get; set; }
     public int MonthCollectionCount { get; set; }

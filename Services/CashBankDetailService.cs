@@ -295,6 +295,7 @@ public class CashBankDetailService(ApplicationDbContext db)
         foreach (var row in vm.Groups.SelectMany(x => x.Items))
         {
             row.DuesOptions = vm.DuesOptions;
+            row.IncomeCategoryOptions = vm.IncomeCategoryOptions;
             row.ExpenseCategoryOptions = vm.ExpenseCategoryOptions;
             row.TransferAccountOptions = vm.TransferAccountOptions;
 

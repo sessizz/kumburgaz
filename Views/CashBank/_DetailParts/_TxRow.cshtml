@@ -27,6 +27,10 @@
         .Replace("Para transferi:", "", StringComparison.OrdinalIgnoreCase)
         .Replace("Bankaya yatır:", "", StringComparison.OrdinalIgnoreCase)
         .Trim();
+    var isIncomeLedger = Model.Source == "ledger" && Model.Kind == Kumburgaz.Web.Models.TxKind.Girdi;
+    var ledgerCategoryOptions = isIncomeLedger ? Model.IncomeCategoryOptions : Model.ExpenseCategoryOptions;
+    var ledgerCategoryLabel = isIncomeLedger ? "Gelir kategorisi" : "Gider kategorisi";
+    var ledgerEditTitle = isIncomeLedger ? "Geliri Düzenle" : "Ödemeyi Düzenle";
 }
 <li class="tx-row grid grid-cols-1 md:grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
     <div class="bulk-select-cell invisible">
@@ -241,13 +245,13 @@ else if (Model.Source == "ledger")
                 <input type="hidden" name="Id" value="@Model.AccountId" />
                 <input type="hidden" name="IsBankFee" value="false" />
                 <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-bold">Ödemeyi Düzenle</h3>
+                    <h3 class="text-lg font-bold">@ledgerEditTitle</h3>
                     <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="document.getElementById('txEditModal-@modalSuffix').close()">✕</button>
                 </div>
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Gider kategorisi</legend>
+                    <legend class="fieldset-legend">@ledgerCategoryLabel</legend>
                     <select name="IncomeExpenseCategoryId" class="select select-bordered w-full" required>
-                        @foreach (var option in Model.ExpenseCategoryOptions)
+                        @foreach (var option in ledgerCategoryOptions)
                         {
                             <option value="@option.Value" selected="@(Model.IncomeExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
                         }

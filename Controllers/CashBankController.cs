@@ -829,15 +829,22 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var entity = await db.LedgerTransactions.FindAsync(transactionId);
+        var entity = await db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (entity is null) return NotFound();
 
+        var expectedCategoryType = entity.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir
+            ? CategoryTypeHelper.Gelir
+            : CategoryTypeHelper.Gider;
         var category = await db.IncomeExpenseCategories
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == model.IncomeExpenseCategoryId && x.Type == CategoryTypeHelper.Gider);
+            .FirstOrDefaultAsync(x => x.Id == model.IncomeExpenseCategoryId && x.Type == expectedCategoryType);
         if (category is null)
         {
-            TempData["ActionError"] = "Geçerli bir gider kategorisi seçin.";
+            TempData["ActionError"] = expectedCategoryType == CategoryTypeHelper.Gelir
+                ? "Geçerli bir gelir kategorisi seçin."
+                : "Geçerli bir gider kategorisi seçin.";
             return RedirectToDetail(model.Kind, model.Id);
         }
 
@@ -853,7 +860,9 @@ public class CashBankController(
             : model.Description;
 
         await db.SaveChangesAsync();
-        TempData["ActionSuccess"] = model.IsBankFee ? "Banka masrafı güncellendi." : "Ödeme güncellendi.";
+        TempData["ActionSuccess"] = expectedCategoryType == CategoryTypeHelper.Gelir
+            ? "Gelir güncellendi."
+            : model.IsBankFee ? "Banka masrafı güncellendi." : "Ödeme güncellendi.";
         return RedirectToDetail(model.Kind, model.Id);
     }
 

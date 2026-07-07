@@ -760,6 +760,7 @@ public class TxRow
     public decimal RunningBalance { get; set; }
     public DateTime Date { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
 }

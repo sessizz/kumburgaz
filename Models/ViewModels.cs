@@ -216,6 +216,54 @@ public class BalanceCategoryTotal
     public decimal Amount { get; set; }
 }
 
+public class MonthlyCashFlowViewModel
+{
+    public BalanceReportQuery Query { get; set; } = new();
+    public List<MonthlyCashFlowRow> Rows { get; set; } = [];
+    public decimal CollectionTotal => Rows.Sum(x => x.DuesCollections);
+    public decimal OtherIncomeTotal => Rows.Sum(x => x.OtherIncome);
+    public decimal ExpenseTotal => Rows.Sum(x => x.Expense);
+    public decimal NetTotal => Rows.Sum(x => x.Net);
+}
+
+public class MonthlyCashFlowRow
+{
+    public DateTime Month { get; set; }
+    public decimal DuesCollections { get; set; }
+    public decimal OtherIncome { get; set; }
+    public decimal Expense { get; set; }
+    public decimal TotalIncome => DuesCollections + OtherIncome;
+    public decimal Net => TotalIncome - Expense;
+}
+
+public class DebtAgingViewModel
+{
+    public DuesDebtReportQuery Query { get; set; } = new();
+    public List<DebtAgingRow> Rows { get; set; } = [];
+    public decimal CurrentTotal => Rows.Sum(x => x.Current);
+    public decimal Days1To30Total => Rows.Sum(x => x.Days1To30);
+    public decimal Days31To60Total => Rows.Sum(x => x.Days31To60);
+    public decimal Days61To90Total => Rows.Sum(x => x.Days61To90);
+    public decimal Over90Total => Rows.Sum(x => x.Over90);
+    public decimal CreditTotal => Rows.Sum(x => x.Credit);
+    public decimal DebtTotal => Rows.Sum(x => x.TotalDebt);
+}
+
+public class DebtAgingRow
+{
+    public int UnitId { get; set; }
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string ResponsibleAccountName { get; set; } = string.Empty;
+    public decimal Current { get; set; }
+    public decimal Days1To30 { get; set; }
+    public decimal Days31To60 { get; set; }
+    public decimal Days61To90 { get; set; }
+    public decimal Over90 { get; set; }
+    public decimal Credit { get; set; }
+    public decimal TotalDebt => Current + Days1To30 + Days31To60 + Days61To90 + Over90;
+    public decimal NetBalance => TotalDebt - Credit;
+}
+
 public class DuesDebtReportRow
 {
     public int? InstallmentId { get; set; }

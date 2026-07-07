@@ -82,6 +82,40 @@ public class AuditController(
         return RedirectToAction(nameof(Index));
     }
 
+    public async Task<IActionResult> ImportErrorsCsv(int id)
+    {
+        var batch = await db.ImportBatches
+            .AsNoTracking()
+            .Include(x => x.Rows)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (batch is null)
+        {
+            return NotFound();
+        }
+
+        var problemRows = batch.Rows
+            .Where(x => x.Status is ImportRowStatus.Error or ImportRowStatus.Duplicate or ImportRowStatus.Skipped)
+            .OrderBy(x => x.LineNo)
+            .ToList();
+
+        var csvRows = new List<string[]>
+        {
+            new[] { "ImportNo", "Satir", "Durum", "Hata", "HamVeri" }
+        };
+        csvRows.AddRange(problemRows.Select(x => new[]
+        {
+            batch.ImportNo,
+            x.LineNo.ToString(),
+            x.Status.ToString(),
+            x.ErrorMessage ?? string.Empty,
+            x.RawJson
+        }));
+
+        var bytes = CsvExportHelper.BuildCsv(csvRows.ToArray());
+        return File(bytes, "text/csv; charset=utf-8", $"{batch.ImportNo}-hatali-satirlar.csv");
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RunConsistencyCheck()

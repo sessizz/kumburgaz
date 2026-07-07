@@ -12,7 +12,8 @@ namespace Kumburgaz.Web.Controllers;
 public class ReportsController(
     ApplicationDbContext db,
     IReportingService reportingService,
-    BalanceDetailedReportService balanceDetailedReportService) : Controller
+    BalanceDetailedReportService balanceDetailedReportService,
+    UnitLedgerService unitLedgerService) : Controller
 {
     public IActionResult Index()
     {
@@ -178,6 +179,186 @@ public class ReportsController(
     {
         ViewData["TitleOverride"] = "Gelir/Gider Özeti";
         return await Balance(query);
+    }
+
+    public async Task<IActionResult> MonthlyCashFlow([FromQuery] BalanceReportQuery query)
+    {
+        var today = DateTime.Today;
+        query.EndDate ??= today;
+        query.StartDate ??= new DateTime(today.Year, today.Month, 1).AddMonths(-11);
+
+        var start = query.StartDate.Value.Date;
+        var end = query.EndDate.Value.Date;
+        var startUtc = DateTimeHelper.EnsureUtc(start);
+        var endExclusiveUtc = DateTimeHelper.EnsureUtc(end.AddDays(1));
+
+        var collectionRows = await db.Collections
+            .AsNoTracking()
+            .Where(x => x.Date >= startUtc && x.Date < endExclusiveUtc)
+            .Select(x => new { x.Date, x.Amount })
+            .ToListAsync();
+
+        var ledgerRows = await db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => !x.IsTransfer && x.Date >= startUtc && x.Date < endExclusiveUtc)
+            .Select(x => new
+            {
+                x.Date,
+                x.Amount,
+                CategoryType = x.IncomeExpenseCategory == null ? CategoryTypeHelper.Gider : x.IncomeExpenseCategory.Type
+            })
+            .ToListAsync();
+
+        var monthCursor = new DateTime(start.Year, start.Month, 1);
+        var lastMonth = new DateTime(end.Year, end.Month, 1);
+        var rows = new List<MonthlyCashFlowRow>();
+        while (monthCursor <= lastMonth)
+        {
+            var month = monthCursor;
+            rows.Add(new MonthlyCashFlowRow
+            {
+                Month = month,
+                DuesCollections = collectionRows
+                    .Where(x => x.Date.Year == month.Year && x.Date.Month == month.Month)
+                    .Sum(x => x.Amount),
+                OtherIncome = ledgerRows
+                    .Where(x => x.Date.Year == month.Year && x.Date.Month == month.Month)
+                    .Where(x => CategoryTypeHelper.Normalize(x.CategoryType) == CategoryTypeHelper.Gelir)
+                    .Sum(x => x.Amount),
+                Expense = ledgerRows
+                    .Where(x => x.Date.Year == month.Year && x.Date.Month == month.Month)
+                    .Where(x => CategoryTypeHelper.Normalize(x.CategoryType) == CategoryTypeHelper.Gider)
+                    .Sum(x => x.Amount)
+            });
+
+            monthCursor = monthCursor.AddMonths(1);
+        }
+
+        return View(new MonthlyCashFlowViewModel
+        {
+            Query = query,
+            Rows = rows
+        });
+    }
+
+    public async Task<IActionResult> DebtAging([FromQuery] DuesDebtReportQuery query)
+    {
+        await PopulateFiltersAsync(query);
+
+        var asOf = DateTime.Today;
+        var unitQuery = db.Units
+            .AsNoTracking()
+            .Include(x => x.Block)
+            .Include(x => x.UnitAccounts.Where(ua => ua.Active && ua.Role == UnitAccountRole.Owner))
+            .ThenInclude(x => x.Account)
+            .Where(x => x.Active);
+
+        if (query.BlockId.HasValue)
+        {
+            unitQuery = unitQuery.Where(x => x.BlockId == query.BlockId.Value);
+        }
+
+        if (query.BillingGroupId.HasValue)
+        {
+            unitQuery = unitQuery.Where(x => x.BillingGroupUnits.Any(bg => bg.BillingGroupId == query.BillingGroupId.Value));
+        }
+
+        if (query.DuesTypeId.HasValue)
+        {
+            unitQuery = unitQuery.Where(x => x.BillingGroupUnits.Any(bg => bg.BillingGroup != null && bg.BillingGroup.DuesTypeId == query.DuesTypeId.Value));
+        }
+
+        var units = await unitQuery
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+        var summaries = await unitLedgerService.BuildSummariesAsync(units.Select(x => x.Id));
+        var rows = new List<DebtAgingRow>();
+
+        foreach (var unit in units)
+        {
+            if (!summaries.TryGetValue(unit.Id, out var summary))
+            {
+                continue;
+            }
+
+            var row = new DebtAgingRow
+            {
+                UnitId = unit.Id,
+                UnitDisplay = UnitDisplayHelper.Display(unit),
+                ResponsibleAccountName = unit.UnitAccounts
+                    .OrderByDescending(x => x.StartDate ?? DateTime.MinValue)
+                    .Select(x => x.Account?.Name)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? unit.OwnerName ?? string.Empty,
+                Credit = summary.Advance
+            };
+
+            var remainingDebt = summary.Debt;
+            if (remainingDebt > 0)
+            {
+                var installmentQuery = db.DuesInstallments
+                    .AsNoTracking()
+                    .Include(x => x.BillingGroup)
+                    .Where(x => x.UnitId == unit.Id && x.RemainingAmount > 0);
+
+                if (query.BillingGroupId.HasValue)
+                {
+                    installmentQuery = installmentQuery.Where(x => x.BillingGroupId == query.BillingGroupId.Value);
+                }
+
+                if (query.DuesTypeId.HasValue)
+                {
+                    installmentQuery = installmentQuery.Where(x => x.BillingGroup != null && x.BillingGroup.DuesTypeId == query.DuesTypeId.Value);
+                }
+
+                var installments = await installmentQuery
+                    .OrderBy(x => x.DueDate)
+                    .ThenBy(x => x.Id)
+                    .ToListAsync();
+
+                foreach (var installment in installments)
+                {
+                    if (remainingDebt <= 0)
+                    {
+                        break;
+                    }
+
+                    var amount = Math.Min(remainingDebt, installment.RemainingAmount);
+                    ApplyAgingBucket(row, amount, installment.DueDate, asOf);
+                    remainingDebt -= amount;
+                }
+
+                if (remainingDebt > 0)
+                {
+                    row.Over90 += remainingDebt;
+                }
+            }
+
+            if (query.BalanceStatus?.Equals("debt", StringComparison.OrdinalIgnoreCase) == true && row.TotalDebt <= 0)
+            {
+                continue;
+            }
+
+            if (query.BalanceStatus?.Equals("credit", StringComparison.OrdinalIgnoreCase) == true && row.Credit <= 0)
+            {
+                continue;
+            }
+
+            if (query.BalanceStatus?.Equals("clear", StringComparison.OrdinalIgnoreCase) == true &&
+                (row.TotalDebt != 0 || row.Credit != 0))
+            {
+                continue;
+            }
+
+            rows.Add(row);
+        }
+
+        return View(new DebtAgingViewModel
+        {
+            Query = query,
+            Rows = rows
+        });
     }
 
     public async Task<IActionResult> Income([FromQuery] BalanceReportQuery query)
@@ -755,6 +936,31 @@ public class ReportsController(
         await db.SaveChangesAsync();
         TempData["Success"] = "Borç kaydı silindi.";
         return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
+    }
+
+    private static void ApplyAgingBucket(DebtAgingRow row, decimal amount, DateTime dueDate, DateTime asOf)
+    {
+        var daysOverdue = (asOf.Date - dueDate.Date).Days;
+        if (daysOverdue <= 0)
+        {
+            row.Current += amount;
+        }
+        else if (daysOverdue <= 30)
+        {
+            row.Days1To30 += amount;
+        }
+        else if (daysOverdue <= 60)
+        {
+            row.Days31To60 += amount;
+        }
+        else if (daysOverdue <= 90)
+        {
+            row.Days61To90 += amount;
+        }
+        else
+        {
+            row.Over90 += amount;
+        }
     }
 
     private async Task PopulateFiltersAsync(DuesDebtReportQuery duesQuery)

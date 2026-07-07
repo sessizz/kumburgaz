@@ -59,6 +59,10 @@
                         <td>@batch.Rows.Count</td>
                         <td>@batch.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
                         <td class="text-end">
+                            @if (batch.Rows.Any(x => x.Status is ImportRowStatus.Error or ImportRowStatus.Duplicate or ImportRowStatus.Skipped))
+                            {
+                                <a class="btn btn-xs btn-outline" asp-action="ImportErrorsCsv" asp-route-id="@batch.Id">Hatalı CSV</a>
+                            }
                             @if (batch.Status == ImportBatchStatus.Committed)
                             {
                                 <form asp-action="RollbackImport" method="post" class="inline">

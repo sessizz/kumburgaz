@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Kumburgaz.Web.Models;
 
@@ -52,7 +53,7 @@ public class BackupService(
         }
 
         var pgTarget = Path.Combine(BackupDirectory, $"kumburgaz-{reason}-{stamp}.dump");
-        await RunProcessAsync("pg_dump", BuildPgDumpArgs(connectionString, pgTarget), connectionString, cancellationToken);
+        await RunProcessAsync(GetPgToolPath("PgDumpPath", "PG_DUMP_PATH", "pg_dump"), BuildPgDumpArgs(connectionString, pgTarget), connectionString, cancellationToken);
         return pgTarget;
     }
 
@@ -68,7 +69,7 @@ public class BackupService(
             return;
         }
 
-        await RunProcessAsync("pg_restore", BuildPgRestoreArgs(connectionString, filePath), connectionString, cancellationToken);
+        await RunProcessAsync(GetPgToolPath("PgRestorePath", "PG_RESTORE_PATH", "pg_restore"), BuildPgRestoreArgs(connectionString, filePath), connectionString, cancellationToken);
     }
 
     public string ResolveBackupPath(string fileName)
@@ -130,6 +131,13 @@ public class BackupService(
         return $"{BuildPgConnectionArgs(connectionString)} --clean --if-exists \"{source}\"";
     }
 
+    private string GetPgToolPath(string configKey, string environmentKey, string defaultTool)
+    {
+        return Environment.GetEnvironmentVariable(environmentKey)
+            ?? configuration[$"Backups:{configKey}"]
+            ?? defaultTool;
+    }
+
     private static string BuildPgConnectionArgs(string connectionString)
     {
         var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries)
@@ -162,12 +170,26 @@ public class BackupService(
             start.Environment["PGPASSWORD"] = password;
         }
 
-        using var process = Process.Start(start) ?? throw new InvalidOperationException($"{fileName} başlatılamadı.");
-        await process.WaitForExitAsync(cancellationToken);
-        if (process.ExitCode != 0)
+        Process process;
+        try
         {
-            var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-            throw new InvalidOperationException($"{fileName} başarısız: {error}");
+            process = Process.Start(start) ?? throw new InvalidOperationException($"{fileName} başlatılamadı.");
+        }
+        catch (Win32Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"{fileName} bulunamadı veya çalıştırılamadı. PostgreSQL yedeği almak için container içine postgresql-client kurulmalı ya da Backups:{(fileName.Contains("restore", StringComparison.OrdinalIgnoreCase) ? "PgRestorePath" : "PgDumpPath")} ile tam binary yolu verilmelidir.",
+                ex);
+        }
+
+        using (process)
+        {
+            await process.WaitForExitAsync(cancellationToken);
+            if (process.ExitCode != 0)
+            {
+                var error = await process.StandardError.ReadToEndAsync(cancellationToken);
+                throw new InvalidOperationException($"{fileName} başarısız: {error}");
+            }
         }
     }
 }

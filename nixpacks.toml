@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["dotnet-sdk"]
+nixPkgs = ["dotnet-sdk", "postgresql_16"]
 
 [phases.build]
 cmds = [

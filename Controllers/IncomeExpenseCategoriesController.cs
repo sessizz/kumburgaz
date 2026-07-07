@@ -83,6 +83,31 @@ public class IncomeExpenseCategoriesController(ApplicationDbContext db) : Contro
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var entity = await db.IncomeExpenseCategories.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null)
+        {
+            TempData["Error"] = "Kategori bulunamadı.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var isUsed = await db.LedgerTransactions.AsNoTracking()
+            .AnyAsync(x => x.IncomeExpenseCategoryId == id);
+        if (isUsed)
+        {
+            TempData["Error"] = $"'{entity.Name}' kullanıldığı için silinemez. Bunun yerine pasif yapabilirsiniz.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        db.IncomeExpenseCategories.Remove(entity);
+        await db.SaveChangesAsync();
+        TempData["Success"] = $"'{entity.Name}' kategorisi silindi.";
+        return RedirectToAction(nameof(Index));
+    }
+
     private void PopulateTypes()
     {
         ViewBag.Types = new List<SelectListItem>

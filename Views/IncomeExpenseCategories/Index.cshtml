@@ -77,6 +77,13 @@
                                         Durum
                                     </button>
                                 </form>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Bu kategori silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>

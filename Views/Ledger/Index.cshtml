@@ -170,10 +170,18 @@
         <div class="px-5 py-4 border-b border-gray-200">
             <h3 class="text-base font-extrabold text-gray-900">İcmal</h3>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Toplam Gider</div>
                 <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Model.TotalAmount.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Kasa Gideri</div>
+                <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.CashAmount.ToString("N2") TL</div>
+            </div>
+            <div class="p-5">
+                <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Banka Gideri</div>
+                <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.BankAmount.ToString("N2") TL</div>
             </div>
             <div class="p-5">
                 <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Kayıt Sayısı</div>

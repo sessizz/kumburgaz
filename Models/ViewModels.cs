@@ -514,6 +514,8 @@ public class LedgerIndexViewModel
     public List<LedgerTransaction> Rows { get; set; } = [];
     public List<LedgerCategorySummaryRow> CategorySummaryRows { get; set; } = [];
     public decimal TotalAmount => Rows.Sum(x => x.Amount);
+    public decimal CashAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Cash).Sum(x => x.Amount);
+    public decimal BankAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Bank).Sum(x => x.Amount);
     public decimal AverageAmount => Rows.Count == 0 ? 0 : TotalAmount / Rows.Count;
     public decimal MaxAmount => Rows.Count == 0 ? 0 : Rows.Max(x => x.Amount);
 }

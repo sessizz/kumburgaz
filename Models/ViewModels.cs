@@ -67,6 +67,19 @@ public class UnitFormViewModel
     public List<SelectListItem> ComponentUnitOptions { get; set; } = [];
 }
 
+public class UnitIndexViewModel
+{
+    public List<Unit> Units { get; set; } = [];
+    public List<UnitBillingGroupSummaryItem> BillingGroupSummary { get; set; } = [];
+}
+
+public class UnitBillingGroupSummaryItem
+{
+    public string BillingGroupName { get; set; } = string.Empty;
+    public string DuesTypeName { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
 public class AccountFormViewModel
 {
     public int? Id { get; set; }

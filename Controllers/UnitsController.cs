@@ -116,7 +116,32 @@ public class UnitsController(
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
 
-        return View(units);
+        var summary = units
+            .Where(x => x.Active)
+            .Select(x => x.BillingGroupUnits
+                .OrderByDescending(g => g.StartPeriod)
+                .ThenByDescending(g => g.Id)
+                .FirstOrDefault())
+            .GroupBy(x => new
+            {
+                BillingGroupName = x?.BillingGroup?.Name ?? "Aidat Grubu Yok",
+                DuesTypeName = x?.BillingGroup?.DuesType?.Name ?? string.Empty
+            })
+            .Select(x => new UnitBillingGroupSummaryItem
+            {
+                BillingGroupName = x.Key.BillingGroupName,
+                DuesTypeName = x.Key.DuesTypeName,
+                Count = x.Count()
+            })
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.BillingGroupName)
+            .ToList();
+
+        return View(new UnitIndexViewModel
+        {
+            Units = units,
+            BillingGroupSummary = summary
+        });
     }
 
     public async Task<IActionResult> ExportCsv()

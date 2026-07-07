@@ -1,0 +1,207 @@
+@model Kumburgaz.Web.Models.BalanceDetailedViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Bilanço Detaylı";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+    var startText = Model.Query.StartDate?.ToString("dd MMMM yyyy", trTR) ?? "";
+    var endText = Model.Query.EndDate?.ToString("dd MMMM yyyy", trTR) ?? "";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Bilanço Detaylı</h2>
+            <div class="text-sm text-gray-500 mt-0.5">@startText – @endText</div>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input class="input input-bordered input-sm" type="date" name="StartDate" value="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input class="input input-bordered input-sm" type="date" name="EndDate" value="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <button class="btn btn-sm btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">calendar_month</span>
+                Filtrele
+            </button>
+            <a class="btn btn-sm btn-outline" asp-action="BalanceDetailedLines">
+                <span class="material-symbols-outlined ms-sm">tune</span>
+                Satırları Düzenle
+            </a>
+            <a class="btn btn-sm btn-outline" asp-action="BalanceDetailedManualEntries">
+                <span class="material-symbols-outlined ms-sm">edit_note</span>
+                Manuel Kalemler
+            </a>
+            <a class="btn btn-sm btn-ghost" asp-action="Index">Raporlar</a>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Gelirler</div>
+            <div class="mt-2 text-2xl font-extrabold text-emerald-600 tabular-nums">@Money(Model.IncomeTotal) TL</div>
+            <div class="mt-1 text-xs text-gray-400">Kasa @Money(Model.IncomeCash) · Banka @Money(Model.IncomeBank)</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Giderler</div>
+            <div class="mt-2 text-2xl font-extrabold text-red-600 tabular-nums">@Money(Model.ExpenseTotal) TL</div>
+            <div class="mt-1 text-xs text-gray-400">Kasa @Money(Model.ExpenseCash) · Banka @Money(Model.ExpenseBank)</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Net Fark</div>
+            <div class="mt-2 text-2xl font-extrabold @(Model.Net < 0 ? "text-red-600" : "text-emerald-600") tabular-nums">@Money(Model.Net) TL</div>
+            <div class="mt-1 text-xs text-gray-400">Gelir - gider</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Gizlenen</div>
+            <div class="mt-2 text-2xl font-extrabold text-gray-900 tabular-nums">@Model.HiddenLineCount</div>
+            <div class="mt-1 text-xs text-gray-400">@Money(Model.HiddenTotal) TL toplam dışı</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-7 items-start">
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="font-extrabold text-red-600">Giderler</h3>
+                <span class="text-sm font-bold tabular-nums">@Money(Model.ExpenseTotal) TL</span>
+            </div>
+            <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Gider Çeşidi</th>
+                        <th class="text-end">Kasadan</th>
+                        <th class="text-end">Bankadan</th>
+                        <th class="text-end">Toplam</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.ExpenseRows)
+                {
+                    <tr>
+                        <td>
+                            <span title="@row.MembersText">@row.Name</span>
+                            @if (row.IsAuto)
+                            {
+                                <span class="text-gray-300" title="Bu kategori bir rapor satırına atanmadığı için kendi adıyla listelendi">·</span>
+                            }
+                            @if (row.IsManual)
+                            {
+                                <span class="badge badge-ghost badge-xs ml-1" title="Manuel girilmiş bilanço kalemi">Manuel</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(row.Note))
+                            {
+                                <div class="text-xs text-gray-400">@row.Note</div>
+                            }
+                        </td>
+                        <td class="text-end tabular-nums">@Money(row.Cash)</td>
+                        <td class="text-end tabular-nums">@Money(row.Bank)</td>
+                        <td class="text-end tabular-nums font-bold">@Money(row.Total)</td>
+                    </tr>
+                }
+                @if (Model.ExpenseRows.Count == 0)
+                {
+                    <tr><td class="text-gray-400" colspan="4">Kayıt yok</td></tr>
+                }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th>Giderler Toplamı</th>
+                        <th class="text-end tabular-nums">@Money(Model.ExpenseCash)</th>
+                        <th class="text-end tabular-nums">@Money(Model.ExpenseBank)</th>
+                        <th class="text-end tabular-nums">@Money(Model.ExpenseTotal)</th>
+                    </tr>
+                </tfoot>
+            </table>
+            </div>
+        </div>
+
+        <div class="space-y-5">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="font-extrabold text-emerald-600">Gelirler</h3>
+                    <span class="text-sm font-bold tabular-nums">@Money(Model.IncomeTotal) TL</span>
+                </div>
+                <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Gelir Çeşidi</th>
+                            <th class="text-end">Kasadan</th>
+                            <th class="text-end">Bankadan</th>
+                            <th class="text-end">Toplam</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.IncomeRows)
+                    {
+                        <tr>
+                            <td>
+                                <span title="@row.MembersText">@row.Name</span>
+                                @if (row.IsAuto)
+                                {
+                                    <span class="text-gray-300" title="Bu kategori bir rapor satırına atanmadığı için kendi adıyla listelendi">·</span>
+                                }
+                                @if (row.IsManual)
+                                {
+                                    <span class="badge badge-ghost badge-xs ml-1" title="Manuel girilmiş bilanço kalemi">Manuel</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(row.Note))
+                                {
+                                    <div class="text-xs text-gray-400">@row.Note</div>
+                                }
+                            </td>
+                            <td class="text-end tabular-nums">@Money(row.Cash)</td>
+                            <td class="text-end tabular-nums">@Money(row.Bank)</td>
+                            <td class="text-end tabular-nums font-bold">@Money(row.Total)</td>
+                        </tr>
+                    }
+                    @if (Model.IncomeRows.Count == 0)
+                    {
+                        <tr><td class="text-gray-400" colspan="4">Kayıt yok</td></tr>
+                    }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Gelirler Toplamı</th>
+                            <th class="text-end tabular-nums">@Money(Model.IncomeCash)</th>
+                            <th class="text-end tabular-nums">@Money(Model.IncomeBank)</th>
+                            <th class="text-end tabular-nums">@Money(Model.IncomeTotal)</th>
+                        </tr>
+                    </tfoot>
+                </table>
+                </div>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td>Gelirler Toplamı</td>
+                            <td class="text-end tabular-nums">@Money(Model.IncomeTotal)</td>
+                        </tr>
+                        <tr>
+                            <td>Giderler Toplamı</td>
+                            <td class="text-end tabular-nums">@Money(Model.ExpenseTotal)</td>
+                        </tr>
+                        <tr>
+                            <th>Gelir - Gider Farkı</th>
+                            <th class="text-end tabular-nums @(Model.Net < 0 ? "text-red-600" : "text-emerald-600")">@Money(Model.Net)</th>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.HiddenLineCount > 0)
+            {
+                <div class="text-xs text-gray-400">
+                    @Model.HiddenLineCount gizli satır (toplam @Money(Model.HiddenTotal) TL) rapora dahil edilmedi.
+                    <a class="text-sky-600 hover:underline" asp-action="BalanceDetailedLines">Satırları düzenle</a>
+                </div>
+            }
+        </div>
+    </div>
+</div>

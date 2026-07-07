@@ -11,7 +11,8 @@ namespace Kumburgaz.Web.Controllers;
 [Authorize]
 public class ReportsController(
     ApplicationDbContext db,
-    IReportingService reportingService) : Controller
+    IReportingService reportingService,
+    BalanceDetailedReportService balanceDetailedReportService) : Controller
 {
     public IActionResult Index()
     {
@@ -171,6 +172,383 @@ public class ReportsController(
             CarriedDebt = carriedDebt,
             CarriedCredit = carriedCredit
         });
+    }
+
+    public async Task<IActionResult> BalanceDetailed([FromQuery] BalanceDetailedQuery query)
+    {
+        var model = await balanceDetailedReportService.BuildAsync(query);
+        return View(model);
+    }
+
+    public async Task<IActionResult> BalanceDetailedLines()
+    {
+        var lines = await db.ReportLines.AsNoTracking()
+            .Include(x => x.Categories)
+            .ThenInclude(x => x.IncomeExpenseCategory)
+            .OrderBy(x => x.Section)
+            .ThenBy(x => x.SortOrder)
+            .ThenBy(x => x.Name)
+            .ToListAsync();
+
+        var model = lines.Select(x => new ReportLineListItemViewModel
+        {
+            Id = x.Id,
+            Name = x.Name,
+            Section = CategoryTypeHelper.Normalize(x.Section),
+            SortOrder = x.SortOrder,
+            Visible = x.Visible,
+            MembersText = string.Join(", ", x.Categories.Select(c => c.IsDuesCollections
+                ? BalanceDetailedReportService.DuesCollectionsLabel
+                : c.IncomeExpenseCategory?.Name ?? "?"))
+        }).ToList();
+
+        return View(model);
+    }
+
+    public async Task<IActionResult> BalanceDetailedLineCreate()
+    {
+        var model = new ReportLineFormViewModel
+        {
+            SortOrder = (await db.ReportLines.MaxAsync(x => (int?)x.SortOrder) ?? 0) + 10
+        };
+        await PopulateReportLineOptionsAsync(model);
+        return View("BalanceDetailedLineForm", model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedLineCreate(ReportLineFormViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            await PopulateReportLineOptionsAsync(model);
+            return View("BalanceDetailedLineForm", model);
+        }
+
+        var line = new ReportLine();
+        await SaveReportLineAsync(line, model, isNew: true);
+        TempData["Success"] = $"'{line.Name}' rapor satırı eklendi.";
+        return RedirectToAction(nameof(BalanceDetailedLines));
+    }
+
+    public async Task<IActionResult> BalanceDetailedLineEdit(int id)
+    {
+        var line = await db.ReportLines.AsNoTracking()
+            .Include(x => x.Categories)
+            .FirstOrDefaultAsync(x => x.Id == id);
+        if (line is null)
+        {
+            return NotFound();
+        }
+
+        var model = new ReportLineFormViewModel
+        {
+            Id = line.Id,
+            Name = line.Name,
+            Section = CategoryTypeHelper.Normalize(line.Section),
+            Visible = line.Visible,
+            SortOrder = line.SortOrder,
+            SelectedKeys = line.Categories
+                .Select(x => x.IsDuesCollections ? "AIDAT" : $"C:{x.IncomeExpenseCategoryId}")
+                .ToList()
+        };
+        await PopulateReportLineOptionsAsync(model);
+        return View("BalanceDetailedLineForm", model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedLineEdit(ReportLineFormViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            await PopulateReportLineOptionsAsync(model);
+            return View("BalanceDetailedLineForm", model);
+        }
+
+        var line = await db.ReportLines
+            .Include(x => x.Categories)
+            .FirstOrDefaultAsync(x => x.Id == model.Id);
+        if (line is null)
+        {
+            return NotFound();
+        }
+
+        await SaveReportLineAsync(line, model, isNew: false);
+        TempData["Success"] = $"'{line.Name}' rapor satırı güncellendi.";
+        return RedirectToAction(nameof(BalanceDetailedLines));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedLineDelete(int id)
+    {
+        var line = await db.ReportLines.FirstOrDefaultAsync(x => x.Id == id);
+        if (line is not null)
+        {
+            db.ReportLines.Remove(line);
+            await db.SaveChangesAsync();
+            TempData["Success"] = $"'{line.Name}' rapor satırı silindi; kategorileri raporda tekrar kendi adlarıyla görünür.";
+        }
+
+        return RedirectToAction(nameof(BalanceDetailedLines));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedLineToggle(int id)
+    {
+        var line = await db.ReportLines.FirstOrDefaultAsync(x => x.Id == id);
+        if (line is not null)
+        {
+            line.Visible = !line.Visible;
+            await db.SaveChangesAsync();
+        }
+
+        return RedirectToAction(nameof(BalanceDetailedLines));
+    }
+
+    public async Task<IActionResult> BalanceDetailedManualEntries()
+    {
+        var entries = await db.ReportManualEntries.AsNoTracking()
+            .Include(x => x.ReportLine)
+            .OrderBy(x => x.SortOrder)
+            .ThenByDescending(x => x.EntryDate)
+            .ThenBy(x => x.Name)
+            .Select(x => new ReportManualEntryListItemViewModel
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Section = CategoryTypeHelper.Normalize(x.Section),
+                EntryDate = x.EntryDate,
+                CashAmount = x.CashAmount,
+                BankAmount = x.BankAmount,
+                SortOrder = x.SortOrder,
+                Visible = x.Visible,
+                ReportLineName = x.ReportLine == null ? null : x.ReportLine.Name,
+                Note = x.Note
+            })
+            .ToListAsync();
+
+        return View(entries);
+    }
+
+    public async Task<IActionResult> BalanceDetailedManualEntryCreate()
+    {
+        var model = new ReportManualEntryFormViewModel
+        {
+            SortOrder = (await db.ReportManualEntries.MaxAsync(x => (int?)x.SortOrder) ?? 0) + 10
+        };
+        await PopulateManualEntryOptionsAsync(model);
+        return View("BalanceDetailedManualEntryForm", model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedManualEntryCreate(ReportManualEntryFormViewModel model)
+    {
+        ValidateManualEntry(model);
+        if (!ModelState.IsValid)
+        {
+            await PopulateManualEntryOptionsAsync(model);
+            return View("BalanceDetailedManualEntryForm", model);
+        }
+
+        var entry = new ReportManualEntry();
+        SaveManualEntry(entry, model);
+        db.ReportManualEntries.Add(entry);
+        await db.SaveChangesAsync();
+        TempData["Success"] = $"'{entry.Name}' manuel kalemi eklendi.";
+        return RedirectToAction(nameof(BalanceDetailedManualEntries));
+    }
+
+    public async Task<IActionResult> BalanceDetailedManualEntryEdit(int id)
+    {
+        var entry = await db.ReportManualEntries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        var model = new ReportManualEntryFormViewModel
+        {
+            Id = entry.Id,
+            Name = entry.Name,
+            Section = CategoryTypeHelper.Normalize(entry.Section),
+            EntryDate = entry.EntryDate,
+            CashAmount = entry.CashAmount,
+            BankAmount = entry.BankAmount,
+            SortOrder = entry.SortOrder,
+            Visible = entry.Visible,
+            ReportLineId = entry.ReportLineId,
+            Note = entry.Note
+        };
+        await PopulateManualEntryOptionsAsync(model);
+        return View("BalanceDetailedManualEntryForm", model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedManualEntryEdit(ReportManualEntryFormViewModel model)
+    {
+        ValidateManualEntry(model);
+        if (!ModelState.IsValid)
+        {
+            await PopulateManualEntryOptionsAsync(model);
+            return View("BalanceDetailedManualEntryForm", model);
+        }
+
+        var entry = await db.ReportManualEntries.FirstOrDefaultAsync(x => x.Id == model.Id);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        SaveManualEntry(entry, model);
+        await db.SaveChangesAsync();
+        TempData["Success"] = $"'{entry.Name}' manuel kalemi güncellendi.";
+        return RedirectToAction(nameof(BalanceDetailedManualEntries));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedManualEntryToggle(int id)
+    {
+        var entry = await db.ReportManualEntries.FirstOrDefaultAsync(x => x.Id == id);
+        if (entry is not null)
+        {
+            entry.Visible = !entry.Visible;
+            await db.SaveChangesAsync();
+        }
+
+        return RedirectToAction(nameof(BalanceDetailedManualEntries));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BalanceDetailedManualEntryDelete(int id)
+    {
+        var entry = await db.ReportManualEntries.FirstOrDefaultAsync(x => x.Id == id);
+        if (entry is not null)
+        {
+            db.ReportManualEntries.Remove(entry);
+            await db.SaveChangesAsync();
+            TempData["Success"] = $"'{entry.Name}' manuel kalemi silindi.";
+        }
+
+        return RedirectToAction(nameof(BalanceDetailedManualEntries));
+    }
+
+    private async Task SaveReportLineAsync(ReportLine line, ReportLineFormViewModel model, bool isNew)
+    {
+        line.Name = model.Name.Trim();
+        line.Section = CategoryTypeHelper.Normalize(model.Section);
+        line.Visible = model.Visible;
+        line.SortOrder = model.SortOrder;
+
+        var wantsDues = model.SelectedKeys.Contains("AIDAT");
+        var categoryIds = model.SelectedKeys
+            .Where(x => x.StartsWith("C:"))
+            .Select(x => int.TryParse(x[2..], out var id) ? id : 0)
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+        // Bir kategori tek satırda olabilir: seçilenler başka satırlardaysa oradan taşınır.
+        var conflicting = await db.ReportLineCategories
+            .Where(x => x.ReportLineId != line.Id &&
+                        ((x.IncomeExpenseCategoryId != null && categoryIds.Contains(x.IncomeExpenseCategoryId.Value)) ||
+                         (wantsDues && x.IsDuesCollections)))
+            .ToListAsync();
+        db.ReportLineCategories.RemoveRange(conflicting);
+        db.ReportLineCategories.RemoveRange(line.Categories);
+
+        line.Categories = categoryIds
+            .Select(id => new ReportLineCategory { IncomeExpenseCategoryId = id })
+            .ToList();
+        if (wantsDues)
+        {
+            line.Categories.Add(new ReportLineCategory { IsDuesCollections = true });
+        }
+
+        if (isNew)
+        {
+            db.ReportLines.Add(line);
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private void ValidateManualEntry(ReportManualEntryFormViewModel model)
+    {
+        var section = CategoryTypeHelper.Normalize(model.Section);
+        if (section is not (CategoryTypeHelper.Gelir or CategoryTypeHelper.Gider))
+        {
+            ModelState.AddModelError(nameof(ReportManualEntryFormViewModel.Section), "Bölüm Gelir veya Gider olmalıdır.");
+        }
+
+        if (model.CashAmount == 0 && model.BankAmount == 0)
+        {
+            ModelState.AddModelError(string.Empty, "Kasa veya banka tutarından en az biri girilmelidir.");
+        }
+    }
+
+    private void SaveManualEntry(ReportManualEntry entry, ReportManualEntryFormViewModel model)
+    {
+        entry.Name = model.Name.Trim();
+        entry.Section = CategoryTypeHelper.Normalize(model.Section);
+        entry.EntryDate = DateTimeHelper.EnsureUtc(model.EntryDate.Date);
+        entry.CashAmount = model.CashAmount;
+        entry.BankAmount = model.BankAmount;
+        entry.SortOrder = model.SortOrder;
+        entry.Visible = model.Visible;
+        entry.ReportLineId = model.ReportLineId;
+        entry.Note = string.IsNullOrWhiteSpace(model.Note) ? null : model.Note.Trim();
+    }
+
+    private async Task PopulateManualEntryOptionsAsync(ReportManualEntryFormViewModel model)
+    {
+        model.ReportLineOptions = await db.ReportLines.AsNoTracking()
+            .OrderBy(x => x.Section)
+            .ThenBy(x => x.SortOrder)
+            .ThenBy(x => x.Name)
+            .Select(x => new SelectListItem($"{CategoryTypeHelper.Display(x.Section)} - {x.Name}", x.Id.ToString(), model.ReportLineId == x.Id))
+            .ToListAsync();
+    }
+
+    private async Task PopulateReportLineOptionsAsync(ReportLineFormViewModel model)
+    {
+        var assignments = await db.ReportLineCategories.AsNoTracking()
+            .Include(x => x.ReportLine)
+            .Where(x => model.Id == null || x.ReportLineId != model.Id)
+            .ToListAsync();
+        var byCategory = assignments
+            .Where(x => x.IncomeExpenseCategoryId != null)
+            .ToDictionary(x => x.IncomeExpenseCategoryId!.Value, x => x.ReportLine?.Name);
+        var duesLine = assignments.FirstOrDefault(x => x.IsDuesCollections)?.ReportLine?.Name;
+
+        var categories = await db.IncomeExpenseCategories.AsNoTracking()
+            .OrderBy(x => x.Type)
+            .ThenBy(x => x.Name)
+            .ToListAsync();
+
+        model.Options =
+        [
+            new ReportLineCategoryOption
+            {
+                Key = "AIDAT",
+                Label = BalanceDetailedReportService.DuesCollectionsLabel,
+                Type = CategoryTypeHelper.Gelir,
+                CurrentLineName = duesLine
+            },
+            .. categories.Select(x => new ReportLineCategoryOption
+            {
+                Key = $"C:{x.Id}",
+                Label = x.Name,
+                Type = CategoryTypeHelper.Normalize(x.Type),
+                CurrentLineName = byCategory.GetValueOrDefault(x.Id)
+            })
+        ];
     }
 
     public async Task<IActionResult> DuesDebt([FromQuery] DuesDebtReportQuery query)

@@ -410,3 +410,59 @@ public class DocumentRecord
 
     public DateTime DocumentDate { get; set; } = DateTime.UtcNow;
 }
+
+public class ReportLine
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Raporda hangi bölümde gösterileceği: Gelir veya Gider.</summary>
+    [Required, MaxLength(20)]
+    public string Section { get; set; } = "Gider";
+
+    public int SortOrder { get; set; }
+    public bool Visible { get; set; } = true;
+
+    public List<ReportLineCategory> Categories { get; set; } = [];
+    public List<ReportManualEntry> ManualEntries { get; set; } = [];
+}
+
+public class ReportLineCategory
+{
+    public int Id { get; set; }
+    public int ReportLineId { get; set; }
+    public ReportLine? ReportLine { get; set; }
+
+    /// <summary>Null ise bu üye "Aidat Tahsilatı" kaynağını (Collections) temsil eder.</summary>
+    public int? IncomeExpenseCategoryId { get; set; }
+    public IncomeExpenseCategory? IncomeExpenseCategory { get; set; }
+
+    public bool IsDuesCollections { get; set; }
+}
+
+public class ReportManualEntry
+{
+    public int Id { get; set; }
+
+    /// <summary>Null ise raporda bağımsız satır olarak gösterilir; doluysa seçili rapor satırına dahil edilir.</summary>
+    public int? ReportLineId { get; set; }
+    public ReportLine? ReportLine { get; set; }
+
+    [Required, MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Kalemin doğal tipi: Gelir veya Gider. Karışık satıra bağlanırsa karşıt tip netten düşülür.</summary>
+    [Required, MaxLength(20)]
+    public string Section { get; set; } = "Gelir";
+
+    public DateTime EntryDate { get; set; }
+    public decimal CashAmount { get; set; }
+    public decimal BankAmount { get; set; }
+    public int SortOrder { get; set; }
+    public bool Visible { get; set; } = true;
+
+    [MaxLength(250)]
+    public string? Note { get; set; }
+}

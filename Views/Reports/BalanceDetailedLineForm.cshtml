@@ -1,0 +1,108 @@
+@model Kumburgaz.Web.Models.ReportLineFormViewModel
+@{
+    var isNew = Model.Id is null;
+    ViewData["Title"] = isNew ? "Yeni Rapor Satırı" : "Rapor Satırını Düzenle";
+    var incomeOptions = Model.Options.Where(x => x.Type == "Gelir").ToList();
+    var expenseOptions = Model.Options.Where(x => x.Type == "Gider").ToList();
+}
+
+<div class="space-y-4 max-w-3xl">
+    <div class="flex items-center justify-between gap-3">
+        <h2 class="text-2xl font-extrabold text-sky-500">@ViewData["Title"]</h2>
+        <div class="flex items-center gap-2">
+            <a class="btn btn-sm btn-outline" asp-action="BalanceDetailedManualEntries">Manuel Kalemler</a>
+            <a class="btn btn-sm btn-ghost" asp-action="BalanceDetailedLines">Satır Listesi</a>
+        </div>
+    </div>
+
+    <form method="post" asp-action="@(isNew ? "BalanceDetailedLineCreate" : "BalanceDetailedLineEdit")" class="space-y-4">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+
+        <div asp-validation-summary="ModelOnly" class="text-red-600 text-sm"></div>
+
+        <div class="bg-white border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Görünen Ad</legend>
+                <input class="input input-bordered w-full" asp-for="Name" placeholder="Örn. Muhtelif Gider" />
+                <span asp-validation-for="Name" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bölüm</legend>
+                <select class="select select-bordered w-full" asp-for="Section">
+                    <option value="Gider">Gider</option>
+                    <option value="Gelir">Gelir</option>
+                </select>
+                <span class="text-xs text-gray-400 mt-1">Karışık satırlarda karşıt tipteki kategoriler netten düşülür (örn. gelir satırındaki gider kategorisi).</span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Sıra</legend>
+                <input class="input input-bordered w-full" asp-for="SortOrder" type="number" />
+                <span class="text-xs text-gray-400 mt-1">Küçük sayı üstte görünür.</span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Görünürlük</legend>
+                <label class="label cursor-pointer justify-start gap-3 mt-1">
+                    <input type="checkbox" class="toggle toggle-primary" asp-for="Visible" />
+                    <span class="label-text">Raporda göster</span>
+                </label>
+                <span class="text-xs text-gray-400 mt-1">Kapalıysa satır ve içindeki kategoriler raporda görünmez, toplamlara katılmaz.</span>
+            </fieldset>
+        </div>
+
+        <div class="bg-white border border-gray-200 p-5">
+            <h3 class="font-bold text-gray-900 mb-1">Bu başlığın kapsadığı kategoriler</h3>
+            <p class="text-xs text-gray-400 mb-4">
+                Bir kategori yalnızca tek satırda olabilir; başka satırda olan bir kategoriyi seçersen bu satıra taşınır.
+                Manuel kalemleri ayrıca "Manuel Kalemler" ekranından bu başlığa bağlayabilirsiniz.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <div class="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Giderler</div>
+                    <div class="space-y-1.5">
+                        @foreach (var option in expenseOptions)
+                        {
+                            <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                <input type="checkbox" class="checkbox checkbox-sm" name="SelectedKeys" value="@option.Key"
+                                       checked="@(Model.SelectedKeys.Contains(option.Key))" />
+                                <span>@option.Label</span>
+                                @if (option.CurrentLineName is not null)
+                                {
+                                    <span class="text-xs text-amber-600">(şu an: @option.CurrentLineName)</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Gelirler</div>
+                    <div class="space-y-1.5">
+                        @foreach (var option in incomeOptions)
+                        {
+                            <label class="flex items-center gap-2 cursor-pointer text-sm">
+                                <input type="checkbox" class="checkbox checkbox-sm" name="SelectedKeys" value="@option.Key"
+                                       checked="@(Model.SelectedKeys.Contains(option.Key))" />
+                                <span>@option.Label</span>
+                                @if (option.CurrentLineName is not null)
+                                {
+                                    <span class="text-xs text-amber-600">(şu an: @option.CurrentLineName)</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <span class="material-symbols-outlined ms-sm">save</span>
+                Kaydet
+            </button>
+            <a class="btn btn-ghost btn-sm" asp-action="BalanceDetailedLines">Vazgeç</a>
+        </div>
+    </form>
+</div>

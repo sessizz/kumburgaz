@@ -1,0 +1,96 @@
+@model Kumburgaz.Web.Models.ReportManualEntryFormViewModel
+@{
+    var isNew = Model.Id is null;
+    ViewData["Title"] = isNew ? "Yeni Manuel Kalem" : "Manuel Kalemi Düzenle";
+}
+
+<div class="space-y-4 max-w-4xl">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">@ViewData["Title"]</h2>
+            <div class="text-sm text-gray-500 mt-0.5">
+                Kategori hareketi olmayan veya özel gösterilmesi gereken bilanço kalemlerini buradan girin.
+            </div>
+        </div>
+        <a class="btn btn-sm btn-ghost" asp-action="BalanceDetailedManualEntries">Manuel Kalemler</a>
+    </div>
+
+    <form method="post" asp-action="@(isNew ? "BalanceDetailedManualEntryCreate" : "BalanceDetailedManualEntryEdit")" class="space-y-4">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+
+        <div asp-validation-summary="ModelOnly" class="text-red-600 text-sm"></div>
+
+        <div class="bg-white border border-gray-200 p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Görünen Ad</legend>
+                <input class="input input-bordered w-full" asp-for="Name" placeholder="Örn. Önceden Alınan Peşin Aidatlar" />
+                <span asp-validation-for="Name" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Tarih</legend>
+                <input class="input input-bordered w-full" asp-for="EntryDate" type="date" />
+                <span asp-validation-for="EntryDate" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bölüm</legend>
+                <select class="select select-bordered w-full" asp-for="Section">
+                    <option value="Gelir">Gelir</option>
+                    <option value="Gider">Gider</option>
+                </select>
+                <span asp-validation-for="Section" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bağlı Rapor Satırı</legend>
+                <select class="select select-bordered w-full" asp-for="ReportLineId" asp-items="Model.ReportLineOptions">
+                    <option value="">Bağımsız satır olarak göster</option>
+                </select>
+                <span class="text-xs text-gray-400 mt-1">Seçilirse bu kalem o satırın içine dahil edilir; karşıt tip netten düşülür.</span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Kasadan Tutar</legend>
+                <input class="input input-bordered w-full text-end tabular-nums" asp-for="CashAmount" type="number" min="0" step="0.01" />
+                <span asp-validation-for="CashAmount" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bankadan Tutar</legend>
+                <input class="input input-bordered w-full text-end tabular-nums" asp-for="BankAmount" type="number" min="0" step="0.01" />
+                <span asp-validation-for="BankAmount" class="text-red-600 text-xs"></span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Sıra</legend>
+                <input class="input input-bordered w-full" asp-for="SortOrder" type="number" />
+                <span class="text-xs text-gray-400 mt-1">Bağımsız satırsa rapordaki yerini belirler.</span>
+            </fieldset>
+
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Görünürlük</legend>
+                <label class="label cursor-pointer justify-start gap-3 mt-1">
+                    <input type="checkbox" class="toggle toggle-primary" asp-for="Visible" />
+                    <span class="label-text">Raporda hesaba kat</span>
+                </label>
+                <span class="text-xs text-gray-400 mt-1">Kapalıysa kalem raporda görünmez ve toplamda yer almaz.</span>
+            </fieldset>
+
+            <fieldset class="fieldset md:col-span-2">
+                <legend class="fieldset-legend">Not</legend>
+                <input class="input input-bordered w-full" asp-for="Note" placeholder="İsteğe bağlı açıklama" />
+                <span asp-validation-for="Note" class="text-red-600 text-xs"></span>
+            </fieldset>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <span class="material-symbols-outlined ms-sm">save</span>
+                Kaydet
+            </button>
+            <a class="btn btn-ghost btn-sm" asp-action="BalanceDetailedManualEntries">Vazgeç</a>
+        </div>
+    </form>
+</div>

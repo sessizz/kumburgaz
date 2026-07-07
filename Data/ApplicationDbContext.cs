@@ -25,10 +25,46 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
     public DbSet<DocumentRecord> DocumentRecords => Set<DocumentRecord>();
+    public DbSet<ReportLine> ReportLines => Set<ReportLine>();
+    public DbSet<ReportLineCategory> ReportLineCategories => Set<ReportLineCategory>();
+    public DbSet<ReportManualEntry> ReportManualEntries => Set<ReportManualEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<ReportLineCategory>()
+            .HasOne(x => x.ReportLine)
+            .WithMany(x => x.Categories)
+            .HasForeignKey(x => x.ReportLineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Bir kategori yalnızca tek rapor satırına atanabilir (çift sayım engeli).
+        builder.Entity<ReportLineCategory>()
+            .HasIndex(x => x.IncomeExpenseCategoryId)
+            .IsUnique();
+
+        builder.Entity<ReportLineCategory>()
+            .HasIndex(x => x.IsDuesCollections)
+            .IsUnique()
+            .HasFilter("\"IsDuesCollections\"");
+
+        builder.Entity<ReportManualEntry>()
+            .HasOne(x => x.ReportLine)
+            .WithMany(x => x.ManualEntries)
+            .HasForeignKey(x => x.ReportLineId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<ReportManualEntry>()
+            .HasIndex(x => new { x.EntryDate, x.Section, x.Visible });
+
+        builder.Entity<ReportManualEntry>()
+            .Property(x => x.CashAmount)
+            .HasPrecision(18, 2);
+
+        builder.Entity<ReportManualEntry>()
+            .Property(x => x.BankAmount)
+            .HasPrecision(18, 2);
 
         builder.Entity<Block>()
             .HasIndex(x => new { x.SiteId, x.Name })

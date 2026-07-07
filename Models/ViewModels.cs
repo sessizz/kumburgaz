@@ -796,3 +796,124 @@ public class DashboardViewModel
     public List<Announcement> RecentAnnouncements { get; set; } = [];
     public List<DashboardCalendarDay> CalendarDays { get; set; } = [];
 }
+
+public class BalanceDetailedQuery
+{
+    [DataType(DataType.Date)]
+    public DateTime? StartDate { get; set; }
+
+    [DataType(DataType.Date)]
+    public DateTime? EndDate { get; set; }
+}
+
+public class BalanceDetailedRow
+{
+    public string Name { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public decimal Cash { get; set; }
+    public decimal Bank { get; set; }
+    public decimal Total => Cash + Bank;
+    public bool IsAuto { get; set; }
+    public bool IsManual { get; set; }
+    public string MembersText { get; set; } = string.Empty;
+    public string? Note { get; set; }
+}
+
+public class BalanceDetailedViewModel
+{
+    public BalanceDetailedQuery Query { get; set; } = new();
+    public List<BalanceDetailedRow> IncomeRows { get; set; } = [];
+    public List<BalanceDetailedRow> ExpenseRows { get; set; } = [];
+    public int HiddenLineCount { get; set; }
+    public decimal HiddenTotal { get; set; }
+    public decimal IncomeCash => IncomeRows.Sum(x => x.Cash);
+    public decimal IncomeBank => IncomeRows.Sum(x => x.Bank);
+    public decimal IncomeTotal => IncomeRows.Sum(x => x.Total);
+    public decimal ExpenseCash => ExpenseRows.Sum(x => x.Cash);
+    public decimal ExpenseBank => ExpenseRows.Sum(x => x.Bank);
+    public decimal ExpenseTotal => ExpenseRows.Sum(x => x.Total);
+    public decimal Net => IncomeTotal - ExpenseTotal;
+}
+
+public class ReportLineListItemViewModel
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public bool Visible { get; set; }
+    public string MembersText { get; set; } = string.Empty;
+}
+
+public class ReportManualEntryListItemViewModel
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public DateTime EntryDate { get; set; }
+    public decimal CashAmount { get; set; }
+    public decimal BankAmount { get; set; }
+    public decimal Total => CashAmount + BankAmount;
+    public int SortOrder { get; set; }
+    public bool Visible { get; set; }
+    public string? ReportLineName { get; set; }
+    public string? Note { get; set; }
+}
+
+public class ReportLineFormViewModel
+{
+    public int? Id { get; set; }
+
+    [Required(ErrorMessage = "Görünen ad zorunludur."), MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    public string Section { get; set; } = "Gider";
+
+    public bool Visible { get; set; } = true;
+    public int SortOrder { get; set; }
+
+    public List<string> SelectedKeys { get; set; } = [];
+
+    [ValidateNever]
+    public List<ReportLineCategoryOption> Options { get; set; } = [];
+}
+
+public class ReportLineCategoryOption
+{
+    public string Key { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? CurrentLineName { get; set; }
+}
+
+public class ReportManualEntryFormViewModel
+{
+    public int? Id { get; set; }
+
+    [Required(ErrorMessage = "Görünen ad zorunludur."), MaxLength(120)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    public string Section { get; set; } = "Gelir";
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime EntryDate { get; set; } = DateTime.Today;
+
+    [Range(0, 999999999)]
+    public decimal CashAmount { get; set; }
+
+    [Range(0, 999999999)]
+    public decimal BankAmount { get; set; }
+
+    public int SortOrder { get; set; }
+    public bool Visible { get; set; } = true;
+    public int? ReportLineId { get; set; }
+
+    [MaxLength(250)]
+    public string? Note { get; set; }
+
+    [ValidateNever]
+    public List<SelectListItem> ReportLineOptions { get; set; } = [];
+}

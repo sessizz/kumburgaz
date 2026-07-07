@@ -3,6 +3,7 @@ using System;
 using Kumburgaz.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kumburgaz.Web.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707133211_ReportLines")]
+    partial class ReportLines
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -827,57 +830,6 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.ToTable("ReportLineCategories");
                 });
 
-            modelBuilder.Entity("Kumburgaz.Web.Models.ReportManualEntry", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("BankAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("CashAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("EntryDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
-
-                    b.Property<int?>("ReportLineId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Section")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("Visible")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReportLineId");
-
-                    b.HasIndex("EntryDate", "Section", "Visible");
-
-                    b.ToTable("ReportManualEntries");
-                });
-
             modelBuilder.Entity("Kumburgaz.Web.Models.ServiceRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -1406,16 +1358,6 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Navigation("ReportLine");
                 });
 
-            modelBuilder.Entity("Kumburgaz.Web.Models.ReportManualEntry", b =>
-                {
-                    b.HasOne("Kumburgaz.Web.Models.ReportLine", "ReportLine")
-                        .WithMany("ManualEntries")
-                        .HasForeignKey("ReportLineId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("ReportLine");
-                });
-
             modelBuilder.Entity("Kumburgaz.Web.Models.ServiceRequest", b =>
                 {
                     b.HasOne("Kumburgaz.Web.Models.Unit", "Unit")
@@ -1544,8 +1486,6 @@ namespace Kumburgaz.Web.Data.Migrations
             modelBuilder.Entity("Kumburgaz.Web.Models.ReportLine", b =>
                 {
                     b.Navigation("Categories");
-
-                    b.Navigation("ManualEntries");
                 });
 
             modelBuilder.Entity("Kumburgaz.Web.Models.Unit", b =>

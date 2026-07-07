@@ -7,7 +7,7 @@
     var trTR = new CultureInfo("tr-TR");
     var account = Model.Account;
     var returnUrl = Url.Action("Detail", "Accounts", new { id = account.Id }) ?? string.Empty;
-    var totalDebt = Model.OpenInstallments.Sum(x => x.RemainingAmount);
+    var netBalance = Model.Summary.NetBalance;
 }
 
 <div class="space-y-4">
@@ -29,16 +29,19 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Açık Borç</div>
-            <div class="mt-1 text-2xl font-extrabold">@totalDebt.ToString("N2", trTR) ₺</div>
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Net Bakiye</div>
+            <div class="mt-1 text-2xl font-extrabold @(netBalance > 0 ? "text-error" : netBalance < 0 ? "text-success" : "")">@netBalance.ToString("N2", trTR) ₺</div>
+            <div class="text-xs text-gray-400">@(netBalance > 0 ? "Borçlu" : netBalance < 0 ? "Alacaklı / avanslı" : "Bakiyesiz")</div>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Telefon</div>
-            <div class="mt-1 font-semibold">@(string.IsNullOrWhiteSpace(account.Phone) ? "—" : account.Phone)</div>
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Tahakkuk / Tahsilat</div>
+            <div class="mt-1 font-semibold">@Model.Summary.TotalAccrual.ToString("N2", trTR) ₺</div>
+            <div class="text-sm text-success font-semibold">@Model.Summary.TotalCollections.ToString("N2", trTR) ₺ tahsilat</div>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">E-posta</div>
-            <div class="mt-1 font-semibold">@(string.IsNullOrWhiteSpace(account.Email) ? "—" : account.Email)</div>
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Devir / Avans</div>
+            <div class="mt-1 font-semibold">Borç: @Model.Summary.OpeningDebt.ToString("N2", trTR) ₺</div>
+            <div class="text-sm text-success font-semibold">Alacak: @Model.Summary.OpeningCredit.ToString("N2", trTR) ₺ · Avans: @Model.Summary.Advance.ToString("N2", trTR) ₺</div>
         </div>
     </div>
 

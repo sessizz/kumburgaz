@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class DuesTypesController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Index()

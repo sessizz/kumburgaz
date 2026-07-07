@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.ReportsRead)]
 public class ReportsController(
     ApplicationDbContext db,
     IReportingService reportingService,
@@ -151,7 +151,7 @@ public class ReportsController(
         var carriedDebt = duesRows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
         var carriedCredit = duesRows.Where(x => x.RemainingAmount < 0).Sum(x => Math.Abs(x.RemainingAmount));
 
-        return View(new BalanceReportViewModel
+        return View("Balance", new BalanceReportViewModel
         {
             Query = query,
             OpeningCash = openingCash,
@@ -171,6 +171,50 @@ public class ReportsController(
             ExpenseRows = expenseRows.OrderBy(x => x.CategoryName).ToList(),
             CarriedDebt = carriedDebt,
             CarriedCredit = carriedCredit
+        });
+    }
+
+    public async Task<IActionResult> IncomeExpenseSummary([FromQuery] BalanceReportQuery query)
+    {
+        ViewData["TitleOverride"] = "Gelir/Gider Özeti";
+        return await Balance(query);
+    }
+
+    public async Task<IActionResult> Income([FromQuery] BalanceReportQuery query)
+    {
+        var ledgerQuery = db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => !x.IsTransfer
+                        && x.IncomeExpenseCategory != null
+                        && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir);
+
+        if (query.StartDate.HasValue)
+        {
+            var start = DateTimeHelper.EnsureUtc(query.StartDate.Value.Date);
+            ledgerQuery = ledgerQuery.Where(x => x.Date >= start);
+        }
+
+        if (query.EndDate.HasValue)
+        {
+            var end = DateTimeHelper.EnsureUtc(query.EndDate.Value.Date.AddDays(1));
+            ledgerQuery = ledgerQuery.Where(x => x.Date < end);
+        }
+
+        var rows = await ledgerQuery
+            .GroupBy(x => x.IncomeExpenseCategory!.Name)
+            .Select(x => new BalanceCategoryTotal
+            {
+                CategoryName = x.Key,
+                Amount = x.Sum(t => t.Amount)
+            })
+            .OrderByDescending(x => x.Amount)
+            .ToListAsync();
+
+        return View("Income", new BalanceReportViewModel
+        {
+            Query = query,
+            IncomeRows = rows
         });
     }
 
@@ -562,14 +606,14 @@ public class ReportsController(
     public async Task<IActionResult> DuesDebtExcel([FromQuery] DuesDebtReportQuery query)
     {
         var rows = await reportingService.GetDuesDebtReportAsync(query);
-        var bytes = reportingService.ExportDuesDebtAsExcel(rows);
+        var bytes = reportingService.ExportDuesDebtAsExcel(rows, query);
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "aidat-borc-raporu.xlsx");
     }
 
     public async Task<IActionResult> DuesDebtPdf([FromQuery] DuesDebtReportQuery query)
     {
         var rows = await reportingService.GetDuesDebtReportAsync(query);
-        var bytes = reportingService.ExportDuesDebtAsPdf(rows);
+        var bytes = reportingService.ExportDuesDebtAsPdf(rows, query);
         return File(bytes, "application/pdf", "aidat-borc-raporu.pdf");
     }
 

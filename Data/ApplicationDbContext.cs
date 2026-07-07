@@ -1,11 +1,19 @@
 using Kumburgaz.Web.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace Kumburgaz.Web.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+public class ApplicationDbContext(
+    DbContextOptions<ApplicationDbContext> options,
+    IHttpContextAccessor? httpContextAccessor = null) : IdentityDbContext<ApplicationUser>(options)
 {
+    private bool savingAuditLogs;
+
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Block> Blocks => Set<Block>();
     public DbSet<Unit> Units => Set<Unit>();
@@ -28,10 +36,63 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ReportLine> ReportLines => Set<ReportLine>();
     public DbSet<ReportLineCategory> ReportLineCategories => Set<ReportLineCategory>();
     public DbSet<ReportManualEntry> ReportManualEntries => Set<ReportManualEntry>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<ImportBatchRow> ImportBatchRows => Set<ImportBatchRow>();
+    public DbSet<ConsistencyCheckResult> ConsistencyCheckResults => Set<ConsistencyCheckResult>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        ConfigureSoftDelete<Block>(builder);
+        ConfigureSoftDelete<Unit>(builder);
+        ConfigureSoftDelete<Account>(builder);
+        ConfigureSoftDelete<UnitAccount>(builder);
+        ConfigureSoftDelete<CombinedUnitMember>(builder);
+        ConfigureSoftDelete<DuesType>(builder);
+        ConfigureSoftDelete<BillingGroup>(builder);
+        ConfigureSoftDelete<BillingGroupUnit>(builder);
+        ConfigureSoftDelete<DuesInstallment>(builder);
+        ConfigureSoftDelete<Collection>(builder);
+        ConfigureSoftDelete<CollectionAllocation>(builder);
+        ConfigureSoftDelete<IncomeExpenseCategory>(builder);
+        ConfigureSoftDelete<LedgerTransaction>(builder);
+        ConfigureSoftDelete<BankAccount>(builder);
+        ConfigureSoftDelete<CashBox>(builder);
+
+        builder.Entity<AuditLog>()
+            .HasIndex(x => new { x.EntityName, x.EntityId, x.CreatedAt });
+
+        builder.Entity<AuditLog>()
+            .HasIndex(x => x.CreatedAt);
+
+        builder.Entity<ImportBatch>()
+            .HasIndex(x => x.ImportNo)
+            .IsUnique();
+
+        builder.Entity<ImportBatch>()
+            .HasIndex(x => new { x.Type, x.Status, x.CreatedAt });
+
+        builder.Entity<ImportBatchRow>()
+            .HasOne(x => x.ImportBatch)
+            .WithMany(x => x.Rows)
+            .HasForeignKey(x => x.ImportBatchId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<ImportBatchRow>()
+            .HasIndex(x => new { x.ImportBatchId, x.LineNo })
+            .IsUnique();
+
+        builder.Entity<ImportBatchRow>()
+            .HasIndex(x => x.NormalizedKey);
+
+        builder.Entity<ConsistencyCheckResult>()
+            .HasIndex(x => new { x.Resolved, x.Severity, x.CreatedAt });
+
+        builder.Entity<ConsistencyCheckResult>()
+            .Property(x => x.Difference)
+            .HasPrecision(18, 2);
 
         builder.Entity<ReportLineCategory>()
             .HasOne(x => x.ReportLine)
@@ -195,6 +256,152 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         Seed(builder);
     }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        return SaveChangesAsync(acceptAllChangesOnSuccess).GetAwaiter().GetResult();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return SaveChangesAsync(true, cancellationToken);
+    }
+
+    public override async Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        if (savingAuditLogs)
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        var pendingAuditLogs = PrepareAudits();
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+
+        if (pendingAuditLogs.Count > 0)
+        {
+            savingAuditLogs = true;
+            try
+            {
+                foreach (var pending in pendingAuditLogs)
+                {
+                    pending.Log.EntityId = BuildEntityKey(pending.Entry);
+                }
+
+                AuditLogs.AddRange(pendingAuditLogs.Select(x => x.Log));
+                await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            finally
+            {
+                savingAuditLogs = false;
+            }
+        }
+
+        return result;
+    }
+
+    private List<PendingAuditLog> PrepareAudits()
+    {
+        ChangeTracker.DetectChanges();
+
+        var user = httpContextAccessor?.HttpContext?.User;
+        var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userName = user?.Identity?.Name;
+        var ip = httpContextAccessor?.HttpContext?.Connection.RemoteIpAddress?.ToString();
+        var correlationId = httpContextAccessor?.HttpContext?.TraceIdentifier;
+        var now = DateTime.UtcNow;
+        var logs = new List<PendingAuditLog>();
+
+        foreach (var entry in ChangeTracker.Entries()
+                     .Where(x => x.Entity is not AuditLog)
+                     .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            if (entry.State == EntityState.Modified && !entry.Properties.Any(x => x.IsModified))
+            {
+                continue;
+            }
+
+            var action = entry.State switch
+            {
+                EntityState.Added => AuditAction.Create,
+                EntityState.Deleted => AuditAction.Delete,
+                _ => AuditAction.Update
+            };
+
+            var oldValues = entry.State == EntityState.Added ? null : SerializeValues(entry, original: true);
+
+            if (entry.State == EntityState.Deleted && entry.Entity is ISoftDeletable softDeletable)
+            {
+                softDeletable.IsDeleted = true;
+                softDeletable.DeletedAt = now;
+                softDeletable.DeletedByUserId = userId;
+                softDeletable.DeletedByUserName = userName;
+                entry.State = EntityState.Modified;
+                entry.Property(nameof(ISoftDeletable.IsDeleted)).IsModified = true;
+                entry.Property(nameof(ISoftDeletable.DeletedAt)).IsModified = true;
+                entry.Property(nameof(ISoftDeletable.DeletedByUserId)).IsModified = true;
+                entry.Property(nameof(ISoftDeletable.DeletedByUserName)).IsModified = true;
+            }
+
+            var newValues = action == AuditAction.Delete && entry.Entity is not ISoftDeletable
+                ? null
+                : SerializeValues(entry, original: false);
+
+            logs.Add(new PendingAuditLog(entry, new AuditLog
+            {
+                EntityName = entry.Metadata.ClrType.Name,
+                EntityId = BuildEntityKey(entry),
+                Action = action,
+                OldValuesJson = oldValues,
+                NewValuesJson = newValues,
+                UserId = userId,
+                UserName = userName,
+                IpAddress = ip,
+                CreatedAt = now,
+                CorrelationId = correlationId
+            }));
+        }
+
+        return logs;
+    }
+
+    private static string? SerializeValues(EntityEntry entry, bool original)
+    {
+        var values = entry.Properties
+            .Where(x => !x.Metadata.IsShadowProperty())
+            .ToDictionary(
+                x => x.Metadata.Name,
+                x => original ? x.OriginalValue : x.CurrentValue);
+
+        return JsonSerializer.Serialize(values);
+    }
+
+    private static string BuildEntityKey(EntityEntry entry)
+    {
+        var key = entry.Metadata.FindPrimaryKey();
+        if (key is null)
+        {
+            return string.Empty;
+        }
+
+        var values = key.Properties
+            .Select(x => entry.Property(x.Name).CurrentValue ?? entry.Property(x.Name).OriginalValue)
+            .Select(x => x?.ToString() ?? string.Empty);
+
+        return string.Join(",", values);
+    }
+
+    private static void ConfigureSoftDelete<TEntity>(ModelBuilder builder)
+        where TEntity : class, ISoftDeletable
+    {
+        builder.Entity<TEntity>().HasQueryFilter(x => !x.IsDeleted);
+        builder.Entity<TEntity>().HasIndex(x => x.IsDeleted);
+        builder.Entity<TEntity>().Property(x => x.DeletedByUserId).HasMaxLength(450);
+        builder.Entity<TEntity>().Property(x => x.DeletedByUserName).HasMaxLength(256);
+    }
+
+    private sealed record PendingAuditLog(EntityEntry Entry, AuditLog Log);
 
     private static void Seed(ModelBuilder builder)
     {

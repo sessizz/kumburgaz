@@ -2,6 +2,7 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -9,10 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class CollectionsController(
     ApplicationDbContext db,
-    ICollectionService collectionService) : Controller
+    ICollectionService collectionService,
+    ImportBatchService importBatchService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -241,35 +243,66 @@ public class CollectionsController(
         var billingGroupIds = await db.BillingGroups.AsNoTracking().Select(x => x.Id).ToListAsync();
         var billingGroupSet = billingGroupIds.ToHashSet();
 
-        var count = 0;
+        var importItems = new List<CollectionImportItem>();
+        var seenKeys = new HashSet<string>();
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
             var lineNo = i + 1;
+            ImportRowStatus status = ImportRowStatus.Ready;
+            string? error = null;
+            int billingGroupId = 0;
+            DateTime date = default;
+            decimal amount = 0m;
+            PaymentChannel paymentChannel = PaymentChannel.Bank;
 
             var billingGroupIdText = ReadFirstValue(row, headers, "billinggroupid", "aidatgrubuid");
-            if (!int.TryParse(billingGroupIdText, out var billingGroupId) || !billingGroupSet.Contains(billingGroupId))
+            if (!int.TryParse(billingGroupIdText, out billingGroupId) || !billingGroupSet.Contains(billingGroupId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: geçerli AidatGrubuId bulunamadı.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "Geçerli AidatGrubuId bulunamadı.";
             }
 
-            if (!TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out var date))
+            if (status == ImportRowStatus.Ready &&
+                !TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Tarih alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "Tarih alanı geçersiz.";
             }
 
-            if (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out var amount) || amount <= 0)
+            if (status == ImportRowStatus.Ready &&
+                (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out amount) || amount <= 0))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Tutar alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "Tutar alanı geçersiz.";
             }
 
-            if (!TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out var paymentChannel))
+            if (status == ImportRowStatus.Ready &&
+                !TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out paymentChannel))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: OdemeKanali alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "OdemeKanali alanı geçersiz.";
+            }
+
+            var referenceNo = NullIfWhiteSpace(ReadFirstValue(row, headers, "referenceno", "referansno"));
+            var note = NullIfWhiteSpace(ReadFirstValue(row, headers, "note", "not"));
+            var normalizedKey = ImportBatchService.BuildNormalizedKey(
+                "collection",
+                billingGroupId,
+                date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                amount.ToString("0.00", CultureInfo.InvariantCulture),
+                referenceNo ?? string.Empty);
+
+            if (status == ImportRowStatus.Ready && !seenKeys.Add(normalizedKey))
+            {
+                status = ImportRowStatus.Duplicate;
+                error = "Dosya içinde mükerrer satır.";
+            }
+
+            if (status == ImportRowStatus.Ready && await importBatchService.HasCommittedDuplicateAsync(normalizedKey))
+            {
+                status = ImportRowStatus.Duplicate;
+                error = "Daha önce import edilmiş mükerrer kayıt.";
             }
 
             var model = new CollectionCreateViewModel
@@ -278,25 +311,85 @@ public class CollectionsController(
                 Date = date,
                 Amount = amount,
                 PaymentChannel = paymentChannel,
-                ReferenceNo = NullIfWhiteSpace(ReadFirstValue(row, headers, "referenceno", "referansno")),
-                Note = NullIfWhiteSpace(ReadFirstValue(row, headers, "note", "not"))
+                ReferenceNo = referenceNo,
+                Note = note
             };
 
-            try
-            {
-                await collectionService.CreateAsync(model);
-                count++;
-            }
-            catch (Exception ex)
-            {
-                TempData["ImportError"] = $"Satir {lineNo}: {ex.Message}";
-                return RedirectToAction(nameof(Index));
-            }
+            importItems.Add(new CollectionImportItem(lineNo, row, model, normalizedKey, status, error));
         }
 
-        TempData["ImportSuccess"] = $"{count} tahsilat CSV ile eklendi.";
+        var batch = await importBatchService.CreateAsync(
+            "collection",
+            null,
+            null,
+            file.FileName,
+            await ComputeFileHashAsync(file));
+
+        if (importItems.Any(x => x.Status != ImportRowStatus.Ready))
+        {
+            foreach (var item in importItems)
+            {
+                await importBatchService.AddRowAsync(
+                    batch,
+                    item.LineNo,
+                    item.RawRow,
+                    item.NormalizedKey,
+                    item.Status,
+                    item.ErrorMessage);
+            }
+
+            await importBatchService.FailAsync(batch);
+            var errorCount = importItems.Count(x => x.Status == ImportRowStatus.Error);
+            var duplicateCount = importItems.Count(x => x.Status == ImportRowStatus.Duplicate);
+            TempData["ImportError"] = $"CSV import edilmedi. Batch: {batch.ImportNo}. Hatalı: {errorCount}, mükerrer: {duplicateCount}.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var item in importItems)
+            {
+                var collectionId = await collectionService.CreateAsync(item.Model);
+                await importBatchService.AddRowAsync(
+                    batch,
+                    item.LineNo,
+                    item.RawRow,
+                    item.NormalizedKey,
+                    ImportRowStatus.Committed,
+                    createdEntityName: nameof(Collection),
+                    createdEntityId: collectionId);
+            }
+
+            await importBatchService.CommitAsync(batch);
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            await importBatchService.FailAsync(batch);
+            TempData["ImportError"] = $"CSV import edilmedi. Batch: {batch.ImportNo}. {ex.Message}";
+            return RedirectToAction(nameof(Index));
+        }
+
+        TempData["ImportSuccess"] = $"{importItems.Count} tahsilat CSV ile eklendi. Batch: {batch.ImportNo}";
         return RedirectToAction(nameof(Index));
     }
+
+    private static async Task<string> ComputeFileHashAsync(IFormFile file)
+    {
+        await using var stream = file.OpenReadStream();
+        var hash = await SHA256.HashDataAsync(stream);
+        return Convert.ToHexString(hash);
+    }
+
+    private sealed record CollectionImportItem(
+        int LineNo,
+        string[] RawRow,
+        CollectionCreateViewModel Model,
+        string NormalizedKey,
+        ImportRowStatus Status,
+        string? ErrorMessage);
 
     private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
     {

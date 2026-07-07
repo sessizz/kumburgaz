@@ -3,14 +3,17 @@ using Kumburgaz.Web.Data;
 using Microsoft.AspNetCore.Mvc;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
+[Authorize(Policy = AppPolicies.ReportsRead)]
 public class HomeController(
     ApplicationDbContext db,
     IReportingService reportingService,
-    IExpenseForecastService expenseForecastService) : Controller
+    IExpenseForecastService expenseForecastService,
+    BackupService backupService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -84,6 +87,26 @@ public class HomeController(
         var forecastExpense = forecast.Total;
 
         var debtSnapshot = await BuildDebtSnapshotAsync();
+        var consistencyIssueCount = await db.ConsistencyCheckResults.CountAsync(x => !x.Resolved);
+        var backupFiles = backupService.ListBackups();
+        var lastBackupAt = backupFiles.OrderByDescending(x => x.CreatedAt).FirstOrDefault()?.CreatedAt;
+        var alerts = new List<string>();
+        if (debtSnapshot.TotalDebt > 0m)
+        {
+            alerts.Add($"{debtSnapshot.UnitCount} dairede toplam {debtSnapshot.TotalDebt:N2} TL borç var.");
+        }
+        if (debtSnapshot.TotalCredit > 0m)
+        {
+            alerts.Add($"Toplam {debtSnapshot.TotalCredit:N2} TL avans/alacak bakiyesi var.");
+        }
+        if (consistencyIssueCount > 0)
+        {
+            alerts.Add($"{consistencyIssueCount} açık tutarlılık uyarısı var.");
+        }
+        if (lastBackupAt is null)
+        {
+            alerts.Add("Henüz yedek alınmamış.");
+        }
 
         var upcomingExpenses = expenseForecast.Where(x => x.Name != "Diğer").Take(5).Select((x, index) => new DashboardUpcomingExpense
         {
@@ -125,7 +148,9 @@ public class HomeController(
                 .OrderByDescending(x => x.PublishDate)
                 .Take(3)
                 .ToListAsync(),
-            CalendarDays = BuildCalendarDays(todayUtc)
+            CalendarDays = BuildCalendarDays(todayUtc),
+            Alerts = alerts,
+            LastBackupAt = lastBackupAt
         };
 
         return View(vm);
@@ -155,6 +180,7 @@ public class HomeController(
 
         return new DashboardDebtSnapshot(
             summary.TotalDebt,
+            summary.TotalCredit,
             summary.DebtorCount,
             carriedDebt,
             duesDebt,
@@ -201,17 +227,6 @@ public class HomeController(
             });
         }
 
-        if (months.All(x => x.Income == 0 && x.Expense == 0))
-        {
-            var sampleIncome = new[] { 490000m, 650000m, 710000m, 580000m, 560000m, 670000m };
-            var sampleExpense = new[] { 280000m, 380000m, 320000m, 410000m, 350000m, 370000m };
-            for (var i = 0; i < months.Count; i++)
-            {
-                months[i].Income = sampleIncome[i];
-                months[i].Expense = sampleExpense[i];
-            }
-        }
-
         return months;
     }
 
@@ -241,6 +256,7 @@ public class HomeController(
 
     private sealed record DashboardDebtSnapshot(
         decimal TotalDebt,
+        decimal TotalCredit,
         int UnitCount,
         decimal CarriedDebt,
         decimal DuesDebt,

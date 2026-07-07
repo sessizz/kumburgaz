@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class DuesController(
     ApplicationDbContext db,
     ICollectionService collectionService,

@@ -40,6 +40,24 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AppPolicies.SystemAdmin, policy =>
+        policy.RequireRole(AppRoles.SistemYonetici));
+    options.AddPolicy(AppPolicies.FinanceWrite, policy =>
+        policy.RequireRole(AppRoles.SistemYonetici, AppRoles.MuhasebeGorevli));
+    options.AddPolicy(AppPolicies.ManagementWrite, policy =>
+        policy.RequireRole(AppRoles.SistemYonetici, AppRoles.SiteYonetici));
+    options.AddPolicy(AppPolicies.ReportsRead, policy =>
+        policy.RequireRole(
+            AppRoles.SistemYonetici,
+            AppRoles.SiteYonetici,
+            AppRoles.MuhasebeGorevli,
+            AppRoles.Personel,
+            AppRoles.SadeceGoruntuleme));
+});
+
 builder.Services.AddScoped<IBillingGroupService, BillingGroupService>();
 builder.Services.AddScoped<IDuesGenerationService, DuesGenerationService>();
 builder.Services.AddScoped<ICollectionService, CollectionService>();
@@ -47,10 +65,20 @@ builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IExpenseForecastService, ExpenseForecastService>();
 builder.Services.AddScoped<BalanceDetailedReportService>();
 builder.Services.AddScoped<CashBankDetailService>();
+builder.Services.AddScoped<ImportBatchService>();
+builder.Services.AddScoped<UnitLedgerService>();
 builder.Services.AddScoped<UnitStatementService>();
 builder.Services.AddScoped<AccountAssignmentService>();
+builder.Services.AddScoped<BackupService>();
+builder.Services.AddScoped<ConsistencyCheckService>();
+builder.Services.AddHostedService<BackupHostedService>();
+builder.Services.AddHostedService<ConsistencyCheckHostedService>();
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizeAreaPage("Identity", "/Account/Register", AppPolicies.SystemAdmin);
+});
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
@@ -82,7 +110,6 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await SeedIdentityAsync(roleManager, userManager);
-    await NormalizeBlockNamesAsync(db);
 }
 
 app.UseHttpsRedirection();
@@ -108,27 +135,9 @@ app.MapRazorPages().WithStaticAssets();
 
 app.Run();
 
-// "A Blok" → "A", "B Blok" → "B" gibi " Blok" suffix'ini temizle (bir kerelik)
-static async Task NormalizeBlockNamesAsync(ApplicationDbContext db)
-{
-    var blocks = await db.Blocks.ToListAsync();
-    var changed = false;
-    foreach (var block in blocks)
-    {
-        var normalized = block.Name.TrimEnd();
-        if (normalized.EndsWith(" Blok", StringComparison.OrdinalIgnoreCase))
-        {
-            block.Name = normalized[..^5].Trim(); // " Blok" = 5 karakter
-            changed = true;
-        }
-    }
-    if (changed) await db.SaveChangesAsync();
-}
-
 static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {
-    var roles = new[] { "SistemYonetici", "SiteYonetici", "MuhasebeGorevli" };
-    foreach (var role in roles)
+    foreach (var role in AppRoles.All)
     {
         if (!await roleManager.RoleExistsAsync(role))
         {
@@ -152,7 +161,7 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
         var createResult = await userManager.CreateAsync(admin, "Admin123!");
         if (createResult.Succeeded)
         {
-            await userManager.AddToRoleAsync(admin, "SistemYonetici");
+            await userManager.AddToRoleAsync(admin, AppRoles.SistemYonetici);
         }
     }
 }

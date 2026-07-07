@@ -7,7 +7,7 @@ using QuestPDF.Infrastructure;
 
 namespace Kumburgaz.Web.Services;
 
-public class ReportingService(ApplicationDbContext db) : IReportingService
+public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLedgerService) : IReportingService
 {
     public async Task<List<DuesDebtReportRow>> GetDuesDebtReportAsync(DuesDebtReportQuery query)
     {
@@ -99,28 +99,34 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
 
         if (query.BillingGroupId is null && query.DuesTypeId is null)
         {
+            var summaries = await unitLedgerService.BuildSummariesAsync(units.Select(x => x.Id));
             foreach (var unit in units)
             {
-                if (rowsByKey.TryGetValue(UnitKey(unit.Id), out var row))
+                if (rowsByKey.TryGetValue(UnitKey(unit.Id), out var row)
+                    && summaries.TryGetValue(unit.Id, out var summary))
                 {
-                    row.RemainingAmount -= unit.OpeningBalance;
+                    row.Amount = summary.TotalAccrual;
+                    row.RemainingAmount = summary.NetBalance;
                     row.OpeningBalance = unit.OpeningBalance;
+                    row.UnallocatedCredit = summary.Advance;
                 }
             }
         }
-
-        var collectionCredits = await CollectionCreditHelper.BuildUnitCreditMapAsync(
-            db,
-            query.BlockId,
-            query.BillingGroupId,
-            query.DuesTypeId);
-
-        foreach (var credit in collectionCredits)
+        else
         {
-            if (rowsByKey.TryGetValue(UnitKey(credit.Key), out var row))
+            var collectionCredits = await CollectionCreditHelper.BuildUnitCreditMapAsync(
+                db,
+                query.BlockId,
+                query.BillingGroupId,
+                query.DuesTypeId);
+
+            foreach (var credit in collectionCredits)
             {
-                row.RemainingAmount -= credit.Value;
-                row.UnallocatedCredit = credit.Value;
+                if (rowsByKey.TryGetValue(UnitKey(credit.Key), out var row))
+                {
+                    row.RemainingAmount -= credit.Value;
+                    row.UnallocatedCredit = credit.Value;
+                }
             }
         }
 
@@ -138,19 +144,24 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             .ToList();
     }
 
-    public byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows)
+    public byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows, DuesDebtReportQuery? query = null)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Daire Bakiye");
-        ws.Cell(1, 1).Value = "Daire/Birleşik";
-        ws.Cell(1, 2).Value = "Sorumlu Hesap";
-        ws.Cell(1, 3).Value = "Aidat Tipi";
-        ws.Cell(1, 4).Value = "Aidat Grubu";
-        ws.Cell(1, 5).Value = "Tahakkuk Toplamı";
-        ws.Cell(1, 6).Value = "Net Bakiye";
-        ws.Cell(1, 7).Value = "Durum";
+        ws.Cell(1, 1).Value = "Daire Borç/Alacak Raporu";
+        ws.Cell(2, 1).Value = BuildFilterSummary(query);
+        ws.Range(1, 1, 1, 7).Merge().Style.Font.Bold = true;
+        ws.Range(2, 1, 2, 7).Merge();
 
-        var rowIndex = 2;
+        ws.Cell(4, 1).Value = "Daire/Birleşik";
+        ws.Cell(4, 2).Value = "Sorumlu Hesap";
+        ws.Cell(4, 3).Value = "Aidat Tipi";
+        ws.Cell(4, 4).Value = "Aidat Grubu";
+        ws.Cell(4, 5).Value = "Tahakkuk Toplamı";
+        ws.Cell(4, 6).Value = "Net Bakiye";
+        ws.Cell(4, 7).Value = "Durum";
+
+        var rowIndex = 5;
         foreach (var row in rows)
         {
             ws.Cell(rowIndex, 1).Value = row.UnitDisplay;
@@ -169,7 +180,7 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
         return ms.ToArray();
     }
 
-    public byte[] ExportDuesDebtAsPdf(List<DuesDebtReportRow> rows)
+    public byte[] ExportDuesDebtAsPdf(List<DuesDebtReportRow> rows, DuesDebtReportQuery? query = null)
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -178,7 +189,11 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
             container.Page(page =>
             {
                 page.Margin(20);
-                page.Header().Text("Daire Borç/Alacak Raporu").FontSize(18).Bold();
+                page.Header().Column(column =>
+                {
+                    column.Item().Text("Daire Borç/Alacak Raporu").FontSize(18).Bold();
+                    column.Item().Text(BuildFilterSummary(query)).FontSize(9);
+                });
                 page.Content().Table(table =>
                 {
                     table.ColumnsDefinition(c =>
@@ -243,6 +258,24 @@ public class ReportingService(ApplicationDbContext db) : IReportingService
     private static string BalanceStatus(decimal balance)
     {
         return balance > 0 ? "Borç" : balance < 0 ? "Alacak" : "Yok";
+    }
+
+    private static string BuildFilterSummary(DuesDebtReportQuery? query)
+    {
+        if (query is null)
+        {
+            return "Filtre: Tümü";
+        }
+
+        var parts = new List<string>
+        {
+            $"BlokId: {query.BlockId?.ToString() ?? "Tüm"}",
+            $"AidatTipiId: {query.DuesTypeId?.ToString() ?? "Tüm"}",
+            $"AidatGrubuId: {query.BillingGroupId?.ToString() ?? "Tüm"}",
+            $"Bakiye: {query.BalanceStatus ?? "Tümü"}"
+        };
+
+        return "Filtre: " + string.Join(" | ", parts);
     }
 
     private static string UnitKey(int unitId) => $"U:{unitId}";

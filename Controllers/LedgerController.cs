@@ -2,6 +2,7 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -9,8 +10,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
-public class LedgerController(ApplicationDbContext db) : Controller
+[Authorize(Policy = AppPolicies.FinanceWrite)]
+public class LedgerController(
+    ApplicationDbContext db,
+    ImportBatchService importBatchService) : Controller
 {
     public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
@@ -207,81 +210,231 @@ public class LedgerController(ApplicationDbContext db) : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ImportCsv(IFormFile? file)
     {
+        return await ImportLedgerCsvAsync(
+            file,
+            CategoryTypeHelper.Gider,
+            nameof(Index),
+            ["incomeexpensecategoryid", "giderkategoriid"],
+            "GiderKategoriId",
+            "gider",
+            "gider kaydı");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ImportIncomeCsv(IFormFile? file)
+    {
+        return await ImportLedgerCsvAsync(
+            file,
+            CategoryTypeHelper.Gelir,
+            nameof(Income),
+            ["incomeexpensecategoryid", "gelirkategoriid"],
+            "GelirKategoriId",
+            "gelir",
+            "gelir kaydı");
+    }
+
+    private async Task<IActionResult> ImportLedgerCsvAsync(
+        IFormFile? file,
+        string categoryType,
+        string redirectAction,
+        string[] categoryHeaderKeys,
+        string categoryHeaderLabel,
+        string batchType,
+        string rowLabel)
+    {
         if (file is null || file.Length == 0)
         {
             TempData["ImportError"] = "CSV dosyası seciniz.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(redirectAction);
         }
 
         var rows = await CsvImportHelper.ReadRowsAsync(file);
         if (rows.Count < 2)
         {
             TempData["ImportError"] = "CSV baslik ve en az bir veri satırı icermelidir.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(redirectAction);
         }
 
         var headers = BuildHeaders(rows[0]);
-        if (!HasAnyHeader(headers, "incomeexpensecategoryid", "giderkategoriid") ||
+        if (!HasAnyHeader(headers, categoryHeaderKeys) ||
             !HasAnyHeader(headers, "date", "tarih") ||
             !HasAnyHeader(headers, "amount", "tutar"))
         {
-            TempData["ImportError"] = "Zorunlu alanlar: GiderKategoriId, Tarih, Tutar.";
-            return RedirectToAction(nameof(Index));
+            TempData["ImportError"] = $"Zorunlu alanlar: {categoryHeaderLabel}, Tarih, Tutar.";
+            return RedirectToAction(redirectAction);
         }
 
         var categoryIds = await db.IncomeExpenseCategories
             .AsNoTracking()
-            .Where(x => x.Type == CategoryTypeHelper.Gider)
+            .Where(x => x.Type == categoryType)
             .Select(x => x.Id)
             .ToListAsync();
         var categorySet = categoryIds.ToHashSet();
 
-        var toAdd = new List<LedgerTransaction>();
+        var importItems = new List<LedgerImportItem>();
+        var seenKeys = new HashSet<string>();
         for (var i = 1; i < rows.Count; i++)
         {
             var row = rows[i];
             var lineNo = i + 1;
+            ImportRowStatus status = ImportRowStatus.Ready;
+            string? error = null;
+            var categoryId = 0;
+            DateTime date = default;
+            decimal amount = 0m;
+            PaymentChannel paymentChannel = PaymentChannel.Bank;
+            int? cashBoxId = null;
+            int? bankAccountId = null;
 
-            var categoryIdText = ReadFirstValue(row, headers, "incomeexpensecategoryid", "giderkategoriid");
-            if (!int.TryParse(categoryIdText, out var categoryId) || !categorySet.Contains(categoryId))
+            var categoryIdText = ReadFirstValue(row, headers, categoryHeaderKeys);
+            if (!int.TryParse(categoryIdText, out categoryId) || !categorySet.Contains(categoryId))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: geçerli gider kategorisi bulunamadı.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = $"Geçerli {CategoryTypeHelper.Display(categoryType).ToLowerInvariant()} kategorisi bulunamadı.";
             }
 
-            if (!TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out var date))
+            if (status == ImportRowStatus.Ready &&
+                !TryParseDate(ReadFirstValue(row, headers, "date", "tarih"), out date))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Tarih alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "Tarih alanı geçersiz.";
             }
 
-            if (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out var amount) || amount <= 0)
+            if (status == ImportRowStatus.Ready &&
+                (!TryParseAmount(ReadFirstValue(row, headers, "amount", "tutar"), out amount) || amount <= 0))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: Tutar alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                status = ImportRowStatus.Error;
+                error = "Tutar alanı geçersiz.";
             }
 
-            if (!TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out var paymentChannel))
+            var accountKey = NullIfWhiteSpace(ReadFirstValue(row, headers, "accountkey", "hesap", "kasabanka"));
+            if (status == ImportRowStatus.Ready && !string.IsNullOrWhiteSpace(accountKey))
             {
-                TempData["ImportError"] = $"Satir {lineNo}: OdemeKanali alanı geçersiz.";
-                return RedirectToAction(nameof(Index));
+                if (!FinancialAccountHelper.TryParse(accountKey, out paymentChannel, out cashBoxId, out bankAccountId))
+                {
+                    status = ImportRowStatus.Error;
+                    error = "Hesap alanı geçersiz.";
+                }
             }
 
-            toAdd.Add(new LedgerTransaction
+            if (status == ImportRowStatus.Ready &&
+                string.IsNullOrWhiteSpace(accountKey) &&
+                !TryParsePaymentChannel(ReadFirstValue(row, headers, "paymentchannel", "odemekanali"), out paymentChannel))
+            {
+                status = ImportRowStatus.Error;
+                error = "OdemeKanali alanı geçersiz.";
+            }
+
+            var description = NullIfWhiteSpace(ReadFirstValue(row, headers, "description", "aciklama"));
+            var normalizedKey = ImportBatchService.BuildNormalizedKey(
+                "ledger",
+                categoryType,
+                categoryId,
+                accountKey ?? paymentChannel.ToString(),
+                date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                amount.ToString("0.00", CultureInfo.InvariantCulture),
+                description ?? string.Empty);
+
+            if (status == ImportRowStatus.Ready && !seenKeys.Add(normalizedKey))
+            {
+                status = ImportRowStatus.Duplicate;
+                error = "Dosya içinde mükerrer satır.";
+            }
+
+            if (status == ImportRowStatus.Ready && await importBatchService.HasCommittedDuplicateAsync(normalizedKey))
+            {
+                status = ImportRowStatus.Duplicate;
+                error = "Daha önce import edilmiş mükerrer kayıt.";
+            }
+
+            var transaction = new LedgerTransaction
             {
                 Date = DateTimeHelper.EnsureUtc(date),
                 IncomeExpenseCategoryId = categoryId,
                 Amount = amount,
                 PaymentChannel = paymentChannel,
-                Description = NullIfWhiteSpace(ReadFirstValue(row, headers, "description", "aciklama"))
-            });
+                CashBoxId = cashBoxId,
+                BankAccountId = bankAccountId,
+                Description = description
+            };
+
+            importItems.Add(new LedgerImportItem(lineNo, row, transaction, normalizedKey, status, error));
         }
 
-        db.LedgerTransactions.AddRange(toAdd);
-        await db.SaveChangesAsync();
-        TempData["ImportSuccess"] = $"{toAdd.Count} gider kaydı CSV ile eklendi.";
-        return RedirectToAction(nameof(Index));
+        var batch = await importBatchService.CreateAsync(
+            batchType,
+            null,
+            null,
+            file.FileName,
+            await ComputeFileHashAsync(file));
+
+        if (importItems.Any(x => x.Status != ImportRowStatus.Ready))
+        {
+            foreach (var item in importItems)
+            {
+                await importBatchService.AddRowAsync(
+                    batch,
+                    item.LineNo,
+                    item.RawRow,
+                    item.NormalizedKey,
+                    item.Status,
+                    item.ErrorMessage);
+            }
+
+            await importBatchService.FailAsync(batch);
+            var errorCount = importItems.Count(x => x.Status == ImportRowStatus.Error);
+            var duplicateCount = importItems.Count(x => x.Status == ImportRowStatus.Duplicate);
+            TempData["ImportError"] = $"CSV import edilmedi. Batch: {batch.ImportNo}. Hatalı: {errorCount}, mükerrer: {duplicateCount}.";
+            return RedirectToAction(redirectAction);
+        }
+
+        await using var dbTransaction = await db.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var item in importItems)
+            {
+                db.LedgerTransactions.Add(item.Transaction);
+                await db.SaveChangesAsync();
+                await importBatchService.AddRowAsync(
+                    batch,
+                    item.LineNo,
+                    item.RawRow,
+                    item.NormalizedKey,
+                    ImportRowStatus.Committed,
+                    createdEntityName: nameof(LedgerTransaction),
+                    createdEntityId: item.Transaction.Id);
+            }
+
+            await importBatchService.CommitAsync(batch);
+            await dbTransaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await dbTransaction.RollbackAsync();
+            await importBatchService.FailAsync(batch);
+            TempData["ImportError"] = $"CSV import edilmedi. Batch: {batch.ImportNo}. {ex.Message}";
+            return RedirectToAction(redirectAction);
+        }
+
+        TempData["ImportSuccess"] = $"{importItems.Count} {rowLabel} CSV ile eklendi. Batch: {batch.ImportNo}";
+        return RedirectToAction(redirectAction);
     }
+
+    private static async Task<string> ComputeFileHashAsync(IFormFile file)
+    {
+        await using var stream = file.OpenReadStream();
+        var hash = await SHA256.HashDataAsync(stream);
+        return Convert.ToHexString(hash);
+    }
+
+    private sealed record LedgerImportItem(
+        int LineNo,
+        string[] RawRow,
+        LedgerTransaction Transaction,
+        string NormalizedKey,
+        ImportRowStatus Status,
+        string? ErrorMessage);
 
     private async Task<LedgerTransactionCreateViewModel> BuildAsync(LedgerTransactionCreateViewModel model)
     {

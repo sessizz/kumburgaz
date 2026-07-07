@@ -10,11 +10,12 @@ using System.Text.RegularExpressions;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class CashBankController(
     ApplicationDbContext db,
     CashBankDetailService detailService,
-    ICollectionService collectionService) : Controller
+    ICollectionService collectionService,
+    ImportBatchService importBatchService) : Controller
 {
     // PostgreSQL timestamp precision is microseconds, so ordering offsets must be at least 10 ticks.
     private const long TransactionOrderTickStep = 10L;
@@ -233,6 +234,7 @@ public class CashBankController(
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
         var errors = new List<string>();
         var importRows = new List<CashBankImportOperation>();
+        var keysInThisBatch = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var row in model.Rows.Where(x => x.Include))
         {
@@ -245,6 +247,24 @@ public class CashBankController(
             if (!TryParseImportAmount(row.Amount, out var amount))
             {
                 errors.Add($"{row.LineNo}. satır: tutar geçersiz.");
+                continue;
+            }
+
+            var normalizedKey = ImportBatchService.BuildNormalizedKey(
+                "cashbank",
+                model.Kind,
+                model.Id,
+                row.Type,
+                date.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                amount.ToString("0.00", CultureInfo.InvariantCulture),
+                row.Description,
+                row.ReferenceNo,
+                row.Note);
+
+            if (!keysInThisBatch.Add(normalizedKey)
+                || await importBatchService.HasCommittedDuplicateAsync(normalizedKey))
+            {
+                errors.Add($"{row.LineNo}. satır: mükerrer import kaydı.");
                 continue;
             }
 
@@ -265,7 +285,7 @@ public class CashBankController(
                     continue;
                 }
 
-                importRows.Add(new CashBankImportOperation(row, date, amount, installment, null));
+                importRows.Add(new CashBankImportOperation(row, date, amount, installment, null, normalizedKey));
                 continue;
             }
 
@@ -284,7 +304,7 @@ public class CashBankController(
                     continue;
                 }
 
-                importRows.Add(new CashBankImportOperation(row, date, amount, null, null));
+                importRows.Add(new CashBankImportOperation(row, date, amount, null, null, normalizedKey));
                 continue;
             }
 
@@ -311,7 +331,7 @@ public class CashBankController(
                 continue;
             }
 
-            importRows.Add(new CashBankImportOperation(row, date, amount, null, row.ExpenseCategoryId.Value));
+            importRows.Add(new CashBankImportOperation(row, date, amount, null, row.ExpenseCategoryId.Value, normalizedKey));
         }
 
         if (errors.Count > 0)
@@ -321,6 +341,7 @@ public class CashBankController(
 
         importRows = ApplyImportOrder(importRows, await BuildExistingTransactionDateOffsetsAsync(model.Kind, model.Id));
         var saved = importRows.Count;
+        var batch = await importBatchService.CreateAsync("cashbank", model.Kind, model.Id, null);
         await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
@@ -328,7 +349,7 @@ public class CashBankController(
             {
                 if (item.Installment is not null)
                 {
-                    await collectionService.CreateAsync(new CollectionCreateViewModel
+                    var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
                     {
                         BillingGroupId = item.Installment.BillingGroupId,
                         DuesInstallmentId = item.Installment.Id,
@@ -339,6 +360,14 @@ public class CashBankController(
                         ReferenceNo = item.Row.ReferenceNo,
                         Note = string.IsNullOrWhiteSpace(item.Row.Note) ? item.Row.Description : item.Row.Note
                     });
+                    await importBatchService.AddRowAsync(
+                        batch,
+                        item.Row.LineNo,
+                        item.Row,
+                        item.NormalizedKey,
+                        ImportRowStatus.Committed,
+                        createdEntityName: nameof(Collection),
+                        createdEntityId: collectionId);
                     continue;
                 }
 
@@ -352,10 +381,17 @@ public class CashBankController(
                         item.Date,
                         item.Amount,
                         string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description);
+                    await importBatchService.AddRowAsync(
+                        batch,
+                        item.Row.LineNo,
+                        item.Row,
+                        item.NormalizedKey,
+                        ImportRowStatus.Committed,
+                        createdEntityName: nameof(LedgerTransaction));
                     continue;
                 }
 
-                db.LedgerTransactions.Add(new LedgerTransaction
+                var ledgerTransaction = new LedgerTransaction
                 {
                     Date = DateTimeHelper.EnsureUtc(item.Date),
                     IncomeExpenseCategoryId = item.CategoryId!.Value,
@@ -366,20 +402,31 @@ public class CashBankController(
                     CashBoxId = model.Kind == "cash" ? model.Id : null,
                     BankAccountId = model.Kind == "bank" ? model.Id : null,
                     Description = string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description
-                });
+                };
+                db.LedgerTransactions.Add(ledgerTransaction);
                 await db.SaveChangesAsync();
+                await importBatchService.AddRowAsync(
+                    batch,
+                    item.Row.LineNo,
+                    item.Row,
+                    item.NormalizedKey,
+                    ImportRowStatus.Committed,
+                    createdEntityName: nameof(LedgerTransaction),
+                    createdEntityId: ledgerTransaction.Id);
             }
 
-            await db.SaveChangesAsync();
+            await importBatchService.CommitAsync(batch);
             await transaction.CommitAsync();
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
+            batch.Status = ImportBatchStatus.Failed;
+            await db.SaveChangesAsync();
             return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
         }
 
-        TempData["ActionSuccess"] = $"{saved} kayıt import edildi.";
+        TempData["ActionSuccess"] = $"{saved} kayıt import edildi. Batch: {batch.ImportNo}";
         return RedirectToDetail(model.Kind, model.Id);
     }
 
@@ -1346,7 +1393,8 @@ public class CashBankController(
         DateTime Date,
         decimal Amount,
         DuesInstallment? Installment,
-        int? CategoryId);
+        int? CategoryId,
+        string NormalizedKey);
 
     private static Dictionary<string, int> BuildImportHeaders(string[] row)
     {

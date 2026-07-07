@@ -1,0 +1,92 @@
+@model Kumburgaz.Web.Models.BackupIndexViewModel
+@{
+    ViewData["Title"] = "Yedekleme";
+}
+
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-extrabold">Yedekleme</h2>
+        <p class="text-sm text-gray-400">Manuel yedek alın, yedek indirin veya geri yükleyin.</p>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string okMsg)
+    {
+        <div class="alert alert-success"><span>@okMsg</span></div>
+    }
+    @if (TempData["ActionError"] is string errMsg)
+    {
+        <div class="alert alert-error"><span>@errMsg</span></div>
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Yedek Dizini</div>
+            <div class="mt-1 font-semibold break-all">@Model.Directory</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Son Yedek</div>
+            <div class="mt-1 text-xl font-extrabold">@(Model.LastBackupAt.HasValue ? Model.LastBackupAt.Value.ToString("dd.MM.yyyy HH:mm") : "Yok")</div>
+        </div>
+        <form asp-action="Create" method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center justify-between gap-3">
+            <div>
+                <div class="font-bold">Manuel yedek</div>
+                <div class="text-sm text-gray-400">Anlık yedek oluşturur.</div>
+            </div>
+            <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined">backup</span>
+                Yedek al
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <form asp-action="Restore" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+            <label class="form-control">
+                <span class="label-text font-semibold">Yedekten geri yükle</span>
+                <input type="file" name="file" class="file-input file-input-bordered w-full" />
+            </label>
+            <button class="btn btn-warning" type="submit">
+                <span class="material-symbols-outlined">restore</span>
+                Geri yükle
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="font-bold">Yedek Dosyaları</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Dosya</th>
+                        <th>Boyut</th>
+                        <th>Tarih</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Files.Count == 0)
+                {
+                    <tr><td colspan="4" class="text-center text-gray-400 py-6">Henüz yedek yok.</td></tr>
+                }
+                @foreach (var file in Model.Files)
+                {
+                    <tr>
+                        <td class="font-semibold">@file.FileName</td>
+                        <td>@((file.Size / 1024m / 1024m).ToString("N2")) MB</td>
+                        <td>@file.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                        <td class="text-end">
+                            <a class="btn btn-xs btn-outline" asp-action="Download" asp-route-fileName="@file.FileName">
+                                <span class="material-symbols-outlined ms-sm">download</span>
+                                İndir
+                            </a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

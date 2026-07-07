@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class DuesGenerationController(IDuesGenerationService duesGenerationService) : Controller
 {
     [HttpGet]

@@ -83,6 +83,23 @@
         </div>
     </form>
 
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
+            <form asp-action="ImportIncomeCsv" method="post" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Gelir CSV dosyası</legend>
+                    <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered w-full" />
+                    <p class="label text-xs">Kolonlar: GelirKategoriId, Tarih, Tutar, OdemeKanali veya Hesap, Aciklama</p>
+                </fieldset>
+                <button type="submit" class="btn btn-outline btn-primary">
+                    <span class="material-symbols-outlined ms-sm">upload</span>
+                    CSV ile Ekle
+                </button>
+            </form>
+        </div>
+    </div>
+
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table table-zebra">

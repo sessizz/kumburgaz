@@ -31,6 +31,34 @@
         </div>
     </div>
 
+    @if (Model.Alerts.Count > 0 || Model.LastBackupAt.HasValue)
+    {
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
+            @if (Model.Alerts.Count > 0)
+            {
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div class="font-bold text-amber-900 flex items-center gap-2">
+                        <span class="material-symbols-outlined">notifications_active</span>
+                        Uyarılar
+                    </div>
+                    <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-amber-900">
+                        @foreach (var alert in Model.Alerts)
+                        {
+                            <div class="flex items-start gap-2">
+                                <span class="material-symbols-outlined text-amber-600" style="font-size:18px;">priority_high</span>
+                                <span>@alert</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+                <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Son Yedek</div>
+                <div class="mt-1 font-bold">@(Model.LastBackupAt.HasValue ? Model.LastBackupAt.Value.ToString("dd.MM.yyyy HH:mm") : "Yok")</div>
+            </div>
+        </div>
+    }
+
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
             <div class="ico" style="background:#ecfdf5;"><span class="material-symbols-outlined" style="color:#10b981;">monitoring</span></div>

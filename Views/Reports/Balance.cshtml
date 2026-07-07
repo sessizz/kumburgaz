@@ -1,7 +1,8 @@
 @model Kumburgaz.Web.Models.BalanceReportViewModel
 @using System.Globalization
 @{
-    ViewData["Title"] = "Bilanço";
+    var pageTitle = ViewData["TitleOverride"] as string ?? "Bilanço";
+    ViewData["Title"] = pageTitle;
     var trTR = CultureInfo.GetCultureInfo("tr-TR");
     string Money(decimal value) => value.ToString("N2", trTR);
     var startText = Model.Query.StartDate?.ToString("dd MMMM yyyy", trTR) ?? "";
@@ -11,7 +12,7 @@
 <div class="space-y-4">
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-            <h2 class="text-2xl font-extrabold text-sky-500">Bilanço</h2>
+            <h2 class="text-2xl font-extrabold text-sky-500">@pageTitle</h2>
         </div>
         <form method="get" class="flex flex-wrap items-end gap-2">
             <fieldset class="fieldset">

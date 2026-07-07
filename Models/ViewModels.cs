@@ -107,6 +107,7 @@ public class AccountDetailViewModel
     public Account Account { get; set; } = null!;
     public List<AccountOpenInstallmentViewModel> OpenInstallments { get; set; } = [];
     public List<AccountCollectionRowViewModel> RecentCollections { get; set; } = [];
+    public UnitLedgerSummary Summary { get; set; } = new();
 }
 
 public class AccountOpenInstallmentViewModel
@@ -281,6 +282,43 @@ public class StatementEntry
     public decimal RunningBalance { get; set; }
 }
 
+public enum UnitLedgerEntryKind
+{
+    OpeningBalance,
+    DuesAccrual,
+    Collection,
+    AdvanceCredit,
+    ManualAdjustment
+}
+
+public class UnitLedgerEntry
+{
+    public UnitLedgerEntryKind Kind { get; set; }
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public decimal RunningBalance { get; set; }
+    public int? SourceId { get; set; }
+}
+
+public class UnitLedgerSummary
+{
+    public decimal TotalAccrual { get; set; }
+    public decimal TotalCollections { get; set; }
+    public decimal OpeningCredit { get; set; }
+    public decimal OpeningDebt { get; set; }
+    public decimal NetBalance { get; set; }
+    public decimal Advance => NetBalance < 0 ? Math.Abs(NetBalance) : 0m;
+    public decimal Debt => NetBalance > 0 ? NetBalance : 0m;
+}
+
+public class UnitLedgerResult
+{
+    public Unit Unit { get; set; } = null!;
+    public List<UnitLedgerEntry> Entries { get; set; } = [];
+    public UnitLedgerSummary Summary { get; set; } = new();
+}
+
 public class UnitDetailViewModel
 {
     public Unit Unit { get; set; } = null!;
@@ -288,6 +326,7 @@ public class UnitDetailViewModel
     /// <summary>Toplam borç (yapılacak tahsilat); negatif ise daire alacaklı.</summary>
     public decimal Balance { get; set; }
     public StatementEntry? LastDebt { get; set; }
+    public UnitLedgerSummary Summary { get; set; } = new();
 }
 
 public class UnitStatementViewModel
@@ -295,6 +334,7 @@ public class UnitStatementViewModel
     public Unit Unit { get; set; } = null!;
     public List<StatementEntry> Entries { get; set; } = [];
     public decimal Balance { get; set; }
+    public UnitLedgerSummary Summary { get; set; } = new();
 }
 
 public class AddCollectionModalModel
@@ -795,6 +835,8 @@ public class DashboardViewModel
     public List<ServiceRequest> RecentRequests { get; set; } = [];
     public List<Announcement> RecentAnnouncements { get; set; } = [];
     public List<DashboardCalendarDay> CalendarDays { get; set; } = [];
+    public List<string> Alerts { get; set; } = [];
+    public DateTime? LastBackupAt { get; set; }
 }
 
 public class BalanceDetailedQuery
@@ -916,4 +958,25 @@ public class ReportManualEntryFormViewModel
 
     [ValidateNever]
     public List<SelectListItem> ReportLineOptions { get; set; } = [];
+}
+
+public class AuditIndexViewModel
+{
+    public List<AuditLog> AuditLogs { get; set; } = [];
+    public List<ImportBatch> ImportBatches { get; set; } = [];
+    public List<ConsistencyCheckResult> ConsistencyIssues { get; set; } = [];
+}
+
+public class BackupFileViewModel
+{
+    public string FileName { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class BackupIndexViewModel
+{
+    public string Directory { get; set; } = string.Empty;
+    public DateTime? LastBackupAt { get; set; }
+    public List<BackupFileViewModel> Files { get; set; } = [];
 }

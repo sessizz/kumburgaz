@@ -37,9 +37,9 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             .FirstOrDefaultAsync(x => x.Id == id);
     }
 
-    public async Task CreateAsync(CollectionCreateViewModel model)
+    public async Task<int> CreateAsync(CollectionCreateViewModel model)
     {
-        await SaveCollectionAndReallocateAsync(null, model);
+        return await SaveCollectionAndReallocateAsync(null, model);
     }
 
     public async Task UpdateAsync(int id, CollectionCreateViewModel model)
@@ -86,7 +86,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         }
     }
 
-    private async Task SaveCollectionAndReallocateAsync(int? collectionId, CollectionCreateViewModel model)
+    private async Task<int> SaveCollectionAndReallocateAsync(int? collectionId, CollectionCreateViewModel model)
     {
         if (model.Amount <= 0)
         {
@@ -223,6 +223,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         {
             await tx.CommitAsync();
         }
+
+        return collection.Id;
     }
 
     private async Task<int> ResolveRepresentativeUnitIdAsync(int billingGroupId)

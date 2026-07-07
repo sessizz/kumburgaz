@@ -8,10 +8,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.ManagementWrite)]
 public class UnitsController(
     ApplicationDbContext db,
     UnitStatementService statementService,
+    UnitLedgerService unitLedgerService,
     AccountAssignmentService accountAssignmentService) : Controller
 {
     public async Task<IActionResult> Detail(int id)
@@ -24,6 +25,7 @@ public class UnitsController(
         if (unit is null) return NotFound();
 
         var entries = await statementService.BuildAsync(id);
+        var ledger = await unitLedgerService.BuildAsync(id);
         var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
         var lastDebt = entries.LastOrDefault(x => x.Kind != StatementEntryKind.Collection);
 
@@ -34,7 +36,8 @@ public class UnitsController(
             Unit = unit,
             RecentEntries = entries.Take(10).ToList(),
             Balance = balance,
-            LastDebt = lastDebt
+            LastDebt = lastDebt,
+            Summary = ledger?.Summary ?? new UnitLedgerSummary()
         });
     }
 
@@ -46,6 +49,7 @@ public class UnitsController(
         if (unit is null) return NotFound();
 
         var entries = await statementService.BuildAsync(id);
+        var ledger = await unitLedgerService.BuildAsync(id);
         var balance = entries.Count > 0 ? entries[^1].RunningBalance : 0m;
 
         ViewBag.AccountOptions = await Kumburgaz.Web.Services.FinancialAccountHelper.BuildOptionsAsync(db, null);
@@ -54,7 +58,8 @@ public class UnitsController(
         {
             Unit = unit,
             Entries = entries,
-            Balance = balance
+            Balance = balance,
+            Summary = ledger?.Summary ?? new UnitLedgerSummary()
         });
     }
 

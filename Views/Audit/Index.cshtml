@@ -1,0 +1,151 @@
+@model Kumburgaz.Web.Models.AuditIndexViewModel
+@using Kumburgaz.Web.Models
+@{
+    ViewData["Title"] = "Denetim Kaydı";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Denetim Kaydı</h2>
+            <p class="text-sm text-gray-400">Audit, import batch ve tutarlılık uyarıları.</p>
+        </div>
+        <form asp-action="RunConsistencyCheck" method="post">
+            <button class="btn btn-outline btn-sm" type="submit">
+                <span class="material-symbols-outlined ms-sm">fact_check</span>
+                Kontrol çalıştır
+            </button>
+        </form>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string okMsg)
+    {
+        <div class="alert alert-success"><span>@okMsg</span></div>
+    }
+    @if (TempData["ActionError"] is string errMsg)
+    {
+        <div class="alert alert-error"><span>@errMsg</span></div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="font-bold">Import Batchleri</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Tip</th>
+                        <th>Kaynak</th>
+                        <th>Durum</th>
+                        <th>Satır</th>
+                        <th>Tarih</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.ImportBatches.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-gray-400 py-6">Import batch yok.</td></tr>
+                }
+                @foreach (var batch in Model.ImportBatches)
+                {
+                    <tr>
+                        <td class="font-semibold">@batch.ImportNo</td>
+                        <td>@batch.Type</td>
+                        <td>@batch.SourceAccountKind @batch.SourceAccountId</td>
+                        <td><span class="badge">@batch.Status</span></td>
+                        <td>@batch.Rows.Count</td>
+                        <td>@batch.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                        <td class="text-end">
+                            @if (batch.Status == ImportBatchStatus.Committed)
+                            {
+                                <form asp-action="RollbackImport" method="post" class="inline">
+                                    <input type="hidden" name="id" value="@batch.Id" />
+                                    <button class="btn btn-xs btn-warning" type="submit">Geri al</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="font-bold">Tutarlılık Uyarıları</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Seviye</th>
+                        <th>Kontrol</th>
+                        <th>Mesaj</th>
+                        <th>Fark</th>
+                        <th>Tarih</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.ConsistencyIssues.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center text-gray-400 py-6">Açık uyarı yok.</td></tr>
+                }
+                @foreach (var issue in Model.ConsistencyIssues)
+                {
+                    <tr>
+                        <td><span class="badge @(issue.Severity == "Error" ? "badge-error" : "badge-warning")">@issue.Severity</span></td>
+                        <td>@issue.CheckName</td>
+                        <td>@issue.Message</td>
+                        <td>@(issue.Difference.HasValue ? issue.Difference.Value.ToString("N2") : "—")</td>
+                        <td>@issue.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h3 class="font-bold">Son Audit Kayıtları</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Kullanıcı</th>
+                        <th>İşlem</th>
+                        <th>Kayıt</th>
+                        <th class="text-end">Geri Al</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var log in Model.AuditLogs)
+                {
+                    <tr>
+                        <td>@log.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                        <td>@(string.IsNullOrWhiteSpace(log.UserName) ? "Sistem" : log.UserName)</td>
+                        <td><span class="badge">@log.Action</span></td>
+                        <td>@log.EntityName #@log.EntityId</td>
+                        <td class="text-end">
+                            @if (log.Action == AuditAction.Delete)
+                            {
+                                <form asp-action="Restore" method="post" class="inline">
+                                    <input type="hidden" name="entityName" value="@log.EntityName" />
+                                    <input type="hidden" name="entityId" value="@log.EntityId" />
+                                    <button class="btn btn-xs btn-outline" type="submit">Geri al</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

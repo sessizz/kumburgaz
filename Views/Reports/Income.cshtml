@@ -1,0 +1,69 @@
+@model Kumburgaz.Web.Models.BalanceReportViewModel
+@{
+    ViewData["Title"] = "Gelir Raporu";
+}
+
+<div class="space-y-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Gelir Raporu</h2>
+            <p class="text-sm text-gray-400">Gelir kategorilerini tarih aralığına göre görüntüleyin.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Raporlar
+        </a>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <label class="form-control">
+                <span class="label-text font-semibold">Başlangıç</span>
+                <input class="input input-bordered" type="date" name="StartDate" value="@Model.Query.StartDate?.ToString("yyyy-MM-dd")" />
+            </label>
+            <label class="form-control">
+                <span class="label-text font-semibold">Bitiş</span>
+                <input class="input input-bordered" type="date" name="EndDate" value="@Model.Query.EndDate?.ToString("yyyy-MM-dd")" />
+            </label>
+            <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                Filtrele
+            </button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Toplam Gelir</div>
+            <div class="mt-1 text-2xl font-extrabold text-success">@Model.IncomeTotal.ToString("N2") TL</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Kategori</div>
+            <div class="mt-1 text-2xl font-extrabold">@Model.IncomeRows.Count</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <table class="table table-zebra">
+            <thead>
+                <tr>
+                    <th>Kategori</th>
+                    <th class="text-end">Tutar</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.IncomeRows.Count == 0)
+            {
+                <tr><td colspan="2" class="text-center text-gray-400 py-8">Gelir kaydı bulunamadı.</td></tr>
+            }
+            @foreach (var row in Model.IncomeRows)
+            {
+                <tr>
+                    <td>@row.CategoryName</td>
+                    <td class="text-end font-bold text-success">@row.Amount.ToString("N2") TL</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

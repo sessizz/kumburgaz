@@ -171,10 +171,10 @@
                 <span class="material-symbols-outlined">menu</span>
             </label>
             <div class="flex-1 max-w-xl">
-                <div class="relative" data-unit-search data-search-url="@Url.Action("Search", "Accounts")">
+                <div class="relative" data-unit-search data-search-url="@Url.Action("Global", "Search")">
                     <label class="flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-gray-50/60 hover:bg-white hover:border-gray-300 focus-within:bg-white focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition">
                         <span class="material-symbols-outlined text-gray-400">search</span>
-                        <input id="global-unit-search" class="grow bg-transparent text-sm outline-none placeholder:text-gray-400" type="search" autocomplete="off" placeholder="Hesap ara (Ctrl+K)" aria-label="Hesap ara" aria-autocomplete="list" aria-expanded="false" aria-controls="global-unit-search-results" />
+                        <input id="global-unit-search" class="grow bg-transparent text-sm outline-none placeholder:text-gray-400" type="search" autocomplete="off" placeholder="Daire, malik, makbuz veya işlem ara (Ctrl+K)" aria-label="Global ara" aria-autocomplete="list" aria-expanded="false" aria-controls="global-unit-search-results" />
                         <kbd class="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5">⌘K</kbd>
                     </label>
                     <div id="global-unit-search-results" class="hidden absolute left-0 right-0 top-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50" role="listbox" aria-label="Hesap arama sonuçları"></div>

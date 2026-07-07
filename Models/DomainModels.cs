@@ -2,6 +2,179 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Kumburgaz.Web.Models;
 
+public static class AppRoles
+{
+    public const string SistemYonetici = "SistemYonetici";
+    public const string SiteYonetici = "SiteYonetici";
+    public const string MuhasebeGorevli = "MuhasebeGorevli";
+    public const string Personel = "Personel";
+    public const string SadeceGoruntuleme = "SadeceGoruntuleme";
+
+    public static readonly string[] All =
+    [
+        SistemYonetici,
+        SiteYonetici,
+        MuhasebeGorevli,
+        Personel,
+        SadeceGoruntuleme
+    ];
+}
+
+public static class AppPolicies
+{
+    public const string SystemAdmin = "SystemAdmin";
+    public const string FinanceWrite = "FinanceWrite";
+    public const string ManagementWrite = "ManagementWrite";
+    public const string ReportsRead = "ReportsRead";
+}
+
+public interface ISoftDeletable
+{
+    bool IsDeleted { get; set; }
+    DateTime? DeletedAt { get; set; }
+    string? DeletedByUserId { get; set; }
+    string? DeletedByUserName { get; set; }
+}
+
+public enum AuditAction
+{
+    Create = 1,
+    Update = 2,
+    Delete = 3,
+    Restore = 4,
+    Import = 5,
+    Rollback = 6,
+    LoginSensitiveAction = 7
+}
+
+public class AuditLog
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(120)]
+    public string EntityName { get; set; } = string.Empty;
+
+    [MaxLength(80)]
+    public string EntityId { get; set; } = string.Empty;
+
+    public AuditAction Action { get; set; }
+
+    public string? OldValuesJson { get; set; }
+    public string? NewValuesJson { get; set; }
+
+    [MaxLength(450)]
+    public string? UserId { get; set; }
+
+    [MaxLength(256)]
+    public string? UserName { get; set; }
+
+    [MaxLength(64)]
+    public string? IpAddress { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [MaxLength(80)]
+    public string? CorrelationId { get; set; }
+}
+
+public enum ImportBatchStatus
+{
+    Draft = 1,
+    Committed = 2,
+    RolledBack = 3,
+    Failed = 4
+}
+
+public enum ImportRowStatus
+{
+    Ready = 1,
+    Duplicate = 2,
+    Error = 3,
+    Skipped = 4,
+    Committed = 5,
+    RolledBack = 6
+}
+
+public class ImportBatch
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(40)]
+    public string ImportNo { get; set; } = string.Empty;
+
+    [Required, MaxLength(40)]
+    public string Type { get; set; } = string.Empty;
+
+    [MaxLength(20)]
+    public string? SourceAccountKind { get; set; }
+
+    public int? SourceAccountId { get; set; }
+
+    [MaxLength(260)]
+    public string? FileName { get; set; }
+
+    [MaxLength(128)]
+    public string? FileHash { get; set; }
+
+    public ImportBatchStatus Status { get; set; } = ImportBatchStatus.Draft;
+
+    [MaxLength(256)]
+    public string? CreatedBy { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CommittedAt { get; set; }
+    public DateTime? RolledBackAt { get; set; }
+
+    public ICollection<ImportBatchRow> Rows { get; set; } = new List<ImportBatchRow>();
+}
+
+public class ImportBatchRow
+{
+    public int Id { get; set; }
+    public int ImportBatchId { get; set; }
+    public ImportBatch? ImportBatch { get; set; }
+    public int LineNo { get; set; }
+    public string RawJson { get; set; } = "{}";
+
+    [Required, MaxLength(300)]
+    public string NormalizedKey { get; set; } = string.Empty;
+
+    public ImportRowStatus Status { get; set; } = ImportRowStatus.Ready;
+
+    [MaxLength(500)]
+    public string? ErrorMessage { get; set; }
+
+    [MaxLength(80)]
+    public string? CreatedEntityName { get; set; }
+
+    public int? CreatedEntityId { get; set; }
+}
+
+public class ConsistencyCheckResult
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(80)]
+    public string CheckName { get; set; } = string.Empty;
+
+    [Required, MaxLength(20)]
+    public string Severity { get; set; } = "Info";
+
+    [Required, MaxLength(500)]
+    public string Message { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? EntityName { get; set; }
+
+    [MaxLength(80)]
+    public string? EntityId { get; set; }
+
+    public decimal? Difference { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool Resolved { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+}
+
 public enum PaymentChannel
 {
     [Display(Name = "Nakit")]
@@ -56,7 +229,7 @@ public class Site
     public string Name { get; set; } = string.Empty;
 }
 
-public class Block
+public class Block : ISoftDeletable
 {
     public int Id { get; set; }
     public int SiteId { get; set; }
@@ -65,10 +238,15 @@ public class Block
     [Required, MaxLength(60)]
     public string Name { get; set; } = string.Empty;
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<Unit> Units { get; set; } = new List<Unit>();
 }
 
-public class Unit
+public class Unit : ISoftDeletable
 {
     public int Id { get; set; }
     public int BlockId { get; set; }
@@ -103,13 +281,18 @@ public class Unit
     /// </summary>
     public DateTime? OpeningBalanceDate { get; set; }
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<BillingGroupUnit> BillingGroupUnits { get; set; } = new List<BillingGroupUnit>();
     public ICollection<UnitAccount> UnitAccounts { get; set; } = new List<UnitAccount>();
     public ICollection<CombinedUnitMember> CombinedUnitMembers { get; set; } = new List<CombinedUnitMember>();
     public ICollection<CombinedUnitMember> MemberOfCombinedUnits { get; set; } = new List<CombinedUnitMember>();
 }
 
-public class Account
+public class Account : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -129,11 +312,16 @@ public class Account
 
     public bool Active { get; set; } = true;
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<UnitAccount> UnitAccounts { get; set; } = new List<UnitAccount>();
     public ICollection<DuesInstallment> DuesInstallments { get; set; } = new List<DuesInstallment>();
 }
 
-public class UnitAccount
+public class UnitAccount : ISoftDeletable
 {
     public int Id { get; set; }
     public int UnitId { get; set; }
@@ -144,18 +332,26 @@ public class UnitAccount
     public bool Active { get; set; } = true;
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class CombinedUnitMember
+public class CombinedUnitMember : ISoftDeletable
 {
     public int Id { get; set; }
     public int CombinedUnitId { get; set; }
     public Unit? CombinedUnit { get; set; }
     public int ComponentUnitId { get; set; }
     public Unit? ComponentUnit { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class DuesType
+public class DuesType : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -167,10 +363,15 @@ public class DuesType
 
     public bool Active { get; set; } = true;
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<BillingGroup> BillingGroups { get; set; } = new List<BillingGroup>();
 }
 
-public class BillingGroup
+public class BillingGroup : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -189,11 +390,16 @@ public class BillingGroup
     public bool Active { get; set; } = true;
     public bool IsMerged { get; set; }
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<BillingGroupUnit> Units { get; set; } = new List<BillingGroupUnit>();
     public ICollection<DuesInstallment> Installments { get; set; } = new List<DuesInstallment>();
 }
 
-public class BillingGroupUnit
+public class BillingGroupUnit : ISoftDeletable
 {
     public int Id { get; set; }
     public int BillingGroupId { get; set; }
@@ -207,9 +413,13 @@ public class BillingGroupUnit
 
     [MaxLength(9)]
     public string? EndPeriod { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class DuesInstallment
+public class DuesInstallment : ISoftDeletable
 {
     public int Id { get; set; }
     public int BillingGroupId { get; set; }
@@ -228,10 +438,15 @@ public class DuesInstallment
     public decimal RemainingAmount { get; set; }
     public InstallmentStatus Status { get; set; } = InstallmentStatus.Open;
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<CollectionAllocation> Allocations { get; set; } = new List<CollectionAllocation>();
 }
 
-public class Collection
+public class Collection : ISoftDeletable
 {
     public int Id { get; set; }
     public int BillingGroupId { get; set; }
@@ -252,10 +467,15 @@ public class Collection
     [MaxLength(250)]
     public string? Note { get; set; }
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+
     public ICollection<CollectionAllocation> Allocations { get; set; } = new List<CollectionAllocation>();
 }
 
-public class CollectionAllocation
+public class CollectionAllocation : ISoftDeletable
 {
     public int Id { get; set; }
     public int CollectionId { get; set; }
@@ -263,9 +483,13 @@ public class CollectionAllocation
     public int DuesInstallmentId { get; set; }
     public DuesInstallment? DuesInstallment { get; set; }
     public decimal AppliedAmount { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class IncomeExpenseCategory
+public class IncomeExpenseCategory : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -276,9 +500,13 @@ public class IncomeExpenseCategory
     public string Type { get; set; } = "Expense";
 
     public bool Active { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class LedgerTransaction
+public class LedgerTransaction : ISoftDeletable
 {
     public int Id { get; set; }
     public DateTime Date { get; set; }
@@ -295,9 +523,13 @@ public class LedgerTransaction
 
     [MaxLength(250)]
     public string? Description { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class BankAccount
+public class BankAccount : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -313,9 +545,13 @@ public class BankAccount
     public decimal OpeningBalance { get; set; }
     public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
     public bool Active { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
-public class CashBox
+public class CashBox : ISoftDeletable
 {
     public int Id { get; set; }
 
@@ -325,6 +561,10 @@ public class CashBox
     public decimal OpeningBalance { get; set; }
     public DateTime OpeningBalanceDate { get; set; } = DateTime.Today;
     public bool Active { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
 }
 
 public class Announcement

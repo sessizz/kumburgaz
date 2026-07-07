@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
+[Authorize(Policy = AppPolicies.FinanceWrite)]
 public class BillingGroupsController(
     ApplicationDbContext db,
     IBillingGroupService billingGroupService) : Controller

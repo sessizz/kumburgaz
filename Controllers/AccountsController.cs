@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize]
-public class AccountsController(ApplicationDbContext db) : Controller
+[Authorize(Policy = AppPolicies.ManagementWrite)]
+public class AccountsController(ApplicationDbContext db, UnitLedgerService unitLedgerService) : Controller
 {
     public async Task<IActionResult> Index(string? q = null, AccountType? type = null)
     {
@@ -216,10 +216,26 @@ public class AccountsController(ApplicationDbContext db) : Controller
                 Amount = x.AppliedAmount
             });
 
+        var unitIds = account.UnitAccounts
+            .Where(x => x.Active && x.Unit is { Active: true })
+            .Select(x => x.UnitId)
+            .Distinct()
+            .ToList();
+        var summaries = await unitLedgerService.BuildSummariesAsync(unitIds);
+        var summary = new UnitLedgerSummary
+        {
+            TotalAccrual = summaries.Values.Sum(x => x.TotalAccrual),
+            TotalCollections = summaries.Values.Sum(x => x.TotalCollections),
+            OpeningCredit = summaries.Values.Sum(x => x.OpeningCredit),
+            OpeningDebt = summaries.Values.Sum(x => x.OpeningDebt),
+            NetBalance = summaries.Values.Sum(x => x.NetBalance)
+        };
+
         return View(new AccountDetailViewModel
         {
             Account = account,
             OpenInstallments = openRows,
+            Summary = summary,
             RecentCollections = openingRows
                 .Concat(collectionRows)
                 .OrderByDescending(x => x.Date)

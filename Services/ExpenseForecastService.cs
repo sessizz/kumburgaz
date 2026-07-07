@@ -39,7 +39,12 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
 
         if (rows.Count == 0)
         {
-            return BuildSample();
+            return new ExpenseForecastResult
+            {
+                Items = [],
+                Total = 0m,
+                Confidence = 0
+            };
         }
 
         var series = rows
@@ -378,32 +383,5 @@ public class ExpenseForecastService(ApplicationDbContext db) : IExpenseForecastS
             Math.Round(recentAverage, 2),
             "Son ayların ağırlıklı ortalaması",
             60);
-    }
-
-    private static ExpenseForecastResult BuildSample()
-    {
-        var sample = new (string Name, decimal Amount)[]
-        {
-            ("Maaşlar", 186000m),
-            ("Elektrik", 72000m),
-            ("Temizlik", 48000m),
-            ("Güvenlik", 46000m),
-            ("Bakım", 36900m),
-            ("Ortak Alan", 24000m)
-        };
-        var total = sample.Sum(x => x.Amount);
-        return new ExpenseForecastResult
-        {
-            Items = sample.Select((x, index) => new ExpenseForecastItem
-            {
-                Name = x.Name,
-                Amount = x.Amount,
-                Percent = x.Amount / total * 100m,
-                Color = Colors[index % Colors.Length],
-                Basis = "Örnek veri"
-            }).ToList(),
-            Total = total,
-            Confidence = 40
-        };
     }
 }

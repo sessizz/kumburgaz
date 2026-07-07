@@ -145,6 +145,28 @@
                         <div class="text-xs text-amber-600">@(balance > 0 ? "Tahsil edilecek" : (balance < 0 ? "Alacaklı" : "Bakiyesiz"))</div>
                     </div>
                 </div>
+                <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <div class="text-gray-400">Tahakkuk</div>
+                        <div class="font-bold">@Model.Summary.TotalAccrual.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Tahsilat</div>
+                        <div class="font-bold text-success">@Model.Summary.TotalCollections.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Devir Borcu</div>
+                        <div class="font-bold text-error">@Model.Summary.OpeningDebt.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Devir Alacağı</div>
+                        <div class="font-bold text-info">@Model.Summary.OpeningCredit.ToString("N2") ₺</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-gray-400">Avans / Alacak</div>
+                        <div class="font-bold text-success">@Model.Summary.Advance.ToString("N2") ₺</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

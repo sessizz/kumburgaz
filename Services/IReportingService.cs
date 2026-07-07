@@ -5,6 +5,6 @@ namespace Kumburgaz.Web.Services;
 public interface IReportingService
 {
     Task<List<DuesDebtReportRow>> GetDuesDebtReportAsync(DuesDebtReportQuery query);
-    byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows);
-    byte[] ExportDuesDebtAsPdf(List<DuesDebtReportRow> rows);
+    byte[] ExportDuesDebtAsExcel(List<DuesDebtReportRow> rows, DuesDebtReportQuery? query = null);
+    byte[] ExportDuesDebtAsPdf(List<DuesDebtReportRow> rows, DuesDebtReportQuery? query = null);
 }

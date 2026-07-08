@@ -1,0 +1,300 @@
+/* Kumburgaz mobil PWA - Bootstrap 5 uzerine ince, self-contained katman.
+   CDN/harici font yoktur; offline calisir. */
+
+:root {
+    --m-primary: #2563eb;
+    --m-primary-dark: #1d4ed8;
+    --m-bg: #f3f4f6;
+    --m-surface: #ffffff;
+    --m-border: #e5e7eb;
+    --m-text: #111827;
+    --m-muted: #6b7280;
+    --m-debt: #dc2626;
+    --m-debt-bg: #fef2f2;
+    --m-credit: #059669;
+    --m-credit-bg: #ecfdf5;
+    --m-topbar-h: 56px;
+    --m-bottomnav-h: 62px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: var(--m-bg);
+    color: var(--m-text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.m-app { min-height: 100vh; }
+
+/* Ust cubuk */
+.m-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    height: var(--m-topbar-h);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    padding-top: env(safe-area-inset-top);
+    background: var(--m-primary);
+    color: #fff;
+    box-shadow: 0 2px 8px -2px rgba(15, 23, 42, .25);
+}
+.m-topbar .m-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.m-topbar .m-iconbtn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #fff;
+    background: transparent;
+    border: none;
+    text-decoration: none;
+}
+.m-topbar .m-iconbtn:active { background: rgba(255, 255, 255, .15); }
+.m-topbar .m-iconbtn.is-disabled { opacity: .55; pointer-events: none; }
+.m-topbar .m-back { margin-left: -8px; }
+.m-badge-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Icerik */
+.m-main {
+    padding: 14px 14px calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom) + 16px);
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.m-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--m-muted);
+    margin: 18px 2px 8px;
+}
+.m-section-title:first-child { margin-top: 2px; }
+
+/* Kartlar */
+.m-card {
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.m-card-link { text-decoration: none; color: inherit; display: block; }
+.m-card-link:active { background: #f9fafb; }
+
+/* Istatistik kartlari */
+.m-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.m-stat {
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: 14px;
+    padding: 14px;
+}
+.m-stat .m-stat-label {
+    font-size: 12px;
+    color: var(--m-muted);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.m-stat .m-stat-value {
+    font-size: 21px;
+    font-weight: 800;
+    margin-top: 6px;
+    letter-spacing: -.01em;
+}
+.m-stat .m-stat-sub { font-size: 12px; color: var(--m-muted); margin-top: 2px; }
+.m-stat.is-debt .m-stat-value { color: var(--m-debt); }
+.m-stat.is-credit .m-stat-value { color: var(--m-credit); }
+
+/* Bakiye rozeti */
+.m-bal {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.m-bal.debt { color: var(--m-debt); background: var(--m-debt-bg); }
+.m-bal.credit { color: var(--m-credit); background: var(--m-credit-bg); }
+.m-bal.zero { color: var(--m-muted); background: #f3f4f6; }
+
+/* Listeler */
+.m-list {
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+.m-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    text-decoration: none;
+    color: inherit;
+}
+.m-list-item + .m-list-item { border-top: 1px solid #f1f3f5; }
+.m-list-item:active { background: #f9fafb; }
+.m-list-item .m-li-main { flex: 1; min-width: 0; }
+.m-list-item .m-li-title { font-size: 15px; font-weight: 600; }
+.m-list-item .m-li-sub { font-size: 12.5px; color: var(--m-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-list-item .m-li-chev { color: #cbd5e1; flex: none; }
+
+.m-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+}
+.m-row + .m-row { border-top: 1px solid #f1f3f5; }
+.m-row .m-row-main { min-width: 0; }
+.m-row .m-row-title { font-size: 14px; font-weight: 600; }
+.m-row .m-row-sub { font-size: 12px; color: var(--m-muted); margin-top: 1px; }
+.m-row .m-row-amt { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.m-amt-debt { color: var(--m-debt); }
+.m-amt-credit { color: var(--m-credit); }
+
+/* Arama */
+.m-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: 12px;
+    padding: 0 12px;
+    height: 44px;
+    margin-bottom: 12px;
+}
+.m-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    flex: 1;
+    font-size: 15px;
+    color: var(--m-text);
+}
+
+/* Bar (kategori dagilimi) */
+.m-bar-track { height: 6px; border-radius: 999px; background: #eef2f7; overflow: hidden; margin-top: 6px; }
+.m-bar-fill { height: 100%; border-radius: 999px; background: var(--m-primary); }
+
+/* Tabs (saf CSS, radio ile) */
+.m-tabs { margin-bottom: 12px; }
+.m-tabs input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+.m-tab-labels { display: flex; background: #eef2f7; border-radius: 12px; padding: 3px; gap: 3px; }
+.m-tab-labels label {
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--m-muted);
+    padding: 8px 0;
+    border-radius: 9px;
+    cursor: pointer;
+}
+.m-tab-panel { display: none; margin-top: 12px; }
+#m-tab-1:checked ~ .m-tab-labels label[for="m-tab-1"],
+#m-tab-2:checked ~ .m-tab-labels label[for="m-tab-2"] {
+    background: var(--m-surface);
+    color: var(--m-primary);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+#m-tab-1:checked ~ #m-panel-1,
+#m-tab-2:checked ~ #m-panel-2 { display: block; }
+
+/* Bos durum */
+.m-empty {
+    text-align: center;
+    color: var(--m-muted);
+    padding: 40px 20px;
+    font-size: 14px;
+}
+.m-empty .m-empty-icon { opacity: .4; margin-bottom: 8px; }
+
+/* Uyari kutusu */
+.m-note {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    margin-bottom: 12px;
+}
+
+/* Alt gezinme cubugu */
+.m-bottomnav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    height: calc(var(--m-bottomnav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    display: flex;
+    background: var(--m-surface);
+    border-top: 1px solid var(--m-border);
+    box-shadow: 0 -2px 10px -6px rgba(15, 23, 42, .2);
+}
+.m-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none;
+    color: var(--m-muted);
+    font-size: 11px;
+    font-weight: 600;
+    padding-top: 6px;
+}
+.m-nav-item.active { color: var(--m-primary); }
+.m-nav-item.is-disabled { color: #cbd5e1; pointer-events: none; }
+.m-nav-item svg { width: 24px; height: 24px; }
+
+/* Yardimci */
+.text-muted-m { color: var(--m-muted); }
+.mono-amt { font-variant-numeric: tabular-nums; }

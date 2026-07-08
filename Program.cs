@@ -132,6 +132,12 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllerRoute(
+    name: "mobile",
+    pattern: "m/{controller=Panel}/{action=Index}/{id?}",
+    defaults: new { area = "Mobile" })
+    .WithStaticAssets();
+
+app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();

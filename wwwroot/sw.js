@@ -1,0 +1,73 @@
+/* Kumburgaz PWA service worker - Asama 1
+   Yalnizca statik varlik onbellegi + cevrimdisi sayfasi. Push ilerleyen asamada eklenecek.
+   Kural: HTML/auth'lu yanitlar ASLA onbellege yazilmaz. */
+
+const STATIC_CACHE = 'kumburgaz-static-v1';
+const OFFLINE_URL = '/offline.html';
+
+const PRECACHE = [
+    OFFLINE_URL,
+    '/css/mobile.css',
+    '/lib/bootstrap/dist/css/bootstrap.min.css',
+    '/img/icons/icon-192.png',
+    '/manifest.webmanifest'
+];
+
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(STATIC_CACHE)
+            .then((cache) => cache.addAll(PRECACHE))
+            .then(() => self.skipWaiting())
+    );
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys()
+            .then((keys) => Promise.all(
+                keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k))
+            ))
+            .then(() => self.clients.claim())
+    );
+});
+
+function isStaticAsset(url) {
+    return /^\/(lib|css|js|img)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest';
+}
+
+self.addEventListener('fetch', (event) => {
+    const req = event.request;
+    const url = new URL(req.url);
+
+    // Yalnizca GET ve ayni origin; digerlerine (POST, /Identity, harici) dokunma.
+    if (req.method !== 'GET' || url.origin !== self.location.origin) {
+        return;
+    }
+    if (url.pathname.startsWith('/Identity')) {
+        return;
+    }
+
+    // Statik varliklar: cache-first.
+    if (isStaticAsset(url)) {
+        event.respondWith(
+            caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+                if (res.ok) {
+                    const copy = res.clone();
+                    caches.open(STATIC_CACHE).then((cache) => cache.put(req, copy));
+                }
+                return res;
+            }).catch(() => cached))
+        );
+        return;
+    }
+
+    // Sayfa (HTML) istekleri: network-first, basarisizsa cevrimdisi sayfasi. Yanit onbellege YAZILMAZ.
+    if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
+        event.respondWith(
+            fetch(req).catch(() => caches.match(OFFLINE_URL))
+        );
+        return;
+    }
+
+    // Diger GET: dogrudan agdan.
+});

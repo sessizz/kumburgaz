@@ -1,0 +1,51 @@
+@{
+    var title = ViewData["Title"]?.ToString() ?? "Kumburgaz";
+    var backUrl = ViewData["MobileBack"]?.ToString();
+}
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <title>@title - Kumburgaz</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#2563eb" />
+    <link rel="icon" type="image/png" href="/img/icons/favicon-32.png" />
+
+    <!-- iOS ana ekran destegi -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Kumburgaz" />
+    <link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png" />
+
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/mobile.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="m-app">
+        <header class="m-topbar">
+            @if (!string.IsNullOrEmpty(backUrl))
+            {
+                <a class="m-iconbtn m-back" href="@backUrl" aria-label="Geri">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                </a>
+            }
+            <span class="m-title">@title</span>
+            <span class="m-iconbtn is-disabled" aria-label="Bildirimler (yakında)" title="Bildirimler yakında">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+            </span>
+        </header>
+
+        <main class="m-main">
+            @RenderBody()
+        </main>
+
+        <partial name="_BottomNav" />
+    </div>
+
+    <script src="~/js/mobile.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

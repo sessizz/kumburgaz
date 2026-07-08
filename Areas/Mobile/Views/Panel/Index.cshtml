@@ -1,0 +1,65 @@
+@model MobilePanelViewModel
+@{
+    ViewData["Title"] = "Panel";
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+
+    Microsoft.AspNetCore.Html.IHtmlContent ExpenseCard(string label, decimal total, List<MobileCategoryAmount> items)
+    {
+        var max = items.Count > 0 ? items.Max(x => x.Amount) : 0m;
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"<div class=\"m-section-title\">{System.Net.WebUtility.HtmlEncode(label)} giderleri</div>");
+        sb.Append("<div class=\"m-card\">");
+        if (items.Count == 0)
+        {
+            sb.Append("<div class=\"text-muted-m\" style=\"font-size:14px;\">Bu dönemde gider kaydı yok.</div>");
+        }
+        else
+        {
+            sb.Append("<div class=\"m-row\" style=\"padding-top:0;\"><div class=\"m-row-title\">Toplam</div>");
+            sb.Append($"<div class=\"m-row-amt m-amt-debt\">{Tl(total)}</div></div>");
+            foreach (var it in items)
+            {
+                var pct = max > 0 ? (int)Math.Round((double)(it.Amount / max) * 100) : 0;
+                sb.Append("<div style=\"padding:10px 0 0;\">");
+                sb.Append("<div class=\"m-row\" style=\"padding:0 0 2px;border:none;\">");
+                sb.Append($"<div class=\"m-row-title\">{System.Net.WebUtility.HtmlEncode(it.Name)}</div>");
+                sb.Append($"<div class=\"m-row-amt\">{Tl(it.Amount)}</div></div>");
+                sb.Append($"<div class=\"m-bar-track\"><div class=\"m-bar-fill\" style=\"width:{pct}%;\"></div></div>");
+                sb.Append("</div>");
+            }
+        }
+        sb.Append("</div>");
+        return Html.Raw(sb.ToString());
+    }
+}
+
+<div class="m-section-title">Özet</div>
+<div class="m-stat-grid">
+    <div class="m-stat">
+        <div class="m-stat-label">Bu ay tahsilat</div>
+        <div class="m-stat-value mono-amt">@Tl(Model.MonthCollections)</div>
+        <div class="m-stat-sub">Toplam: @Tl(Model.TotalCollections)</div>
+    </div>
+    <div class="m-stat is-debt">
+        <div class="m-stat-label">Borçlular</div>
+        <div class="m-stat-value mono-amt">@Tl(Model.TotalDebt)</div>
+        <div class="m-stat-sub">@Model.DebtorCount daire borçlu</div>
+    </div>
+</div>
+
+@if (Model.TotalCredit > 0)
+{
+    <div class="m-card is-credit" style="margin-top:0;">
+        <div class="m-row" style="padding:0;border:none;">
+            <div class="m-row-main">
+                <div class="m-row-title">Toplam alacak / avans</div>
+                <div class="m-row-sub">Fazla ödeme ve avans bakiyeleri</div>
+            </div>
+            <div class="m-row-amt m-amt-credit">@Tl(Model.TotalCredit)</div>
+        </div>
+    </div>
+}
+
+@ExpenseCard(Model.MonthLabel, Model.MonthExpenseTotal, Model.MonthExpenses)
+@ExpenseCard(Model.LastMonthLabel, Model.LastMonthExpenseTotal, Model.LastMonthExpenses)

@@ -126,6 +126,19 @@ app.UseRequestLocalization(new RequestLocalizationOptions
     SupportedCultures = [turkishCulture],
     SupportedUICultures = [turkishCulture]
 });
+
+app.Use(async (context, next) =>
+{
+    if ((context.Request.Path == PathString.Empty || context.Request.Path == "/")
+        && IsMobileUserAgent(context.Request.Headers.UserAgent.ToString()))
+    {
+        context.Response.Redirect("/m");
+        return;
+    }
+
+    await next();
+});
+
 app.UseRouting();
 
 app.UseAuthentication();
@@ -177,6 +190,22 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
             await userManager.AddToRoleAsync(admin, AppRoles.SistemYonetici);
         }
     }
+}
+
+static bool IsMobileUserAgent(string? userAgent)
+{
+    if (string.IsNullOrWhiteSpace(userAgent))
+    {
+        return false;
+    }
+
+    var ua = userAgent.AsSpan();
+    return ua.Contains("Mobi", StringComparison.OrdinalIgnoreCase)
+        || ua.Contains("Android", StringComparison.OrdinalIgnoreCase)
+        || ua.Contains("iPhone", StringComparison.OrdinalIgnoreCase)
+        || ua.Contains("iPad", StringComparison.OrdinalIgnoreCase)
+        || ua.Contains("iPod", StringComparison.OrdinalIgnoreCase)
+        || ua.Contains("Windows Phone", StringComparison.OrdinalIgnoreCase);
 }
 
 static async Task EnsureSqliteDatabaseUsableAsync(ApplicationDbContext db)

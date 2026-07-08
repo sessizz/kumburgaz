@@ -1,7 +1,9 @@
 @model Kumburgaz.Web.Models.AuditIndexViewModel
 @using Kumburgaz.Web.Models
+@using System.Text.Encodings.Web
 @{
     ViewData["Title"] = "Denetim Kaydı";
+    string Js(string value) => JavaScriptEncoder.Default.Encode(value);
 }
 
 <div class="space-y-4">
@@ -88,24 +90,47 @@
                     <tr>
                         <th>Seviye</th>
                         <th>Kontrol</th>
+                        <th>Kayıt</th>
                         <th>Mesaj</th>
                         <th>Fark</th>
                         <th>Tarih</th>
+                        <th class="text-end">Bağlantı</th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.ConsistencyIssues.Count == 0)
                 {
-                    <tr><td colspan="5" class="text-center text-gray-400 py-6">Açık uyarı yok.</td></tr>
+                    <tr><td colspan="7" class="text-center text-gray-400 py-6">Açık uyarı yok.</td></tr>
                 }
-                @foreach (var issue in Model.ConsistencyIssues)
+                @foreach (var row in Model.ConsistencyIssues)
                 {
+                    var issue = row.Issue;
                     <tr>
                         <td><span class="badge @(issue.Severity == "Error" ? "badge-error" : "badge-warning")">@issue.Severity</span></td>
                         <td>@issue.CheckName</td>
-                        <td>@issue.Message</td>
+                        <td>
+                            <div class="font-semibold">@row.EntityTitle</div>
+                            @if (!string.IsNullOrWhiteSpace(row.DetailSummary))
+                            {
+                                <div class="text-xs text-gray-500 mt-1 max-w-4xl">@row.DetailSummary</div>
+                            }
+                        </td>
+                        <td>
+                            <div>@issue.Message</div>
+                            <div class="text-xs text-gray-400 mt-1">@issue.EntityName #@issue.EntityId</div>
+                        </td>
                         <td>@(issue.Difference.HasValue ? issue.Difference.Value.ToString("N2") : "—")</td>
                         <td>@issue.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                        <td class="text-end whitespace-nowrap">
+                            @if (!string.IsNullOrWhiteSpace(row.DetailUrl))
+                            {
+                                <a class="btn btn-xs btn-outline" href="@row.DetailUrl">Kaydı aç</a>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(row.SecondaryUrl))
+                            {
+                                <a class="btn btn-xs btn-ghost" href="@row.SecondaryUrl">@row.SecondaryText</a>
+                            }
+                        </td>
                     </tr>
                 }
                 </tbody>
@@ -125,21 +150,32 @@
                         <th>Kullanıcı</th>
                         <th>İşlem</th>
                         <th>Kayıt</th>
+                        <th>Detay</th>
                         <th class="text-end">Geri Al</th>
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var log in Model.AuditLogs)
+                @foreach (var row in Model.AuditLogs)
                 {
+                    var log = row.Log;
                     <tr>
                         <td>@log.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
                         <td>@(string.IsNullOrWhiteSpace(log.UserName) ? "Sistem" : log.UserName)</td>
                         <td><span class="badge">@log.Action</span></td>
-                        <td>@log.EntityName #@log.EntityId</td>
+                        <td>
+                            <div class="font-semibold">@row.RecordTitle</div>
+                            <div class="text-xs text-gray-400">@log.EntityName #@log.EntityId</div>
+                            @if (!string.IsNullOrWhiteSpace(row.DetailUrl))
+                            {
+                                <a class="text-xs text-blue-600 hover:underline" href="@row.DetailUrl">Kaydı aç</a>
+                            }
+                        </td>
+                        <td class="text-sm text-gray-600 max-w-4xl">@row.DetailSummary</td>
                         <td class="text-end">
                             @if (log.Action == AuditAction.Delete)
                             {
-                                <form asp-action="Restore" method="post" class="inline">
+                                <form asp-action="Restore" method="post" class="inline"
+                                      onsubmit="return confirm('@Js(row.RestoreConfirmText)');">
                                     <input type="hidden" name="entityName" value="@log.EntityName" />
                                     <input type="hidden" name="entityId" value="@log.EntityId" />
                                     <button class="btn btn-xs btn-outline" type="submit">Geri al</button>

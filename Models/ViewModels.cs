@@ -1013,9 +1013,28 @@ public class ReportManualEntryFormViewModel
 
 public class AuditIndexViewModel
 {
-    public List<AuditLog> AuditLogs { get; set; } = [];
+    public List<AuditLogRowViewModel> AuditLogs { get; set; } = [];
     public List<ImportBatch> ImportBatches { get; set; } = [];
-    public List<ConsistencyCheckResult> ConsistencyIssues { get; set; } = [];
+    public List<ConsistencyIssueRowViewModel> ConsistencyIssues { get; set; } = [];
+}
+
+public class AuditLogRowViewModel
+{
+    public AuditLog Log { get; set; } = null!;
+    public string RecordTitle { get; set; } = string.Empty;
+    public string DetailSummary { get; set; } = string.Empty;
+    public string? DetailUrl { get; set; }
+    public string RestoreConfirmText { get; set; } = string.Empty;
+}
+
+public class ConsistencyIssueRowViewModel
+{
+    public ConsistencyCheckResult Issue { get; set; } = null!;
+    public string EntityTitle { get; set; } = string.Empty;
+    public string DetailSummary { get; set; } = string.Empty;
+    public string? DetailUrl { get; set; }
+    public string? SecondaryUrl { get; set; }
+    public string? SecondaryText { get; set; }
 }
 
 public class BackupFileViewModel

@@ -133,15 +133,15 @@ app.UseAuthorization();
 
 app.MapStaticAssets();
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
+app.MapAreaControllerRoute(
+    name: "mobile",
+    areaName: "Mobile",
+    pattern: "m/{controller=Panel}/{action=Index}/{id?}")
     .WithStaticAssets();
 
 app.MapControllerRoute(
-    name: "mobile",
-    pattern: "m/{controller=Panel}/{action=Index}/{id?}",
-    defaults: new { area = "Mobile" })
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
 
 app.MapRazorPages().WithStaticAssets();

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ManagementWrite)]
+[ModuleAuthorize(AppModules.Hesaplar)]
 public class AccountsController(ApplicationDbContext db, UnitLedgerService unitLedgerService) : Controller
 {
     public async Task<IActionResult> Index(string? q = null, AccountType? type = null)

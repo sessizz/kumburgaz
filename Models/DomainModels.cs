@@ -18,6 +18,20 @@ public static class AppRoles
         Personel,
         SadeceGoruntuleme
     ];
+
+    // Rol anahtarları ile kullanıcıya gösterilen Türkçe adları eşleyen tek kaynak.
+    // Hem Ayarlar > Kullanıcılar hem de Hesabım/Profil bu adları kullanır (tutarlılık).
+    private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [SistemYonetici] = "Sistem Yöneticisi",
+        [SiteYonetici] = "Site Yöneticisi",
+        [MuhasebeGorevli] = "Muhasebe Görevlisi",
+        [Personel] = "Personel",
+        [SadeceGoruntuleme] = "Sadece Görüntüleme"
+    };
+
+    public static string Display(string? roleName)
+        => roleName is not null && DisplayNames.TryGetValue(roleName, out var name) ? name : roleName ?? string.Empty;
 }
 
 public static class AppPolicies
@@ -26,6 +40,22 @@ public static class AppPolicies
     public const string FinanceWrite = "FinanceWrite";
     public const string ManagementWrite = "ManagementWrite";
     public const string ReportsRead = "ReportsRead";
+}
+
+// Bir rolün bir modüldeki erişim düzeyi. Sistem yöneticisi bu matrisi düzenler.
+// CanWrite doğruysa görüntüleme de kapsanır (yazma, görmeyi ima eder).
+public class RolePermission
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(64)]
+    public string RoleName { get; set; } = string.Empty;
+
+    [Required, MaxLength(64)]
+    public string Module { get; set; } = string.Empty;
+
+    public bool CanView { get; set; }
+    public bool CanWrite { get; set; }
 }
 
 public interface ISoftDeletable

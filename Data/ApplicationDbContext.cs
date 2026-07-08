@@ -41,6 +41,7 @@ public class ApplicationDbContext(
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<ImportBatchRow> ImportBatchRows => Set<ImportBatchRow>();
     public DbSet<ConsistencyCheckResult> ConsistencyCheckResults => Set<ConsistencyCheckResult>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -260,6 +261,10 @@ public class ApplicationDbContext(
 
         builder.Entity<DocumentRecord>()
             .HasIndex(x => new { x.Category, x.DocumentDate });
+
+        builder.Entity<RolePermission>()
+            .HasIndex(x => new { x.RoleName, x.Module })
+            .IsUnique();
 
         Seed(builder);
     }

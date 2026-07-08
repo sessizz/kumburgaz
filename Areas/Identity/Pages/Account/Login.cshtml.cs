@@ -19,9 +19,9 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager) : PageMode
 
     public class InputModel
     {
-        [Required(ErrorMessage = "E-posta zorunludur.")]
-        [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin.")]
-        public string Email { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Kullanıcı adı veya e-posta zorunludur.")]
+        [Display(Name = "Kullanıcı adı veya e-posta")]
+        public string UserNameOrEmail { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Şifre zorunludur.")]
         [DataType(DataType.Password)]
@@ -46,13 +46,29 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager) : PageMode
         if (!ModelState.IsValid)
             return Page();
 
-        var result = await signInManager.PasswordSignInAsync(
-            Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+        // Girişte kullanıcı adı veya e-posta kabul edilir; önce kullanıcı adı, sonra e-posta ile aranır.
+        var identifier = Input.UserNameOrEmail.Trim();
+        var user = await signInManager.UserManager.FindByNameAsync(identifier);
+        if (user is null && identifier.Contains('@'))
+            user = await signInManager.UserManager.FindByEmailAsync(identifier);
 
-        if (result.Succeeded)
-            return LocalRedirect(returnUrl);
+        if (user?.UserName is not null)
+        {
+            var result = await signInManager.PasswordSignInAsync(
+                user.UserName, Input.Password, Input.RememberMe, lockoutOnFailure: false);
 
-        ModelState.AddModelError(string.Empty, "Geçersiz e-posta veya şifre.");
+            if (result.Succeeded)
+            {
+                // Açık yönlendirmeyi engelle: yalnızca yerel yollara dön, aksi halde ana sayfaya.
+                return Redirect(IsLocalPath(returnUrl) ? returnUrl! : "/");
+            }
+        }
+
+        ModelState.AddModelError(string.Empty, "Geçersiz kullanıcı adı/e-posta veya şifre.");
         return Page();
     }
+
+    // Yalnızca aynı siteye ait yolları kabul eder (açık yönlendirme koruması). "/", "/Units" yerel; "//x", "http://.." değil.
+    private static bool IsLocalPath(string? url)
+        => !string.IsNullOrEmpty(url) && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'));
 }

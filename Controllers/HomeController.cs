@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ReportsRead)]
+[ModuleAuthorize(AppModules.Panel)]
 public class HomeController(
     ApplicationDbContext db,
     IReportingService reportingService,

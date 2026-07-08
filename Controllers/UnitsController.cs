@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ManagementWrite)]
+[ModuleAuthorize(AppModules.Daireler)]
 public class UnitsController(
     ApplicationDbContext db,
     UnitStatementService statementService,

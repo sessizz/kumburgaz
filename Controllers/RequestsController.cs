@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ManagementWrite)]
+[ModuleAuthorize(AppModules.Talepler)]
 public class RequestsController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Index()

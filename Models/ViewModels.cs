@@ -131,10 +131,33 @@ public class AccountCollectionRowViewModel
     public bool IsOpeningBalance { get; set; }
 }
 
+public class RolePermissionMatrixViewModel
+{
+    // Düzenlenebilir roller (SistemYonetici hariç — o her zaman tam yetkili).
+    public List<string> Roles { get; set; } = [];
+    public List<RolePermissionModuleRow> Modules { get; set; } = [];
+}
+
+public class RolePermissionModuleRow
+{
+    public string Module { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+    // RoleName -> (görüntüleme, yazma)
+    public Dictionary<string, RolePermissionCell> Cells { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public class RolePermissionCell
+{
+    public bool CanView { get; set; }
+    public bool CanWrite { get; set; }
+}
+
 public class SystemUserIndexRowViewModel
 {
     public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public string? FullName { get; set; }
     public string? Title { get; set; }
     public string? AccountName { get; set; }
@@ -146,8 +169,13 @@ public class SystemUserFormViewModel
 {
     public string? Id { get; set; }
 
-    [Required, EmailAddress, MaxLength(256)]
-    public string Email { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Kullanıcı adı zorunludur."), MaxLength(256)]
+    [Display(Name = "Kullanıcı Adı")]
+    public string UserName { get; set; } = string.Empty;
+
+    // E-posta opsiyonel; kullanıcı adı ile giriş yeterli.
+    [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi girin."), MaxLength(256)]
+    public string? Email { get; set; }
 
     [MaxLength(160)]
     public string? FullName { get; set; }

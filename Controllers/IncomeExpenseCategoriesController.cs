@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.FinanceWrite)]
+[ModuleAuthorize(AppModules.Muhasebe)]
 public class IncomeExpenseCategoriesController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Index()

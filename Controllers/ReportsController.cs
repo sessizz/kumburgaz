@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ReportsRead)]
+[ModuleAuthorize(AppModules.Raporlar)]
 public class ReportsController(
     ApplicationDbContext db,
     IReportingService reportingService,

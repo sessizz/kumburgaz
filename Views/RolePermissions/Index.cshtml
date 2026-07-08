@@ -1,0 +1,105 @@
+@model RolePermissionMatrixViewModel
+@{
+    ViewData["Title"] = "Roller ve Yetkiler";
+}
+
+<div class="space-y-4">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold text-gray-900">Roller ve Yetkiler</h1>
+            <p class="text-sm text-gray-400">Her rolün hangi modülü görüntüleyebileceğini ve değiştirebileceğini (ekleme/düzenleme/silme) ayarlayın.</p>
+        </div>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success text-sm">
+            <span class="material-symbols-outlined" style="font-size:18px">check_circle</span>
+            @success
+        </div>
+    }
+
+    <div class="rounded-xl border border-blue-200 bg-blue-50 text-blue-800 text-sm p-3 flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px">shield_person</span>
+        <span><strong>Sistem Yöneticisi</strong> her modülde her zaman tam yetkilidir ve buradan değiştirilemez.</span>
+    </div>
+
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+            <table class="table w-full text-sm">
+                <thead>
+                <tr>
+                    <th class="text-left">Modül</th>
+                    @foreach (var role in Model.Roles)
+                    {
+                        <th class="text-center whitespace-nowrap">@AppRoles.Display(role)</th>
+                    }
+                </tr>
+                <tr class="text-xs text-gray-400">
+                    <th></th>
+                    @foreach (var role in Model.Roles)
+                    {
+                        <th class="text-center font-normal">Gör&nbsp;·&nbsp;Değiştir</th>
+                    }
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Modules)
+                {
+                    <tr>
+                        <td class="font-semibold whitespace-nowrap">
+                            <span class="inline-flex items-center gap-2">
+                                <span class="material-symbols-outlined text-gray-400" style="font-size:18px">@row.Icon</span>
+                                @row.DisplayName
+                            </span>
+                        </td>
+                        @foreach (var role in Model.Roles)
+                        {
+                            var cell = row.Cells[role];
+                            var viewName = $"view_{role}_{row.Module}";
+                            var writeName = $"write_{role}_{row.Module}";
+                            <td class="text-center">
+                                <div class="inline-flex items-center gap-3" data-perm-cell>
+                                    <input type="checkbox" class="checkbox checkbox-sm" title="Görüntüleyebilir"
+                                           name="@viewName" value="true" checked="@cell.CanView" data-role-view />
+                                    <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" title="Değiştirebilir (ekle/düzenle/sil)"
+                                           name="@writeName" value="true" checked="@cell.CanWrite" data-role-write />
+                                </div>
+                            </td>
+                        }
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex justify-end gap-2 mt-4">
+            <a class="btn btn-ghost" asp-controller="Settings" asp-action="Index">Vazgeç</a>
+            <button class="btn btn-primary" type="submit">
+                <span class="material-symbols-outlined" style="font-size:18px">save</span>
+                Kaydet
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        // "Değiştir" işaretlenince "Gör" otomatik açılır ve kilitlenir (yazma, görmeyi ima eder).
+        document.querySelectorAll('[data-perm-cell]').forEach(function (cell) {
+            var view = cell.querySelector('[data-role-view]');
+            var write = cell.querySelector('[data-role-write]');
+            function sync() {
+                if (write.checked) {
+                    view.checked = true;
+                    view.disabled = true;
+                } else {
+                    view.disabled = false;
+                }
+            }
+            write.addEventListener('change', sync);
+            sync();
+        });
+    </script>
+}

@@ -41,6 +41,8 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
 builder.Services.AddAuthorization(options =>
 {
@@ -112,6 +114,7 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await SeedIdentityAsync(roleManager, userManager);
+    await SeedRolePermissionsAsync(db);
 }
 
 app.UseHttpsRedirection();
@@ -165,5 +168,61 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
         {
             await userManager.AddToRoleAsync(admin, AppRoles.SistemYonetici);
         }
+    }
+}
+
+// Varsayılan rol yetki matrisini (mevcut sabit davranışı yansıtacak şekilde) tohumlar.
+// Idempotent: yalnızca eksik (rol, modül) satırlarını ekler; mevcut ayarları ezmez.
+// SistemYonetici matriste tutulmaz — kod tarafında her zaman tam yetkilidir.
+static async Task SeedRolePermissionsAsync(ApplicationDbContext db)
+{
+    // Her rolün varsayılan (yazma yapabildiği) modülleri; ayrıca görüntüleme için ek modüller.
+    // Değer: (write modülleri, ek view modülleri)
+    var defaults = new (string Role, string[] Write, string[] View)[]
+    {
+        (AppRoles.SiteYonetici,
+            [AppModules.Daireler, AppModules.Hesaplar, AppModules.Duyurular, AppModules.Talepler, AppModules.Belgeler],
+            [AppModules.Panel, AppModules.Raporlar]),
+        (AppRoles.MuhasebeGorevli,
+            [AppModules.Aidatlar, AppModules.Tahsilatlar, AppModules.KasaBanka, AppModules.Muhasebe],
+            [AppModules.Panel, AppModules.Raporlar]),
+        (AppRoles.Personel,
+            [],
+            [AppModules.Panel, AppModules.Raporlar]),
+        (AppRoles.SadeceGoruntuleme,
+            [],
+            [AppModules.Panel, AppModules.Raporlar]),
+    };
+
+    var existing = await db.RolePermissions
+        .Select(x => new { x.RoleName, x.Module })
+        .ToListAsync();
+    var have = existing.Select(x => (x.RoleName, x.Module)).ToHashSet();
+
+    var toAdd = new List<RolePermission>();
+    foreach (var (role, write, view) in defaults)
+    {
+        var writeSet = write.ToHashSet();
+        foreach (var module in write.Concat(view).Distinct())
+        {
+            if (have.Contains((role, module)))
+            {
+                continue;
+            }
+
+            toAdd.Add(new RolePermission
+            {
+                RoleName = role,
+                Module = module,
+                CanView = true,
+                CanWrite = writeSet.Contains(module)
+            });
+        }
+    }
+
+    if (toAdd.Count > 0)
+    {
+        db.RolePermissions.AddRange(toAdd);
+        await db.SaveChangesAsync();
     }
 }

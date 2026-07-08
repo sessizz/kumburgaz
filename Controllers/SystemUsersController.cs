@@ -18,7 +18,7 @@ public class SystemUsersController(
     {
         var users = await userManager.Users
             .Include(x => x.Account)
-            .OrderBy(x => x.Email)
+            .OrderBy(x => x.UserName)
             .ToListAsync();
 
         var now = DateTimeOffset.UtcNow;
@@ -30,11 +30,12 @@ public class SystemUsersController(
             rows.Add(new SystemUserIndexRowViewModel
             {
                 Id = user.Id,
-                Email = user.Email ?? user.UserName ?? string.Empty,
+                UserName = user.UserName ?? string.Empty,
+                Email = user.Email,
                 FullName = user.FullName,
                 Title = user.Title,
                 AccountName = user.Account?.Name,
-                RolesText = roles.Count == 0 ? "-" : string.Join(", ", roles),
+                RolesText = roles.Count == 0 ? "-" : string.Join(", ", roles.Select(AppRoles.Display)),
                 IsLockedOut = user.LockoutEnd.HasValue && user.LockoutEnd.Value > now
             });
         }
@@ -61,11 +62,12 @@ public class SystemUsersController(
             return View(await BuildFormAsync(model));
         }
 
+        var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
         var user = new ApplicationUser
         {
-            UserName = model.Email.Trim(),
-            Email = model.Email.Trim(),
-            EmailConfirmed = true,
+            UserName = model.UserName.Trim(),
+            Email = email,
+            EmailConfirmed = email is not null,
             FullName = model.FullName,
             Title = model.Title,
             AccountId = model.AccountId
@@ -97,7 +99,8 @@ public class SystemUsersController(
         var model = new SystemUserFormViewModel
         {
             Id = user.Id,
-            Email = user.Email ?? string.Empty,
+            UserName = user.UserName ?? string.Empty,
+            Email = user.Email,
             FullName = user.FullName,
             Title = user.Title,
             AccountId = user.AccountId,
@@ -128,8 +131,10 @@ public class SystemUsersController(
             return NotFound();
         }
 
-        user.Email = model.Email.Trim();
-        user.UserName = model.Email.Trim();
+        var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
+        user.UserName = model.UserName.Trim();
+        user.Email = email;
+        user.EmailConfirmed = email is not null;
         user.FullName = model.FullName;
         user.Title = model.Title;
         user.AccountId = model.AccountId;
@@ -161,15 +166,19 @@ public class SystemUsersController(
 
     private async Task<SystemUserFormViewModel> BuildFormAsync(SystemUserFormViewModel model)
     {
-        model.RoleOptions = await roleManager.Roles
+        var roleNames = await roleManager.Roles
             .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem
-            {
-                Value = x.Name!,
-                Text = x.Name!,
-                Selected = model.SelectedRoles.Contains(x.Name!)
-            })
+            .Select(x => x.Name!)
             .ToListAsync();
+
+        model.RoleOptions = roleNames
+            .Select(name => new SelectListItem
+            {
+                Value = name,
+                Text = AppRoles.Display(name),
+                Selected = model.SelectedRoles.Contains(name)
+            })
+            .ToList();
 
         model.AccountOptions = await db.Accounts
             .OrderBy(x => x.Name)

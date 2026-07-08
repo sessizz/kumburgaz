@@ -1,3 +1,4 @@
+@inject Kumburgaz.Web.Services.PermissionService Perm
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
@@ -144,23 +145,75 @@
             <span class="text-base font-bold text-white tracking-tight">kumburgaz</span>
         </div>
 
+        @{
+            var showYonetim = Perm.CanView(User, AppModules.Daireler) || Perm.CanView(User, AppModules.Hesaplar);
+            var showFinans = Perm.CanView(User, AppModules.Aidatlar) || Perm.CanView(User, AppModules.Muhasebe) || Perm.CanView(User, AppModules.KasaBanka);
+            var showIslemler = Perm.CanView(User, AppModules.Duyurular) || Perm.CanView(User, AppModules.Talepler);
+            var showArsiv = Perm.CanView(User, AppModules.Belgeler) || Perm.CanView(User, AppModules.Raporlar);
+            var showAyarlar = User.IsInRole(AppRoles.SistemYonetici);
+        }
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-            <a class="dk-nav @IsActive("Home")" asp-controller="Home" asp-action="Index"><span class="mi material-symbols-outlined">dashboard</span>Genel Bakış</a>
-            <div class="dk-section">Yönetim</div>
-            <a class="dk-nav @IsActive("Units")" asp-controller="Units" asp-action="Index"><span class="mi material-symbols-outlined">apartment</span>Daireler</a>
-            <a class="dk-nav @IsActive("Accounts")" asp-controller="Accounts" asp-action="Index"><span class="mi material-symbols-outlined">contacts</span>Hesaplar</a>
-            <div class="dk-section">Finans</div>
-            <a class="dk-nav @IsActive("Dues", "Collections", "DuesGeneration")" asp-controller="Dues" asp-action="Index"><span class="mi material-symbols-outlined">receipt_long</span>Aidatlar</a>
-            <a class="dk-nav @IsActiveAction("Ledger", "Income")" asp-controller="Ledger" asp-action="Income"><span class="mi material-symbols-outlined">trending_up</span>Gelirler</a>
-            <a class="dk-nav @IsActiveAction("Ledger", "Index")" asp-controller="Ledger" asp-action="Index"><span class="mi material-symbols-outlined">payments</span>Giderler</a>
-            <a class="dk-nav @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index"><span class="mi material-symbols-outlined">account_balance_wallet</span>Kasa &amp; Banka</a>
-            <div class="dk-section">İşlemler</div>
-            <a class="dk-nav @IsActive("Announcements")" asp-controller="Announcements" asp-action="Index"><span class="mi material-symbols-outlined">campaign</span>Duyurular</a>
-            <a class="dk-nav @IsActive("Requests")" asp-controller="Requests" asp-action="Index"><span class="mi material-symbols-outlined">support_agent</span>Talepler</a>
-            <div class="dk-section">Arşiv &amp; Raporlar</div>
-            <a class="dk-nav @IsActive("Documents")" asp-controller="Documents" asp-action="Index"><span class="mi material-symbols-outlined">folder</span>Belgeler</a>
-            <a class="dk-nav @IsActive("Reports")" asp-controller="Reports" asp-action="Index"><span class="mi material-symbols-outlined">bar_chart</span>Raporlar</a>
-            <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
+            @if (Perm.CanView(User, AppModules.Panel))
+            {
+                <a class="dk-nav @IsActive("Home")" asp-controller="Home" asp-action="Index"><span class="mi material-symbols-outlined">dashboard</span>Genel Bakış</a>
+            }
+            @if (showYonetim)
+            {
+                <div class="dk-section">Yönetim</div>
+                @if (Perm.CanView(User, AppModules.Daireler))
+                {
+                    <a class="dk-nav @IsActive("Units")" asp-controller="Units" asp-action="Index"><span class="mi material-symbols-outlined">apartment</span>Daireler</a>
+                }
+                @if (Perm.CanView(User, AppModules.Hesaplar))
+                {
+                    <a class="dk-nav @IsActive("Accounts")" asp-controller="Accounts" asp-action="Index"><span class="mi material-symbols-outlined">contacts</span>Hesaplar</a>
+                }
+            }
+            @if (showFinans)
+            {
+                <div class="dk-section">Finans</div>
+                @if (Perm.CanView(User, AppModules.Aidatlar))
+                {
+                    <a class="dk-nav @IsActive("Dues", "Collections", "DuesGeneration")" asp-controller="Dues" asp-action="Index"><span class="mi material-symbols-outlined">receipt_long</span>Aidatlar</a>
+                }
+                @if (Perm.CanView(User, AppModules.Muhasebe))
+                {
+                    <a class="dk-nav @IsActiveAction("Ledger", "Income")" asp-controller="Ledger" asp-action="Income"><span class="mi material-symbols-outlined">trending_up</span>Gelirler</a>
+                    <a class="dk-nav @IsActiveAction("Ledger", "Index")" asp-controller="Ledger" asp-action="Index"><span class="mi material-symbols-outlined">payments</span>Giderler</a>
+                }
+                @if (Perm.CanView(User, AppModules.KasaBanka))
+                {
+                    <a class="dk-nav @IsActive("CashBank")" asp-controller="CashBank" asp-action="Index"><span class="mi material-symbols-outlined">account_balance_wallet</span>Kasa &amp; Banka</a>
+                }
+            }
+            @if (showIslemler)
+            {
+                <div class="dk-section">İşlemler</div>
+                @if (Perm.CanView(User, AppModules.Duyurular))
+                {
+                    <a class="dk-nav @IsActive("Announcements")" asp-controller="Announcements" asp-action="Index"><span class="mi material-symbols-outlined">campaign</span>Duyurular</a>
+                }
+                @if (Perm.CanView(User, AppModules.Talepler))
+                {
+                    <a class="dk-nav @IsActive("Requests")" asp-controller="Requests" asp-action="Index"><span class="mi material-symbols-outlined">support_agent</span>Talepler</a>
+                }
+            }
+            @if (showArsiv)
+            {
+                <div class="dk-section">Arşiv &amp; Raporlar</div>
+                @if (Perm.CanView(User, AppModules.Belgeler))
+                {
+                    <a class="dk-nav @IsActive("Documents")" asp-controller="Documents" asp-action="Index"><span class="mi material-symbols-outlined">folder</span>Belgeler</a>
+                }
+                @if (Perm.CanView(User, AppModules.Raporlar))
+                {
+                    <a class="dk-nav @IsActive("Reports")" asp-controller="Reports" asp-action="Index"><span class="mi material-symbols-outlined">bar_chart</span>Raporlar</a>
+                }
+            }
+            @if (showAyarlar)
+            {
+                <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) || string.Equals(currentController, "SystemUsers", StringComparison.OrdinalIgnoreCase) || string.Equals(currentController, "RolePermissions", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
+            }
         </nav>
 
     </aside>

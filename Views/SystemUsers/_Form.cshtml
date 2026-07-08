@@ -9,7 +9,13 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-            <label asp-for="Email" class="label font-semibold">E-posta</label>
+            <label asp-for="UserName" class="label font-semibold">Kullanıcı Adı</label>
+            <input asp-for="UserName" class="input input-bordered w-full" autocomplete="username" />
+            <span asp-validation-for="UserName" class="text-error text-xs"></span>
+            <div class="text-xs text-gray-400 mt-1">Giriş için kullanılır. E-posta olmak zorunda değil.</div>
+        </div>
+        <div>
+            <label asp-for="Email" class="label font-semibold">E-posta <span class="text-gray-400 font-normal">(opsiyonel)</span></label>
             <input asp-for="Email" class="input input-bordered w-full" />
             <span asp-validation-for="Email" class="text-error text-xs"></span>
         </div>

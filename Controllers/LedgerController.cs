@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.FinanceWrite)]
+[ModuleAuthorize(AppModules.Muhasebe)]
 public class LedgerController(
     ApplicationDbContext db,
     ImportBatchService importBatchService) : Controller

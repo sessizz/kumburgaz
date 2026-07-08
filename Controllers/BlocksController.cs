@@ -1,12 +1,13 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
+using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ManagementWrite)]
+[ModuleAuthorize(AppModules.Daireler)]
 public class BlocksController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Index()

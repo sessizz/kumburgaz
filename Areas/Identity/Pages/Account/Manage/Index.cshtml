@@ -33,14 +33,11 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div class="form-control">
-                            <label class="label">
+                            <label asp-for="Input.Username" class="label">
                                 <span class="label-text font-medium text-gray-700">Kullanıcı Adı</span>
                             </label>
-                            <input type="text" value="@Model.Username" disabled
-                                   class="input input-bordered bg-gray-50 text-gray-500 cursor-not-allowed w-full" />
-                            <label class="label">
-                                <span class="label-text-alt text-gray-400">Değiştirilemez</span>
-                            </label>
+                            <input asp-for="Input.Username" class="input input-bordered w-full" autocomplete="username" />
+                            <span asp-validation-for="Input.Username" class="label-text-alt text-red-500 mt-1 block"></span>
                         </div>
 
                         <div class="form-control">
@@ -63,15 +60,27 @@
                             <label asp-for="Input.Title" class="label">
                                 <span class="label-text font-medium text-gray-700">Görev / Unvan</span>
                             </label>
-                            <select asp-for="Input.Title" class="select select-bordered w-full">
-                                <option value="">— Seçiniz —</option>
-                                <option value="Site Yöneticisi">Site Yöneticisi</option>
-                                <option value="Yönetim Kurulu Üyesi">Yönetim Kurulu Üyesi</option>
-                                <option value="Muhasebe">Muhasebe</option>
-                                <option value="Denetçi">Denetçi</option>
-                            </select>
+                            <input asp-for="Input.Title" class="input input-bordered w-full" placeholder="ör. Muhasebe" />
                             <span asp-validation-for="Input.Title" class="label-text-alt text-red-500 mt-1 block"></span>
                         </div>
+                    </div>
+
+                    <div class="mt-5 pt-5 border-t border-gray-100">
+                        <span class="label-text font-medium text-gray-700">Rolleriniz</span>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            @if (Model.Roles.Count == 0)
+                            {
+                                <span class="text-sm text-gray-400">Atanmış rol yok.</span>
+                            }
+                            else
+                            {
+                                @foreach (var role in Model.Roles)
+                                {
+                                    <span class="pill pill-info">@role</span>
+                                }
+                            }
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">Roller yalnızca sistem yöneticisi tarafından (Ayarlar &rsaquo; Kullanıcılar) değiştirilebilir.</p>
                     </div>
 
                     <div class="flex justify-end mt-6">

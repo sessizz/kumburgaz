@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.FinanceWrite)]
+[ModuleAuthorize(AppModules.KasaBanka)]
 public class CashBankController(
     ApplicationDbContext db,
     CashBankDetailService detailService,

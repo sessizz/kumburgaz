@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
-[Authorize(Policy = AppPolicies.ReportsRead)]
+[ModuleAuthorize(AppModules.Raporlar)]
 public class SearchController(ApplicationDbContext db) : Controller
 {
     public async Task<IActionResult> Global(string? term)

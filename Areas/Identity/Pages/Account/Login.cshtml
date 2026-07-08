@@ -27,9 +27,9 @@
             }
 
             <fieldset class="fieldset">
-                <legend class="fieldset-legend">E-posta</legend>
-                <input asp-for="Input.Email" class="input input-bordered w-full" autocomplete="username" placeholder="ornek@site.com" />
-                <span asp-validation-for="Input.Email" class="text-error text-xs"></span>
+                <legend class="fieldset-legend">Kullanıcı adı veya e-posta</legend>
+                <input asp-for="Input.UserNameOrEmail" class="input input-bordered w-full" autocomplete="username" placeholder="kullanici adı veya ornek@site.com" />
+                <span asp-validation-for="Input.UserNameOrEmail" class="text-error text-xs"></span>
             </fieldset>
 
             <fieldset class="fieldset">

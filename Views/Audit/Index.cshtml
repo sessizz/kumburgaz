@@ -12,12 +12,21 @@
             <h2 class="text-2xl font-extrabold">Denetim Kaydı</h2>
             <p class="text-sm text-gray-400">Audit, import batch ve tutarlılık uyarıları.</p>
         </div>
-        <form asp-action="RunConsistencyCheck" method="post">
-            <button class="btn btn-outline btn-sm" type="submit">
-                <span class="material-symbols-outlined ms-sm">fact_check</span>
-                Kontrol çalıştır
-            </button>
-        </form>
+        <div class="flex flex-wrap items-center gap-2">
+            <form asp-action="RepairAllCollectionAllocations" method="post"
+                  onsubmit="return confirm('Tüm tahsilat tahsisleri silinip en eski açık borçtan başlayarak yeniden hesaplanacak. Devam edilsin mi?');">
+                <button class="btn btn-warning btn-sm" type="submit">
+                    <span class="material-symbols-outlined ms-sm">build</span>
+                    Tahsisatları onar
+                </button>
+            </form>
+            <form asp-action="RunConsistencyCheck" method="post">
+                <button class="btn btn-outline btn-sm" type="submit">
+                    <span class="material-symbols-outlined ms-sm">fact_check</span>
+                    Kontrol çalıştır
+                </button>
+            </form>
+        </div>
     </div>
 
     @if (TempData["ActionSuccess"] is string okMsg)
@@ -129,6 +138,14 @@
                             @if (!string.IsNullOrWhiteSpace(row.SecondaryUrl))
                             {
                                 <a class="btn btn-xs btn-ghost" href="@row.SecondaryUrl">@row.SecondaryText</a>
+                            }
+                            @if (issue.EntityName == nameof(Collection) && int.TryParse(issue.EntityId, out var collectionId))
+                            {
+                                <form asp-action="RepairCollectionAllocation" method="post" class="inline"
+                                      onsubmit="return confirm('Tahsilat #@collectionId tahsisatı yeniden hesaplanacak. Devam edilsin mi?');">
+                                    <input type="hidden" name="id" value="@collectionId" />
+                                    <button class="btn btn-xs btn-warning" type="submit">Tahsisatı onar</button>
+                                </form>
                             }
                         </td>
                     </tr>

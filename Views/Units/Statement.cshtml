@@ -172,4 +172,4 @@
     </div>
 </div>
 
-<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, AccountOptions = accountOptions, ReturnUrl = Url.Action("Statement", "Units", new { id = u.Id }) ?? string.Empty })" />
+<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, CurrentDebt = Math.Max(0, balance), AccountOptions = accountOptions, ReturnUrl = Url.Action("Statement", "Units", new { id = u.Id }) ?? string.Empty })" />

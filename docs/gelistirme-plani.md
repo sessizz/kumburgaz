@@ -9,7 +9,7 @@ Aktif branch: `codex/kumburgaz-improvement-plan`
 
 - Asama 1: Buyuk olcude tamamlandi.
 - Asama 2: Buyuk olcude tamamlandi.
-- Asama 3: Temel defter ve tutarlilik mantigi tamamlandi, kalan isler agirlikla iyilestirme ve veri onarim araclari.
+- Asama 3: Tek hesap defteri, tutarlilik ve temel veri onarim araclari tamamlandi.
 - Asama 4: Raporlarin buyuk bolumu tamamlandi, dashboard/global arama/cikti tarafinda ana isler yapildi.
 - Asama 5: Yedekleme ve geri yukleme tamamlandi, PostgreSQL 17 araci duzeltildi.
 - Asama 6: Test projesi eklendi ve temel senaryolar yazildi; test kapsami genisletilmeye devam etmeli.
@@ -61,7 +61,7 @@ Kalan / kontrol edilecekler:
 
 ## Asama 3: Tek Hesap Defteri ve Finansal Tutarlilik
 
-Durum: Temel isler tamamlandi, veri onarim ve gorunurluk iyilestirmeleri devam etmeli.
+Durum: Buyuk olcude tamamlandi.
 
 Tamamlananlar:
 
@@ -76,20 +76,19 @@ Tamamlananlar:
 - Tahsilat allocation sorunlarini yakalayan tutarlilik kontrolleri eklendi.
 - Tutarlilik uyarilari denetim ekraninda daha detayli gosteriliyor.
 - Nuri Huri ve benzeri odeme yaptigi halde borclu gorunme senaryolari icin allocation/ledger kontrolu genisletildi.
+- Denetim ekranina tek tahsilat tahsisati onarma aksiyonu eklendi.
+- Denetim ekranina tum tahsilat tahsisatlarini yeniden hesaplayan admin araci eklendi.
+- Onarim sonrasi tutarlilik kontrolu otomatik tekrar calisiyor ve sonuc bildiriliyor.
+- Daire detayinda net bakiye, toplam tahakkuk, toplam tahsilat, devir borcu, devir alacagi ve avans daha acik gosteriliyor.
+- Malik detayinda hesap ozeti kutulari genisletildi.
+- Tahsilat ekraninda en eski borctan kapatma ve avans kalma mantigi acik metinle gosteriliyor.
+- Tahsilat allocation onarimi icin otomatik test eklendi.
 
 Kalan / kontrol edilecekler:
 
-- Eski verilerdeki hatali allocationlari otomatik onaran admin araci eklenmeli.
 - Tahsilat edit/delete sonrasi allocation geri alma ve yeniden hesaplama daha fazla testle guvenceye alinmali.
-- Tutarlilik uyarisindan ilgili tahsilat, daire, ekstre veya import satirina direkt linkler eklenebilir.
-- Daire/malik detayina daha acik hesap ozeti kutusu eklenmeli:
-  - Toplam tahakkuk
-  - Toplam tahsilat
-  - Devir alacagi
-  - Devir borcu
-  - Avans
-  - Net bakiye
-- Tahsilat ekraninda "en eski borctan kapatiliyor / su kadar avans kalacak" metni daha acik hale getirilmeli.
+- Tutarlilik uyarisindan import satirina direkt linkler daha da belirginlestirilebilir.
+- Tahsilat tutari degistikce avans/borca uygulama onizlemesini anlik hesaplayan JS iyilestirmesi eklenebilir.
 
 ## Asama 4: Gelir Raporlari, Dashboard, Global Arama ve Ciktilar
 
@@ -181,26 +180,21 @@ Kalan / kontrol edilecekler:
 
 ## Siradaki Onerilen Isler
 
-1. Asama 3 veri onarim araci:
-   - Hatali veya eksik tahsilat allocationlarini listele.
-   - Secili daire/tahsilat icin allocationlari yeniden hesapla.
-   - Islem oncesi ve sonrasi farki goster.
-
-2. Asama 3 hesap ozeti:
-   - Daire ve malik detayina toplam tahakkuk, tahsilat, devir, avans ve net bakiye kutulari ekle.
-
-3. Asama 6 test genisletme:
+1. Asama 6 test genisletme:
    - Tahsilat edit/delete, audit restore ve yetki testlerini ekle.
 
-4. Asama 4 cikti standardi:
+2. Asama 4 cikti standardi:
    - Tum Excel/PDF raporlarinda filtre ozeti ve tarih bilgisi ayni formatta gosterilsin.
 
-5. Asama 5 operasyon:
+3. Asama 5 operasyon:
    - Yedek saklama suresi, disk doluluk ve son yedek gecikme esikleri ayarlanabilir olsun.
+
+4. Asama 3 ince ayar:
+   - Tahsilat formunda tutar degistikce borca uygulanacak/avans kalacak degerleri anlik guncellensin.
 
 ## Kabul Kriterleri Durumu
 
-- Ayni daire icin daire detayi, malik detayi, ekstre, borc/alacak raporu ve dashboard ayni net bakiyeyi gostermeli: Kismi tamamlandi, eski veri onarim araci ile guclendirilmeli.
+- Ayni daire icin daire detayi, malik detayi, ekstre, borc/alacak raporu ve dashboard ayni net bakiyeyi gostermeli: Buyuk olcude tamamlandi; yeni veri onarim araci eski allocation sorunlarini duzeltmek icin eklendi.
 - Import edilen her dosyanin batch numarasi olmali: Tamamlandi.
 - Hangi satirdan hangi kaydin olustugu gorulebilmeli: Kismi tamamlandi, linkler iyilestirilebilir.
 - Mukerrer import kayit uretmemeli: Tamamlandi, daha fazla canli CSV testi onerilir.
@@ -211,4 +205,4 @@ Kalan / kontrol edilecekler:
 - Yonetici son yedek zamanini gorebilmeli: Tamamlandi.
 - Manuel yedek indirilebilmeli ve geri yukleme yapilabilmeli: Tamamlandi.
 - Register herkese acik olmamali: Tamamlandi.
-- Test projesi temel finansal senaryolari otomatik dogrulamali: Basladi, 13 test mevcut.
+- Test projesi temel finansal senaryolari otomatik dogrulamali: Basladi, 14 test mevcut.

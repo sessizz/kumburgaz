@@ -17,6 +17,21 @@
             <div class="p-5 space-y-3">
                 <input type="text" name="note" class="input input-bordered w-full" placeholder="Açıklama" />
 
+                <div class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                    <div class="font-bold">En eski borçtan kapatılacak</div>
+                    <div class="mt-1 grid grid-cols-2 gap-2">
+                        <div>
+                            <div class="text-xs text-sky-700">Açık borç</div>
+                            <div class="font-semibold">@Model.CurrentDebt.ToString("N2") TL</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-sky-700">Önerilen tahsilat</div>
+                            <div class="font-semibold">@Model.SuggestedAmount.ToString("N2") TL</div>
+                        </div>
+                    </div>
+                    <div class="mt-1 text-xs text-sky-700">Girilen tutar borcu aşarsa kalan tutar avans/alacak olarak görünür.</div>
+                </div>
+
                 <div class="relative">
                     <input type="text" name="amount" required inputmode="decimal"
                            value="@(Model.SuggestedAmount > 0 ? Model.SuggestedAmount.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) : "")"

@@ -434,6 +434,7 @@ public class AddCollectionModalModel
 {
     public int UnitId { get; set; }
     public decimal SuggestedAmount { get; set; }
+    public decimal CurrentDebt { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public List<SelectListItem> AccountOptions { get; set; } = [];
 }
@@ -519,6 +520,9 @@ public class CollectionCreateViewModel
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
     public string? ReturnUrl { get; set; }
+    public decimal AllocationPreviewDebt { get; set; }
+    public decimal AllocationPreviewApplied { get; set; }
+    public decimal AllocationPreviewAdvance { get; set; }
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
     public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
     public List<SelectListItem> AccountOptions { get; set; } = [];

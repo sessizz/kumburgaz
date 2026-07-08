@@ -12,7 +12,8 @@ namespace Kumburgaz.Web.Controllers;
 public class AuditController(
     ApplicationDbContext db,
     ImportBatchService importBatchService,
-    ConsistencyCheckService consistencyCheckService) : Controller
+    ConsistencyCheckService consistencyCheckService,
+    CollectionAllocationRepairService allocationRepairService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -128,6 +129,44 @@ public class AuditController(
         TempData["ActionSuccess"] = count == 0
             ? "Tutarlılık kontrolü tamamlandı; sorun bulunmadı."
             : $"Tutarlılık kontrolü tamamlandı; {count} uyarı bulundu.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RepairCollectionAllocation(int id)
+    {
+        try
+        {
+            var result = await allocationRepairService.RepairCollectionAsync(id);
+            var issueCount = await consistencyCheckService.RunAsync();
+            TempData["ActionSuccess"] =
+                $"Tahsilat #{id} tahsisatı onarıldı. Önce: {result.OldAllocatedAmount:N2} TL, sonra: {result.NewAllocatedAmount:N2} TL, avans: {result.NewAdvanceAmount:N2} TL. Kalan açık uyarı: {issueCount}.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RepairAllCollectionAllocations()
+    {
+        try
+        {
+            var result = await allocationRepairService.RepairAllAsync();
+            var issueCount = await consistencyCheckService.RunAsync();
+            TempData["ActionSuccess"] =
+                $"{result.CollectionCount} tahsilat yeniden tahsis edildi. Uygulanan: {result.TotalAppliedAmount:N2} TL, avans/alacak: {result.TotalAdvanceAmount:N2} TL. Kalan açık uyarı: {issueCount}.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
         return RedirectToAction(nameof(Index));
     }
 

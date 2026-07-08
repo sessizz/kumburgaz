@@ -134,6 +134,12 @@
                     </div>
                 </div>
                 <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                    <div class="col-span-2 rounded-lg bg-gray-50 border border-gray-100 p-3">
+                        <div class="text-gray-400">Net Bakiye</div>
+                        <div class="font-extrabold @(Model.Summary.NetBalance > 0 ? "text-error" : Model.Summary.NetBalance < 0 ? "text-success" : "text-gray-700")">
+                            @Model.Summary.NetBalance.ToString("N2") ₺
+                        </div>
+                    </div>
                     <div>
                         <div class="text-gray-400">Tahakkuk</div>
                         <div class="font-bold">@Model.Summary.TotalAccrual.ToString("N2") ₺</div>
@@ -160,4 +166,4 @@
     </div>
 </div>
 
-<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, AccountOptions = accountOptions, ReturnUrl = Url.Action("Detail", "Units", new { id = u.Id }) ?? string.Empty })" />
+<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, CurrentDebt = Math.Max(0, balance), AccountOptions = accountOptions, ReturnUrl = Url.Action("Detail", "Units", new { id = u.Id }) ?? string.Empty })" />

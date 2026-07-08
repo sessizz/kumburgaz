@@ -43,6 +43,27 @@ public class ConsistencyCheckServiceTests
     }
 
     [Fact]
+    public async Task Allocation_repair_applies_unallocated_advance_to_oldest_open_debt()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db);
+        var bank = await AddBankAsync(db);
+        var first = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 8_000m);
+
+        var collectionId = await AddCollectionAsync(db, seed, bank.Id, Utc(2025, 9, 30), 10_000m, first.Id);
+        var second = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 8, 1), 1_000m, period: "2026-2027");
+
+        var result = await new CollectionAllocationRepairService(db).RepairCollectionAsync(collectionId);
+
+        var refreshedSecond = await db.DuesInstallments.FindAsync(second.Id);
+        Assert.NotNull(refreshedSecond);
+        Assert.Equal(0m, refreshedSecond!.RemainingAmount);
+        Assert.Equal(9_000m, result.NewAllocatedAmount);
+        Assert.Equal(1_000m, result.NewAdvanceAmount);
+        Assert.Equal(2, await db.CollectionAllocations.CountAsync());
+    }
+
+    [Fact]
     public async Task Transfer_without_counterpart_is_reported()
     {
         await using var db = CreateDb();

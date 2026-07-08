@@ -71,6 +71,7 @@ builder.Services.AddScoped<UnitStatementService>();
 builder.Services.AddScoped<AccountAssignmentService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
+builder.Services.AddScoped<CollectionAllocationRepairService>();
 builder.Services.AddHostedService<BackupHostedService>();
 builder.Services.AddHostedService<ConsistencyCheckHostedService>();
 

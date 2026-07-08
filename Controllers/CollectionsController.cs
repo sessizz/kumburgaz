@@ -421,10 +421,15 @@ public class CollectionsController(
             if (selectedInstallment is not null)
             {
                 model.BillingGroupId = selectedInstallment.BillingGroupId;
+                var selectedRemaining = effectiveRemaining.GetValueOrDefault(selectedInstallment.Id, selectedInstallment.RemainingAmount);
                 if (model.Amount <= 0)
                 {
-                    model.Amount = effectiveRemaining.GetValueOrDefault(selectedInstallment.Id, selectedInstallment.RemainingAmount);
+                    model.Amount = selectedRemaining;
                 }
+
+                model.AllocationPreviewDebt = selectedRemaining;
+                model.AllocationPreviewApplied = Math.Min(model.Amount, selectedRemaining);
+                model.AllocationPreviewAdvance = Math.Max(0m, model.Amount - selectedRemaining);
             }
         }
 

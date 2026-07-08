@@ -45,6 +45,36 @@
         </div>
     </div>
 
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+        <div class="font-bold text-gray-900 mb-3">Hesap Özeti</div>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Toplam Tahakkuk</div>
+                <div class="font-bold">@Model.Summary.TotalAccrual.ToString("N2", trTR) ₺</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Toplam Tahsilat</div>
+                <div class="font-bold text-success">@Model.Summary.TotalCollections.ToString("N2", trTR) ₺</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Devir Borcu</div>
+                <div class="font-bold text-error">@Model.Summary.OpeningDebt.ToString("N2", trTR) ₺</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Devir Alacağı</div>
+                <div class="font-bold text-info">@Model.Summary.OpeningCredit.ToString("N2", trTR) ₺</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Avans</div>
+                <div class="font-bold text-success">@Model.Summary.Advance.ToString("N2", trTR) ₺</div>
+            </div>
+            <div class="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                <div class="text-gray-400">Net Bakiye</div>
+                <div class="font-bold @(netBalance > 0 ? "text-error" : netBalance < 0 ? "text-success" : "text-gray-700")">@netBalance.ToString("N2", trTR) ₺</div>
+            </div>
+        </div>
+    </div>
+
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
             <div>

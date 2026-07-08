@@ -120,10 +120,11 @@ Tamamlananlar:
 - Aidat durum cetveli eklendi; Excel/PDF cikti destekli.
 - Aidat durum cetveli kullanici ornek dosyasindaki yatay, kompakt duzene yaklastirildi.
 - Birlesik daire adlari raporlarda sade gosterilecek sekilde duzeltildi.
+- Hazirun ve aidat durum Excel/PDF ciktilarina filtre ozeti eklendi.
 
 Kalan / kontrol edilecekler:
 
-- Tum Excel/PDF ciktilarinda filtre ozeti standart hale getirilmeli.
+- Tum Excel/PDF ciktilarinda filtre ozeti standardi eski raporlar icin son kez gozden gecirilmeli.
 - Gelir raporlarinda kategori, kasa/banka ve tarih bazli ozet kartlari daha da iyilestirilebilir.
 - Dashboard kartlari icin esik degerler ayarlanabilir yapilabilir.
 - Global arama sonuc ekraninda daha iyi gruplama ve klavye ile secim eklenebilir.

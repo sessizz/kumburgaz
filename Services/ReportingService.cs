@@ -301,6 +301,13 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         ws.Column(4).Width = 38.7109375;
 
         var rowIndex = 1;
+        ws.Cell(rowIndex, 1).Value = "HAZİRUN CETVELİ";
+        ws.Range(rowIndex, 1, rowIndex, 4).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        rowIndex++;
+        ws.Cell(rowIndex, 1).Value = BuildAttendanceFilterSummary(model.Query);
+        ws.Range(rowIndex, 1, rowIndex, 4).Merge().Style.Font.FontSize = 9;
+        rowIndex += 2;
+
         foreach (var block in model.Blocks)
         {
             WriteAttendanceHeader(ws, rowIndex);
@@ -337,6 +344,11 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 page.Size(PageSizes.A4.Portrait());
                 page.MarginHorizontal(54);
                 page.MarginVertical(28);
+                page.Header().Column(header =>
+                {
+                    header.Item().Text("HAZİRUN CETVELİ").FontSize(13).Bold();
+                    header.Item().Text(BuildAttendanceFilterSummary(model.Query)).FontSize(8);
+                });
                 page.Content().Column(column =>
                 {
                     foreach (var block in model.Blocks)
@@ -450,9 +462,11 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             .Fill.SetBackgroundColor(XLColor.Yellow)
             .Border.SetOutsideBorder(XLBorderStyleValues.Thin);
         ws.Row(1).Height = 18.75;
+        ws.Cell(2, 1).Value = BuildFilterSummary(model.Query);
+        ws.Range(2, 1, 2, 11).Merge().Style.Font.FontSize = 8;
 
         var blockChunks = model.Blocks.Chunk(3).ToList();
-        var rowOffset = 3;
+        var rowOffset = 4;
         foreach (var blockChunk in blockChunks)
         {
             var maxRows = blockChunk.Max(x => x.Rows.Count);
@@ -532,8 +546,13 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                     page.MarginVertical(28);
                     page.Header().AlignCenter().Element(header =>
                     {
-                        header.Width(250).Border(1).Background(Colors.Yellow.Medium).PaddingVertical(3).AlignCenter()
-                            .Text(DuesStatusTitle(model.Query)).FontSize(12).Bold();
+                        header.Column(column =>
+                        {
+                            column.Item().AlignCenter().Width(250).Border(1).Background(Colors.Yellow.Medium).PaddingVertical(3).AlignCenter()
+                                .Text(DuesStatusTitle(model.Query)).FontSize(12).Bold();
+                            column.Item().PaddingTop(2).AlignCenter()
+                                .Text(BuildFilterSummary(model.Query)).FontSize(7);
+                        });
                     });
                     page.Content().PaddingTop(8).Row(row =>
                     {
@@ -723,6 +742,16 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         };
 
         return "Filtre: " + string.Join(" | ", parts);
+    }
+
+    private static string BuildAttendanceFilterSummary(AttendanceReportQuery? query)
+    {
+        if (query is null)
+        {
+            return "Filtre: Tümü";
+        }
+
+        return $"Filtre: BlokId: {query.BlockId?.ToString() ?? "Tüm"}";
     }
 
     private static string UnitKey(int unitId) => $"U:{unitId}";

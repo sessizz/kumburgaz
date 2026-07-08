@@ -798,6 +798,51 @@ public class ReportsController(
         return File(bytes, "application/pdf", "aidat-borc-raporu.pdf");
     }
 
+    public async Task<IActionResult> Attendance([FromQuery] AttendanceReportQuery query)
+    {
+        await PopulateAttendanceFiltersAsync(query);
+        var model = await reportingService.GetAttendanceReportAsync(query);
+        return View(model);
+    }
+
+    public async Task<IActionResult> AttendanceExcel([FromQuery] AttendanceReportQuery query)
+    {
+        var model = await reportingService.GetAttendanceReportAsync(query);
+        var bytes = reportingService.ExportAttendanceAsExcel(model);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "hazirun-cetveli.xlsx");
+    }
+
+    public async Task<IActionResult> AttendancePdf([FromQuery] AttendanceReportQuery query)
+    {
+        var model = await reportingService.GetAttendanceReportAsync(query);
+        var bytes = reportingService.ExportAttendanceAsPdf(model);
+        return File(bytes, "application/pdf", "hazirun-cetveli.pdf");
+    }
+
+    public async Task<IActionResult> DuesStatus([FromQuery] DuesDebtReportQuery query)
+    {
+        await PopulateFiltersAsync(query);
+        var rows = await reportingService.GetDuesDebtReportAsync(query);
+        var model = reportingService.BuildDuesStatusReport(rows, query);
+        return View(model);
+    }
+
+    public async Task<IActionResult> DuesStatusExcel([FromQuery] DuesDebtReportQuery query)
+    {
+        var rows = await reportingService.GetDuesDebtReportAsync(query);
+        var model = reportingService.BuildDuesStatusReport(rows, query);
+        var bytes = reportingService.ExportDuesStatusAsExcel(model);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "aidat-durum-cetveli.xlsx");
+    }
+
+    public async Task<IActionResult> DuesStatusPdf([FromQuery] DuesDebtReportQuery query)
+    {
+        var rows = await reportingService.GetDuesDebtReportAsync(query);
+        var model = reportingService.BuildDuesStatusReport(rows, query);
+        var bytes = reportingService.ExportDuesStatusAsPdf(model);
+        return File(bytes, "application/pdf", "aidat-durum-cetveli.pdf");
+    }
+
     public async Task<IActionResult> EditInstallment(int id, string? returnUrl = null)
     {
         var installment = await db.DuesInstallments
@@ -989,6 +1034,15 @@ public class ReportsController(
             new("Alacaklılar", "credit", string.Equals(duesQuery.BalanceStatus, "credit", StringComparison.OrdinalIgnoreCase)),
             new("Bakiyesizler", "clear", string.Equals(duesQuery.BalanceStatus, "clear", StringComparison.OrdinalIgnoreCase))
         };
+    }
+
+    private async Task PopulateAttendanceFiltersAsync(AttendanceReportQuery query)
+    {
+        ViewBag.Blocks = await db.Blocks
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name, x.Id.ToString(), query.BlockId == x.Id))
+            .ToListAsync();
     }
 
     private async Task<(string Name, decimal OpeningBalance, DateTime OpeningDate)?> GetFinancialAccountInfoAsync(int? cashBoxId, int? bankAccountId)

@@ -150,6 +150,51 @@ public class DuesDebtReportQuery
     public string? BalanceStatus { get; set; }
 }
 
+public class AttendanceReportQuery
+{
+    public int? BlockId { get; set; }
+}
+
+public class AttendanceReportViewModel
+{
+    public AttendanceReportQuery Query { get; set; } = new();
+    public List<AttendanceReportBlock> Blocks { get; set; } = [];
+    public int TotalCount => Blocks.Sum(x => x.Rows.Count);
+}
+
+public class AttendanceReportBlock
+{
+    public string BlockName { get; set; } = string.Empty;
+    public List<AttendanceReportRow> Rows { get; set; } = [];
+}
+
+public class AttendanceReportRow
+{
+    public int UnitId { get; set; }
+    public string UnitDisplay { get; set; } = string.Empty;
+    public string UnitNo { get; set; } = string.Empty;
+    public string ResponsibleAccountName { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+}
+
+public class DuesStatusReportViewModel
+{
+    public DuesDebtReportQuery Query { get; set; } = new();
+    public List<DuesStatusReportBlock> Blocks { get; set; } = [];
+    public decimal TotalAccrual => Blocks.Sum(x => x.TotalAccrual);
+    public decimal TotalDebt => Blocks.Sum(x => x.TotalDebt);
+    public decimal TotalCredit => Blocks.Sum(x => x.TotalCredit);
+}
+
+public class DuesStatusReportBlock
+{
+    public string BlockName { get; set; } = string.Empty;
+    public List<DuesDebtReportRow> Rows { get; set; } = [];
+    public decimal TotalAccrual => Rows.Sum(x => x.Amount);
+    public decimal TotalDebt => Rows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
+    public decimal TotalCredit => Rows.Where(x => x.RemainingAmount < 0).Sum(x => Math.Abs(x.RemainingAmount));
+}
+
 public class CashBankStatementQuery
 {
     public string? AccountKey { get; set; }
@@ -269,6 +314,7 @@ public class DuesDebtReportRow
     public int? InstallmentId { get; set; }
     public int? UnitId { get; set; }
     public int BillingGroupId { get; set; }
+    public string BlockName { get; set; } = string.Empty;
     public string UnitDisplay { get; set; } = string.Empty;
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;

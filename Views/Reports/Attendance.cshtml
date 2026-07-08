@@ -1,0 +1,94 @@
+@model Kumburgaz.Web.Models.AttendanceReportViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Hazirun Cetveli";
+}
+
+<div class="space-y-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Hazirun Cetveli</h2>
+            <p class="text-sm text-gray-400">Daire maliklerini blok blok imza alanıyla görüntüleyebilirsiniz.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Raporlar
+        </a>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form method="get" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Blok</legend>
+                        <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                        Filtrele
+                    </button>
+                    <a class="btn btn-outline btn-success" asp-action="AttendanceExcel" asp-route-BlockId="@Model.Query.BlockId">
+                        <span class="material-symbols-outlined ms-sm">table_chart</span>
+                        Excel
+                    </a>
+                    <a class="btn btn-outline btn-error" asp-action="AttendancePdf" asp-route-BlockId="@Model.Query.BlockId">
+                        <span class="material-symbols-outlined ms-sm">picture_as_pdf</span>
+                        PDF
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-base font-extrabold text-gray-900">Toplam @Model.TotalCount kayıt</h3>
+        </div>
+        @foreach (var block in Model.Blocks)
+        {
+            <div class="border-b border-gray-200 last:border-b-0">
+                <div class="px-5 py-3 bg-gray-50 font-extrabold">@block.BlockName Blok</div>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th class="w-16">No</th>
+                                <th>Daire</th>
+                                <th>Malik / Sorumlu</th>
+                                <th>Telefon</th>
+                                <th class="w-72">İmza</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @{
+                            var index = 1;
+                        }
+                        @foreach (var row in block.Rows)
+                        {
+                            <tr>
+                                <td>@index</td>
+                                <td class="font-medium">
+                                    <a class="text-blue-600 hover:underline" asp-controller="Units" asp-action="Detail" asp-route-id="@row.UnitId">@row.UnitDisplay</a>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "-" : row.ResponsibleAccountName)</td>
+                                <td>@(string.IsNullOrWhiteSpace(row.Phone) ? "-" : row.Phone)</td>
+                                <td><div class="h-8 border-b border-gray-300"></div></td>
+                            </tr>
+                            index++;
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        @if (Model.Blocks.Count == 0)
+        {
+            <div class="py-10 text-center text-sm text-gray-500">Filtreye uygun hazirun kaydı bulunamadı.</div>
+        }
+    </div>
+</div>

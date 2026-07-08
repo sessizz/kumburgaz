@@ -28,6 +28,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             x => new DuesDebtReportRow
             {
                 UnitId = x.Id,
+                BlockName = x.Block?.Name ?? string.Empty,
                 UnitDisplay = UnitDisplayHelper.Display(x),
                 ResponsibleAccountName = x.OwnerName ?? string.Empty,
                 DuesTypeName = "Tüm",
@@ -87,6 +88,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             rowsByKey[GroupKey(group.Key)] = new DuesDebtReportRow
             {
                 BillingGroupId = group.Key,
+                BlockName = BuildGroupBlockName(first.BillingGroup),
                 UnitDisplay = BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup),
                 ResponsibleAccountName = first.ResponsibleAccount?.Name ?? string.Empty,
                 DuesTypeName = first.BillingGroup?.DuesType?.Name ?? "Aidat",
@@ -237,6 +239,297 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         }).GeneratePdf();
     }
 
+    public async Task<AttendanceReportViewModel> GetAttendanceReportAsync(AttendanceReportQuery query)
+    {
+        var units = await db.Units
+            .AsNoTracking()
+            .Include(x => x.Block)
+            .Include(x => x.UnitAccounts.Where(ua => ua.Active && ua.Role == UnitAccountRole.Owner))
+            .ThenInclude(x => x.Account)
+            .Where(x => x.Active)
+            .Where(x => query.BlockId == null || x.BlockId == query.BlockId)
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        var blocks = units
+            .GroupBy(x => x.Block?.Name ?? "-")
+            .Select(g => new AttendanceReportBlock
+            {
+                BlockName = g.Key,
+                Rows = g.Select(x =>
+                {
+                    var ownerAccount = x.UnitAccounts
+                        .OrderByDescending(ua => ua.StartDate ?? DateTime.MinValue)
+                        .Select(ua => ua.Account)
+                        .FirstOrDefault(a => a is not null);
+
+                    return new AttendanceReportRow
+                    {
+                        UnitId = x.Id,
+                        UnitDisplay = UnitDisplayHelper.Display(x),
+                        UnitNo = x.UnitNo,
+                        ResponsibleAccountName = ownerAccount?.Name ?? x.OwnerName ?? string.Empty,
+                        Phone = ownerAccount?.Phone ?? x.Phone ?? string.Empty
+                    };
+                }).ToList()
+            })
+            .ToList();
+
+        return new AttendanceReportViewModel
+        {
+            Query = query,
+            Blocks = blocks
+        };
+    }
+
+    public byte[] ExportAttendanceAsExcel(AttendanceReportViewModel model)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Hazirun");
+        ws.Cell(1, 1).Value = "Hazirun Cetveli";
+        ws.Cell(2, 1).Value = $"Filtre: BlokId {model.Query.BlockId?.ToString() ?? "Tüm"}";
+        ws.Range(1, 1, 1, 5).Merge().Style.Font.Bold = true;
+        ws.Range(2, 1, 2, 5).Merge();
+
+        var rowIndex = 4;
+        foreach (var block in model.Blocks)
+        {
+            ws.Cell(rowIndex, 1).Value = $"{block.BlockName} Blok";
+            ws.Range(rowIndex, 1, rowIndex, 5).Merge().Style.Font.Bold = true;
+            rowIndex++;
+
+            ws.Cell(rowIndex, 1).Value = "No";
+            ws.Cell(rowIndex, 2).Value = "Daire";
+            ws.Cell(rowIndex, 3).Value = "Malik / Sorumlu";
+            ws.Cell(rowIndex, 4).Value = "Telefon";
+            ws.Cell(rowIndex, 5).Value = "İmza";
+            ws.Range(rowIndex, 1, rowIndex, 5).Style.Font.Bold = true;
+            rowIndex++;
+
+            var sequence = 1;
+            foreach (var row in block.Rows)
+            {
+                ws.Cell(rowIndex, 1).Value = sequence++;
+                ws.Cell(rowIndex, 2).Value = row.UnitDisplay;
+                ws.Cell(rowIndex, 3).Value = row.ResponsibleAccountName;
+                ws.Cell(rowIndex, 4).Value = row.Phone;
+                ws.Cell(rowIndex, 5).Value = string.Empty;
+                ws.Row(rowIndex).Height = 28;
+                rowIndex++;
+            }
+
+            rowIndex++;
+        }
+
+        ws.Column(5).Width = 30;
+        ws.Columns(1, 4).AdjustToContents();
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    public byte[] ExportAttendanceAsPdf(AttendanceReportViewModel model)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Margin(20);
+                page.Header().Column(column =>
+                {
+                    column.Item().Text("Hazirun Cetveli").FontSize(18).Bold();
+                    column.Item().Text($"Filtre: BlokId {model.Query.BlockId?.ToString() ?? "Tüm"}").FontSize(9);
+                });
+                page.Content().Column(column =>
+                {
+                    foreach (var block in model.Blocks)
+                    {
+                        column.Item().PaddingTop(8).Text($"{block.BlockName} Blok").FontSize(13).Bold();
+                        column.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(c =>
+                            {
+                                c.ConstantColumn(28);
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(3);
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(3);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Text("No").Bold();
+                                header.Cell().Text("Daire").Bold();
+                                header.Cell().Text("Malik / Sorumlu").Bold();
+                                header.Cell().Text("Telefon").Bold();
+                                header.Cell().Text("İmza").Bold();
+                            });
+
+                            var sequence = 1;
+                            foreach (var row in block.Rows)
+                            {
+                                table.Cell().MinHeight(28).Text(sequence++.ToString());
+                                table.Cell().MinHeight(28).Text(row.UnitDisplay);
+                                table.Cell().MinHeight(28).Text(row.ResponsibleAccountName);
+                                table.Cell().MinHeight(28).Text(string.IsNullOrWhiteSpace(row.Phone) ? "-" : row.Phone);
+                                table.Cell().MinHeight(28).BorderBottom(0.5f).Text(string.Empty);
+                            }
+                        });
+                    }
+                });
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Sayfa ");
+                    x.CurrentPageNumber();
+                    x.Span(" / ");
+                    x.TotalPages();
+                });
+            });
+        }).GeneratePdf();
+    }
+
+    public DuesStatusReportViewModel BuildDuesStatusReport(List<DuesDebtReportRow> rows, DuesDebtReportQuery query)
+    {
+        return new DuesStatusReportViewModel
+        {
+            Query = query,
+            Blocks = rows
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.BlockName) ? "Diğer" : x.BlockName)
+                .OrderBy(x => x.Key)
+                .Select(g => new DuesStatusReportBlock
+                {
+                    BlockName = g.Key,
+                    Rows = g
+                        .OrderBy(x => x.UnitDisplay)
+                        .ToList()
+                })
+                .ToList()
+        };
+    }
+
+    public byte[] ExportDuesStatusAsExcel(DuesStatusReportViewModel model)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Aidat Durum");
+        ws.Cell(1, 1).Value = "Aidat Durum Cetveli";
+        ws.Cell(2, 1).Value = BuildFilterSummary(model.Query);
+        ws.Range(1, 1, 1, 7).Merge().Style.Font.Bold = true;
+        ws.Range(2, 1, 2, 7).Merge();
+
+        var rowIndex = 4;
+        foreach (var block in model.Blocks)
+        {
+            ws.Cell(rowIndex, 1).Value = $"{block.BlockName} Blok";
+            ws.Range(rowIndex, 1, rowIndex, 7).Merge().Style.Font.Bold = true;
+            rowIndex++;
+
+            ws.Cell(rowIndex, 1).Value = "Daire/Birleşik";
+            ws.Cell(rowIndex, 2).Value = "Sorumlu Hesap";
+            ws.Cell(rowIndex, 3).Value = "Aidat Tipi";
+            ws.Cell(rowIndex, 4).Value = "Aidat Grubu";
+            ws.Cell(rowIndex, 5).Value = "Tahakkuk";
+            ws.Cell(rowIndex, 6).Value = "Bakiye";
+            ws.Cell(rowIndex, 7).Value = "Durum";
+            ws.Range(rowIndex, 1, rowIndex, 7).Style.Font.Bold = true;
+            rowIndex++;
+
+            foreach (var row in block.Rows)
+            {
+                ws.Cell(rowIndex, 1).Value = row.UnitDisplay;
+                ws.Cell(rowIndex, 2).Value = row.ResponsibleAccountName;
+                ws.Cell(rowIndex, 3).Value = row.DuesTypeName;
+                ws.Cell(rowIndex, 4).Value = row.BillingGroupName;
+                ws.Cell(rowIndex, 5).Value = row.Amount;
+                ws.Cell(rowIndex, 6).Value = Math.Abs(row.RemainingAmount);
+                ws.Cell(rowIndex, 7).Value = BalanceStatus(row.RemainingAmount);
+                rowIndex++;
+            }
+
+            ws.Cell(rowIndex, 4).Value = "Blok Toplamı";
+            ws.Cell(rowIndex, 5).Value = block.TotalAccrual;
+            ws.Cell(rowIndex, 6).Value = block.TotalDebt - block.TotalCredit;
+            ws.Cell(rowIndex, 7).Value = $"Borç {block.TotalDebt:N2} / Alacak {block.TotalCredit:N2}";
+            ws.Range(rowIndex, 4, rowIndex, 7).Style.Font.Bold = true;
+            rowIndex += 2;
+        }
+
+        ws.Columns().AdjustToContents();
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    public byte[] ExportDuesStatusAsPdf(DuesStatusReportViewModel model)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;
+
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Margin(18);
+                page.Header().Column(column =>
+                {
+                    column.Item().Text("Aidat Durum Cetveli").FontSize(18).Bold();
+                    column.Item().Text(BuildFilterSummary(model.Query)).FontSize(9);
+                });
+                page.Content().Column(column =>
+                {
+                    foreach (var block in model.Blocks)
+                    {
+                        column.Item().PaddingTop(8).Text($"{block.BlockName} Blok").FontSize(13).Bold();
+                        column.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(c =>
+                            {
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(3);
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Text("Daire").Bold();
+                                header.Cell().Text("Sorumlu").Bold();
+                                header.Cell().Text("Aidat Tipi").Bold();
+                                header.Cell().Text("Grup").Bold();
+                                header.Cell().AlignRight().Text("Tahakkuk").Bold();
+                                header.Cell().AlignRight().Text("Bakiye").Bold();
+                                header.Cell().Text("Durum").Bold();
+                            });
+
+                            foreach (var row in block.Rows)
+                            {
+                                table.Cell().Text(row.UnitDisplay);
+                                table.Cell().Text(row.ResponsibleAccountName);
+                                table.Cell().Text(row.DuesTypeName);
+                                table.Cell().Text(row.BillingGroupName);
+                                table.Cell().AlignRight().Text(row.Amount.ToString("N2"));
+                                table.Cell().AlignRight().Text(Math.Abs(row.RemainingAmount).ToString("N2"));
+                                table.Cell().Text(BalanceStatus(row.RemainingAmount));
+                            }
+                        });
+                        column.Item().AlignRight().Text($"Blok toplamı: Tahakkuk {block.TotalAccrual:N2} TL | Borç {block.TotalDebt:N2} TL | Alacak {block.TotalCredit:N2} TL").FontSize(9).Bold();
+                    }
+                });
+                page.Footer().AlignCenter().Text(x =>
+                {
+                    x.Span("Sayfa ");
+                    x.CurrentPageNumber();
+                    x.Span(" / ");
+                    x.TotalPages();
+                });
+            });
+        }).GeneratePdf();
+    }
+
     private static string AddDistinctName(string current, string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -258,6 +551,23 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
     private static string BalanceStatus(decimal balance)
     {
         return balance > 0 ? "Borç" : balance < 0 ? "Alacak" : "Yok";
+    }
+
+    private static string BuildGroupBlockName(BillingGroup? group)
+    {
+        if (group is null)
+        {
+            return "Diğer";
+        }
+
+        var blockNames = group.Units
+            .Select(x => x.Unit?.Block?.Name)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+
+        return blockNames.Count == 0 ? "Diğer" : string.Join(", ", blockNames);
     }
 
     private static string BuildFilterSummary(DuesDebtReportQuery? query)

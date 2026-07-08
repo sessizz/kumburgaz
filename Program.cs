@@ -4,6 +4,7 @@ using Kumburgaz.Web.Services;
 using System.Globalization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,6 +105,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     if (db.Database.IsSqlite())
     {
+        await EnsureSqliteDatabaseUsableAsync(db);
         db.Database.EnsureCreated();
     }
     else
@@ -132,14 +134,14 @@ app.UseAuthorization();
 app.MapStaticAssets();
 
 app.MapControllerRoute(
-    name: "mobile",
-    pattern: "m/{controller=Panel}/{action=Index}/{id?}",
-    defaults: new { area = "Mobile" })
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
 
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
+    name: "mobile",
+    pattern: "m/{controller=Panel}/{action=Index}/{id?}",
+    defaults: new { area = "Mobile" })
     .WithStaticAssets();
 
 app.MapRazorPages().WithStaticAssets();
@@ -175,6 +177,66 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
             await userManager.AddToRoleAsync(admin, AppRoles.SistemYonetici);
         }
     }
+}
+
+static async Task EnsureSqliteDatabaseUsableAsync(ApplicationDbContext db)
+{
+    var connection = db.Database.GetDbConnection();
+    if (connection is not SqliteConnection sqliteConnection)
+    {
+        return;
+    }
+
+    var dataSource = sqliteConnection.DataSource;
+    if (string.IsNullOrWhiteSpace(dataSource) || dataSource.Equals(":memory:", StringComparison.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    var dbPath = Path.GetFullPath(dataSource);
+    if (!File.Exists(dbPath))
+    {
+        return;
+    }
+
+    await sqliteConnection.OpenAsync();
+    try
+    {
+        var hasCoreTables = await SqliteTableExistsAsync(sqliteConnection, "Sites")
+            && await SqliteTableExistsAsync(sqliteConnection, "Units")
+            && await SqliteTableExistsAsync(sqliteConnection, "DuesInstallments");
+
+        if (hasCoreTables)
+        {
+            return;
+        }
+    }
+    finally
+    {
+        await sqliteConnection.CloseAsync();
+    }
+
+    SqliteConnection.ClearAllPools();
+    var backupPath = $"{dbPath}.incomplete-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
+    File.Move(dbPath, backupPath, overwrite: false);
+
+    foreach (var suffix in new[] { "-wal", "-shm" })
+    {
+        var sidecar = dbPath + suffix;
+        if (File.Exists(sidecar))
+        {
+            File.Move(sidecar, backupPath + suffix, overwrite: false);
+        }
+    }
+}
+
+static async Task<bool> SqliteTableExistsAsync(SqliteConnection connection, string tableName)
+{
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+    command.Parameters.AddWithValue("$name", tableName);
+    var result = await command.ExecuteScalarAsync();
+    return Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
 }
 
 // Varsayılan rol yetki matrisini (mevcut sabit davranışı yansıtacak şekilde) tohumlar.

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Text.RegularExpressions;
 
 namespace Kumburgaz.Web.Services;
 
@@ -30,11 +31,11 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             {
                 UnitId = x.Id,
                 BlockName = x.Block?.Name ?? string.Empty,
-                UnitDisplay = UnitDisplayHelper.Display(x),
+                UnitDisplay = CompactUnitDisplay(x),
                 ResponsibleAccountName = x.OwnerName ?? string.Empty,
                 DuesTypeName = "Tüm",
                 BillingGroupName = "Tüm",
-                UnitsText = UnitDisplayHelper.Display(x)
+                UnitsText = CompactUnitDisplay(x)
             });
 
         var installments = await db.DuesInstallments
@@ -90,13 +91,13 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             {
                 BillingGroupId = group.Key,
                 BlockName = BuildGroupBlockName(first.BillingGroup),
-                UnitDisplay = BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup),
+                UnitDisplay = CompactUnitDisplay(BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup)),
                 ResponsibleAccountName = first.ResponsibleAccount?.Name ?? string.Empty,
                 DuesTypeName = first.BillingGroup?.DuesType?.Name ?? "Aidat",
                 BillingGroupName = first.BillingGroup?.Name ?? string.Empty,
                 Amount = group.Sum(x => x.Amount),
                 RemainingAmount = group.Sum(x => x.RemainingAmount),
-                UnitsText = BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup)
+                UnitsText = CompactUnitDisplay(BillingGroupDisplayHelper.UnitDisplay(first.BillingGroup))
             };
         }
 
@@ -268,7 +269,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                     return new AttendanceReportRow
                     {
                         UnitId = x.Id,
-                        UnitDisplay = UnitDisplayHelper.Display(x),
+                        UnitDisplay = CompactUnitDisplay(x),
                         UnitNo = x.UnitNo,
                         ResponsibleAccountName = ownerAccount?.Name ?? x.OwnerName ?? string.Empty
                     };
@@ -287,23 +288,22 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Hazirun");
-        ws.Cell(1, 1).Value = "Hazirun Cetveli";
-        ws.Cell(2, 1).Value = $"Filtre: BlokId {model.Query.BlockId?.ToString() ?? "Tüm"}";
-        ws.Range(1, 1, 1, 4).Merge().Style.Font.Bold = true;
-        ws.Range(2, 1, 2, 4).Merge();
+        ws.PageSetup.PageOrientation = XLPageOrientation.Portrait;
+        ws.PageSetup.Margins.Left = 0.748;
+        ws.PageSetup.Margins.Right = 0.748;
+        ws.PageSetup.Margins.Top = 0.394;
+        ws.PageSetup.Margins.Bottom = 0.394;
+        ws.PageSetup.Margins.Header = 0.512;
+        ws.PageSetup.Margins.Footer = 0.748;
+        ws.Column(1).Width = 3.42578125;
+        ws.Column(2).Width = 13.5703125;
+        ws.Column(3).Width = 31.28515625;
+        ws.Column(4).Width = 38.7109375;
 
-        var rowIndex = 4;
+        var rowIndex = 1;
         foreach (var block in model.Blocks)
         {
-            ws.Cell(rowIndex, 1).Value = $"{block.BlockName} Blok";
-            ws.Range(rowIndex, 1, rowIndex, 4).Merge().Style.Font.Bold = true;
-            rowIndex++;
-
-            ws.Cell(rowIndex, 1).Value = "No";
-            ws.Cell(rowIndex, 2).Value = "Daire";
-            ws.Cell(rowIndex, 3).Value = "Malik / Sorumlu";
-            ws.Cell(rowIndex, 4).Value = "İmza";
-            ws.Range(rowIndex, 1, rowIndex, 4).Style.Font.Bold = true;
+            WriteAttendanceHeader(ws, rowIndex);
             rowIndex++;
 
             var sequence = 1;
@@ -313,15 +313,14 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 ws.Cell(rowIndex, 2).Value = row.UnitDisplay;
                 ws.Cell(rowIndex, 3).Value = row.ResponsibleAccountName;
                 ws.Cell(rowIndex, 4).Value = string.Empty;
-                ws.Row(rowIndex).Height = 28;
+                ws.Row(rowIndex).Height = 17.45;
+                ws.Range(rowIndex, 1, rowIndex, 4).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                ws.Range(rowIndex, 1, rowIndex, 4).Style.Border.InsideBorder = XLBorderStyleValues.Thin;
                 rowIndex++;
             }
 
             rowIndex++;
         }
-
-        ws.Column(4).Width = 38;
-        ws.Columns(1, 3).AdjustToContents();
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
@@ -335,55 +334,75 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         {
             container.Page(page =>
             {
-                page.Margin(20);
-                page.Header().Column(column =>
-                {
-                    column.Item().Text("Hazirun Cetveli").FontSize(18).Bold();
-                    column.Item().Text($"Filtre: BlokId {model.Query.BlockId?.ToString() ?? "Tüm"}").FontSize(9);
-                });
+                page.Size(PageSizes.A4.Portrait());
+                page.MarginHorizontal(54);
+                page.MarginVertical(28);
                 page.Content().Column(column =>
                 {
                     foreach (var block in model.Blocks)
                     {
-                        column.Item().PaddingTop(8).Text($"{block.BlockName} Blok").FontSize(13).Bold();
                         column.Item().Table(table =>
                         {
                             table.ColumnsDefinition(c =>
                             {
                                 c.ConstantColumn(28);
-                                c.RelativeColumn(2);
+                                c.ConstantColumn(86);
                                 c.RelativeColumn(3);
                                 c.RelativeColumn(4);
                             });
 
                             table.Header(header =>
                             {
-                                header.Cell().Text("No").Bold();
-                                header.Cell().Text("Daire").Bold();
-                                header.Cell().Text("Malik / Sorumlu").Bold();
-                                header.Cell().Text("İmza").Bold();
+                                AttendancePdfHeaderCell(header.Cell(), "No");
+                                AttendancePdfHeaderCell(header.Cell(), "Daire");
+                                AttendancePdfHeaderCell(header.Cell(), "Malik / Sorumlu");
+                                AttendancePdfHeaderCell(header.Cell(), "İmza");
                             });
 
                             var sequence = 1;
                             foreach (var row in block.Rows)
                             {
-                                table.Cell().MinHeight(28).Text(sequence++.ToString());
-                                table.Cell().MinHeight(28).Text(row.UnitDisplay);
-                                table.Cell().MinHeight(28).Text(row.ResponsibleAccountName);
-                                table.Cell().MinHeight(28).BorderBottom(0.5f).Text(string.Empty);
+                                AttendancePdfBodyCell(table.Cell(), sequence++.ToString());
+                                AttendancePdfBodyCell(table.Cell(), row.UnitDisplay);
+                                AttendancePdfBodyCell(table.Cell(), row.ResponsibleAccountName);
+                                AttendancePdfBodyCell(table.Cell(), string.Empty);
                             }
                         });
+                        column.Item().Height(8);
                     }
-                });
-                page.Footer().AlignCenter().Text(x =>
-                {
-                    x.Span("Sayfa ");
-                    x.CurrentPageNumber();
-                    x.Span(" / ");
-                    x.TotalPages();
                 });
             });
         }).GeneratePdf();
+    }
+
+    private static void WriteAttendanceHeader(IXLWorksheet ws, int rowIndex)
+    {
+        ws.Cell(rowIndex, 1).Value = "No";
+        ws.Cell(rowIndex, 2).Value = "Daire";
+        ws.Cell(rowIndex, 3).Value = "Malik / Sorumlu";
+        ws.Cell(rowIndex, 4).Value = "İmza";
+        ws.Range(rowIndex, 1, rowIndex, 4).Style.Font.Bold = true;
+    }
+
+    private static void AttendancePdfHeaderCell(IContainer container, string text)
+    {
+        container
+            .PaddingVertical(3)
+            .PaddingHorizontal(2)
+            .Text(text)
+            .FontSize(9)
+            .Bold();
+    }
+
+    private static void AttendancePdfBodyCell(IContainer container, string text)
+    {
+        container
+            .Border(0.5f)
+            .MinHeight(16)
+            .PaddingHorizontal(2)
+            .AlignMiddle()
+            .Text(text)
+            .FontSize(9);
     }
 
     public DuesStatusReportViewModel BuildDuesStatusReport(List<DuesDebtReportRow> rows, DuesDebtReportQuery query)
@@ -609,15 +628,24 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
 
     private static string CompactUnitNo(DuesDebtReportRow row)
     {
-        if (string.IsNullOrWhiteSpace(row.BlockName))
+        return CompactUnitDisplay(row.UnitDisplay);
+    }
+
+    private static string CompactUnitDisplay(Kumburgaz.Web.Models.Unit? unit)
+    {
+        return CompactUnitDisplay(UnitDisplayHelper.Display(unit));
+    }
+
+    private static string CompactUnitDisplay(string display)
+    {
+        if (string.IsNullOrWhiteSpace(display))
         {
-            return row.UnitDisplay;
+            return "-";
         }
 
-        var prefix = $"{row.BlockName}-";
-        return row.UnitDisplay.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? row.UnitDisplay
-            : row.UnitDisplay;
+        var compact = display.Split('(', 2)[0].Trim();
+        compact = Regex.Replace(compact, @"\s*\+\s*", "+");
+        return compact;
     }
 
     private static string CompactBalance(decimal balance)

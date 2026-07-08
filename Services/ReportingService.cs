@@ -3,6 +3,7 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 namespace Kumburgaz.Web.Services;
@@ -414,49 +415,69 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Aidat Durum");
-        ws.Cell(1, 1).Value = "Aidat Durum Cetveli";
-        ws.Cell(2, 1).Value = BuildFilterSummary(model.Query);
-        ws.Range(1, 1, 1, 7).Merge().Style.Font.Bold = true;
-        ws.Range(2, 1, 2, 7).Merge();
+        ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        ws.PageSetup.PagesWide = 1;
+        ws.PageSetup.PagesTall = 2;
+        ws.Style.Font.FontSize = 9;
 
-        var rowIndex = 4;
-        foreach (var block in model.Blocks)
+        var reportTitle = DuesStatusTitle(model.Query);
+        ws.Cell(1, 4).Value = reportTitle;
+        ws.Range(1, 4, 1, 6).Merge();
+        ws.Range(1, 4, 1, 6).Style
+            .Font.SetBold()
+            .Font.SetFontSize(14)
+            .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
+            .Fill.SetBackgroundColor(XLColor.Yellow)
+            .Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+
+        var blockChunks = model.Blocks.Chunk(3).ToList();
+        var rowOffset = 3;
+        foreach (var blockChunk in blockChunks)
         {
-            ws.Cell(rowIndex, 1).Value = $"{block.BlockName} Blok";
-            ws.Range(rowIndex, 1, rowIndex, 7).Merge().Style.Font.Bold = true;
-            rowIndex++;
-
-            ws.Cell(rowIndex, 1).Value = "Daire/Birleşik";
-            ws.Cell(rowIndex, 2).Value = "Sorumlu Hesap";
-            ws.Cell(rowIndex, 3).Value = "Aidat Tipi";
-            ws.Cell(rowIndex, 4).Value = "Aidat Grubu";
-            ws.Cell(rowIndex, 5).Value = "Tahakkuk";
-            ws.Cell(rowIndex, 6).Value = "Bakiye";
-            ws.Cell(rowIndex, 7).Value = "Durum";
-            ws.Range(rowIndex, 1, rowIndex, 7).Style.Font.Bold = true;
-            rowIndex++;
-
-            foreach (var row in block.Rows)
+            var maxRows = blockChunk.Max(x => x.Rows.Count);
+            for (var blockIndex = 0; blockIndex < blockChunk.Length; blockIndex++)
             {
-                ws.Cell(rowIndex, 1).Value = row.UnitDisplay;
-                ws.Cell(rowIndex, 2).Value = row.ResponsibleAccountName;
-                ws.Cell(rowIndex, 3).Value = row.DuesTypeName;
-                ws.Cell(rowIndex, 4).Value = row.BillingGroupName;
-                ws.Cell(rowIndex, 5).Value = row.Amount;
-                ws.Cell(rowIndex, 6).Value = Math.Abs(row.RemainingAmount);
-                ws.Cell(rowIndex, 7).Value = BalanceStatus(row.RemainingAmount);
-                rowIndex++;
+                var block = blockChunk[blockIndex];
+                var startColumn = blockIndex * 4 + 1;
+                ws.Cell(rowOffset, startColumn).Value = "DAİRE NO.";
+                ws.Cell(rowOffset, startColumn + 1).Value = "ADI SOYADI";
+                ws.Cell(rowOffset, startColumn + 2).Value = "BAKİYE";
+                ws.Range(rowOffset, startColumn, rowOffset, startColumn + 2).Style
+                    .Font.SetBold()
+                    .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
+                    .Border.SetOutsideBorder(XLBorderStyleValues.Thin)
+                    .Border.SetInsideBorder(XLBorderStyleValues.Thin);
+
+                for (var rowIndex = 0; rowIndex < block.Rows.Count; rowIndex++)
+                {
+                    var row = block.Rows[rowIndex];
+                    var excelRow = rowOffset + rowIndex + 1;
+                    ws.Cell(excelRow, startColumn).Value = CompactUnitNo(row);
+                    ws.Cell(excelRow, startColumn + 1).Value = row.ResponsibleAccountName;
+                    ws.Cell(excelRow, startColumn + 2).Value = CompactBalance(row.RemainingAmount);
+                    ws.Cell(excelRow, startColumn + 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                    ws.Range(excelRow, startColumn, excelRow, startColumn + 2).Style.Border.OutsideBorder = XLBorderStyleValues.Hair;
+
+                    if (row.RemainingAmount != 0)
+                    {
+                        ws.Cell(excelRow, startColumn + 2).Style.Fill.BackgroundColor = XLColor.LightGoldenrodYellow;
+                        ws.Cell(excelRow, startColumn + 2).Style.Font.Bold = true;
+                    }
+                }
             }
 
-            ws.Cell(rowIndex, 4).Value = "Blok Toplamı";
-            ws.Cell(rowIndex, 5).Value = block.TotalAccrual;
-            ws.Cell(rowIndex, 6).Value = block.TotalDebt - block.TotalCredit;
-            ws.Cell(rowIndex, 7).Value = $"Borç {block.TotalDebt:N2} / Alacak {block.TotalCredit:N2}";
-            ws.Range(rowIndex, 4, rowIndex, 7).Style.Font.Bold = true;
-            rowIndex += 2;
+            rowOffset += maxRows + 3;
         }
 
-        ws.Columns().AdjustToContents();
+        for (var blockIndex = 0; blockIndex < 3; blockIndex++)
+        {
+            var startColumn = blockIndex * 4 + 1;
+            ws.Column(startColumn).Width = 10;
+            ws.Column(startColumn + 1).Width = 24;
+            ws.Column(startColumn + 2).Width = 10;
+            ws.Column(startColumn + 3).Width = 5;
+        }
+
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
@@ -468,66 +489,134 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
 
         return Document.Create(container =>
         {
-            container.Page(page =>
+            foreach (var blockChunk in model.Blocks.Chunk(3))
             {
-                page.Margin(18);
-                page.Header().Column(column =>
+                container.Page(page =>
                 {
-                    column.Item().Text("Aidat Durum Cetveli").FontSize(18).Bold();
-                    column.Item().Text(BuildFilterSummary(model.Query)).FontSize(9);
-                });
-                page.Content().Column(column =>
-                {
-                    foreach (var block in model.Blocks)
+                    page.Size(PageSizes.A4.Landscape());
+                    page.Margin(10);
+                    page.Header().AlignCenter().Element(header =>
                     {
-                        column.Item().PaddingTop(8).Text($"{block.BlockName} Blok").FontSize(13).Bold();
-                        column.Item().Table(table =>
+                        header.Width(250).Border(1).Background(Colors.Yellow.Medium).PaddingVertical(3).AlignCenter()
+                            .Text(DuesStatusTitle(model.Query)).FontSize(12).Bold();
+                    });
+                    page.Content().PaddingTop(8).Row(row =>
+                    {
+                        foreach (var block in blockChunk)
                         {
-                            table.ColumnsDefinition(c =>
-                            {
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(3);
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(1);
-                                c.RelativeColumn(1);
-                                c.RelativeColumn(1);
-                            });
+                            row.RelativeItem().PaddingRight(8).Element(container => BuildCompactDuesStatusBlock(container, block));
+                        }
 
-                            table.Header(header =>
-                            {
-                                header.Cell().Text("Daire").Bold();
-                                header.Cell().Text("Sorumlu").Bold();
-                                header.Cell().Text("Aidat Tipi").Bold();
-                                header.Cell().Text("Grup").Bold();
-                                header.Cell().AlignRight().Text("Tahakkuk").Bold();
-                                header.Cell().AlignRight().Text("Bakiye").Bold();
-                                header.Cell().Text("Durum").Bold();
-                            });
-
-                            foreach (var row in block.Rows)
-                            {
-                                table.Cell().Text(row.UnitDisplay);
-                                table.Cell().Text(row.ResponsibleAccountName);
-                                table.Cell().Text(row.DuesTypeName);
-                                table.Cell().Text(row.BillingGroupName);
-                                table.Cell().AlignRight().Text(row.Amount.ToString("N2"));
-                                table.Cell().AlignRight().Text(Math.Abs(row.RemainingAmount).ToString("N2"));
-                                table.Cell().Text(BalanceStatus(row.RemainingAmount));
-                            }
-                        });
-                        column.Item().AlignRight().Text($"Blok toplamı: Tahakkuk {block.TotalAccrual:N2} TL | Borç {block.TotalDebt:N2} TL | Alacak {block.TotalCredit:N2} TL").FontSize(9).Bold();
-                    }
+                        for (var i = blockChunk.Length; i < 3; i++)
+                        {
+                            row.RelativeItem();
+                        }
+                    });
+                    page.Footer().AlignCenter().Text(x =>
+                    {
+                        x.Span("Sayfa ");
+                        x.CurrentPageNumber();
+                        x.Span(" / ");
+                        x.TotalPages();
+                    });
                 });
-                page.Footer().AlignCenter().Text(x =>
-                {
-                    x.Span("Sayfa ");
-                    x.CurrentPageNumber();
-                    x.Span(" / ");
-                    x.TotalPages();
-                });
-            });
+            }
         }).GeneratePdf();
+    }
+
+    private static void BuildCompactDuesStatusBlock(IContainer container, DuesStatusReportBlock block)
+    {
+        container.Table(table =>
+        {
+            table.ColumnsDefinition(c =>
+            {
+                c.RelativeColumn(1.1f);
+                c.RelativeColumn(2.8f);
+                c.RelativeColumn(1.1f);
+            });
+
+            table.Header(header =>
+            {
+                CompactHeaderCell(header.Cell(), "DAİRE\nNO.");
+                CompactHeaderCell(header.Cell(), "ADI SOYADI");
+                CompactHeaderCell(header.Cell(), "BAKİYE");
+            });
+
+            foreach (var row in block.Rows)
+            {
+                CompactBodyCell(table.Cell(), CompactUnitNo(row), alignRight: false, highlight: false);
+                CompactBodyCell(table.Cell(), row.ResponsibleAccountName, alignRight: false, highlight: false);
+                CompactBodyCell(table.Cell(), CompactBalance(row.RemainingAmount), alignRight: true, highlight: row.RemainingAmount != 0);
+            }
+        });
+    }
+
+    private static void CompactHeaderCell(IContainer container, string text)
+    {
+        container
+            .Border(0.7f)
+            .PaddingVertical(4)
+            .PaddingHorizontal(2)
+            .AlignCenter()
+            .AlignMiddle()
+            .Text(text)
+            .FontSize(6.5f)
+            .Bold();
+    }
+
+    private static void CompactBodyCell(IContainer container, string text, bool alignRight, bool highlight)
+    {
+        var cell = container
+            .BorderBottom(0.3f)
+            .BorderColor(Colors.Grey.Lighten1)
+            .MinHeight(10)
+            .PaddingHorizontal(2)
+            .PaddingVertical(1);
+
+        if (highlight)
+        {
+            cell = cell.Background(Colors.Yellow.Lighten2);
+        }
+
+        var aligned = alignRight ? cell.AlignRight() : cell.AlignLeft();
+        var textDescriptor = aligned.Text(string.IsNullOrWhiteSpace(text) ? "-" : text)
+            .FontSize(6.2f);
+        if (highlight)
+        {
+            textDescriptor.Bold();
+        }
+    }
+
+    private static string CompactUnitNo(DuesDebtReportRow row)
+    {
+        if (string.IsNullOrWhiteSpace(row.BlockName))
+        {
+            return row.UnitDisplay;
+        }
+
+        var prefix = $"{row.BlockName}-";
+        return row.UnitDisplay.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? row.UnitDisplay
+            : row.UnitDisplay;
+    }
+
+    private static string CompactBalance(decimal balance)
+    {
+        if (balance == 0)
+        {
+            return "0";
+        }
+
+        return decimal.Truncate(balance) == balance
+            ? balance.ToString("N0")
+            : balance.ToString("N2");
+    }
+
+    private static string DuesStatusTitle(DuesDebtReportQuery query)
+    {
+        return string.IsNullOrWhiteSpace(query.Period)
+            ? "AİDAT DURUM GENEL LİSTE"
+            : $"{query.Period} DÖNEMİ GENEL LİSTE";
     }
 
     private static string AddDistinctName(string current, string? name)

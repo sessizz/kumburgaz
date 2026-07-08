@@ -2,50 +2,213 @@
 
 Bu dosya uygulama gelistirmelerini asamali ilerletmek icin tutulur.
 
+Son guncelleme: 2026-07-08
+Aktif branch: `codex/kumburgaz-improvement-plan`
+
+## Genel Durum
+
+- Asama 1: Buyuk olcude tamamlandi.
+- Asama 2: Buyuk olcude tamamlandi.
+- Asama 3: Temel defter ve tutarlilik mantigi tamamlandi, kalan isler agirlikla iyilestirme ve veri onarim araclari.
+- Asama 4: Raporlarin buyuk bolumu tamamlandi, dashboard/global arama/cikti tarafinda ana isler yapildi.
+- Asama 5: Yedekleme ve geri yukleme tamamlandi, PostgreSQL 17 araci duzeltildi.
+- Asama 6: Test projesi eklendi ve temel senaryolar yazildi; test kapsami genisletilmeye devam etmeli.
+
 ## Asama 1: Guvenlik, Roller, Audit ve Soft Delete
 
-- Herkese acik kayit kapatilacak.
-- Roller netlestirilecek: SistemYonetici, SiteYonetici, MuhasebeGorevli, Personel, SadeceGoruntuleme.
-- Controller/action bazli yetki politikalarina gecilecek.
-- AuditLog tablosu ile create/update/delete/restore/import/rollback kayitlari tutulacak.
-- Finans ve tanim kayitlarinda soft delete uygulanacak.
-- Tek seferlik runtime veri duzeltmeleri migration/admin bakim isine tasinacak.
-- Sahte dashboard verileri canli ekrandan kaldirilacak.
+Durum: Buyuk olcude tamamlandi.
+
+Tamamlananlar:
+
+- Herkese acik kayit kapatildi.
+- Roller netlestirildi: `SistemYonetici`, `SiteYonetici`, `MuhasebeGorevli`, `Personel`, `SadeceGoruntuleme`.
+- Controller/action bazli yetki politikalari eklendi.
+- `AuditLog` tablosu ve denetim ekrani eklendi.
+- Create/update/delete/restore/import/rollback islemleri audit'e yazilmaya baslandi.
+- Finans ve tanim kayitlarinda soft delete altyapisi eklendi.
+- Audit ekraninda silinen kayit icin geri alma islemi eklendi.
+- Audit detaylari genisletildi; eski/yeni degerler ve silinen kayit bilgileri daha okunur hale getirildi.
+- Geri alma oncesi kullaniciya neyi geri aldigini anlatan onay akisi eklendi.
+- Sahte dashboard verileri canli ekrandan temizlendi.
+
+Kalan / kontrol edilecekler:
+
+- Soft delete kapsami tum eski controller delete aksiyonlarinda tekrar gozden gecirilmeli.
+- Runtime'da calisan tek seferlik veri duzeltmeleri tamamen migration/admin bakim komutuna tasindi mi son kez kontrol edilmeli.
+- Audit ekraninda filtreleme ve detay arama eklenebilir.
 
 ## Asama 2: Import Guvenligi
 
-- ImportBatch ve ImportBatchRow tablolari eklenecek.
-- Import onizleme satirlari Hazir, Mukerrer, Hatali, Atlandi durumlariyla gosterilecek.
-- Import commit islemi tek transaction icinde yapilacak.
-- Commit edilmis import batch'i geri alinabilecek.
-- Hatali satirlar ekrandan ve CSV olarak indirilebilir olacak.
-- Kasa/banka import ekraninda gelir, gider, tahsilat ve transfer tam desteklenecek.
+Durum: Buyuk olcude tamamlandi.
+
+Tamamlananlar:
+
+- `ImportBatch` ve `ImportBatchRow` tablolari eklendi.
+- Import onizleme satirlari `Hazir`, `Mukerrer`, `Hatali`, `Atlandi` durumlariyla gosteriliyor.
+- Import commit islemleri batch mantigiyla kayda geciyor.
+- Commit edilmis import batch'i geri alma altyapisi eklendi.
+- Hatali satirlar ekrandan gorulebilir ve CSV olarak indirilebilir hale getirildi.
+- Kasa/banka import ekraninda gelir, gider, tahsilat ve transfer tipleri desteklendi.
+- Para transferleri gelir/gider olarak raporlanmayacak sekilde ayrildi.
+- Import ekraninda gelir tipi ve gelir kategorisi destegi eklendi.
+- Import onizleme ekraninda yatay kayma azaltildi; gereksiz alanlar sadelestirildi, makbuz no alani korundu.
+
+Kalan / kontrol edilecekler:
+
+- Import rollback sonrasi olusan tum bagli kayitlarin soft delete durumlari daha fazla senaryoda test edilmeli.
+- Mukerrer yakalama kurallari canli CSV ornekleriyle genisletilebilir.
+- Import batch detay ekraninda satir bazli olusan kayit linkleri daha belirgin hale getirilebilir.
 
 ## Asama 3: Tek Hesap Defteri ve Finansal Tutarlilik
 
-- Daire bazli merkezi UnitLedgerService olusturulacak.
-- Daire detayi, malik detayi, ekstre, raporlar ve dashboard ayni bakiye servisinden beslenecek.
-- Pozitif bakiye borc, negatif bakiye alacak/avans olarak ele alinacak.
-- Devir alacagi ve fazla tahsilat en eski aidatlardan otomatik dusulecek.
-- Gecelik tutarlilik kontrol servisi eklenecek.
+Durum: Temel isler tamamlandi, veri onarim ve gorunurluk iyilestirmeleri devam etmeli.
+
+Tamamlananlar:
+
+- Daire bazli merkezi `UnitLedgerService` olusturuldu.
+- Daire detayi, malik detayi, ekstre, borc/alacak raporu ve dashboard ayni bakiye mantigina yaklastirildi.
+- Pozitif bakiye borc, negatif bakiye alacak/avans olarak ele aliniyor.
+- Devir alacagi aidattan dusuyor.
+- Devir borcu net borca ekleniyor.
+- Tahsilat en eski acik aidattan kapatiliyor.
+- Fazla tahsilat avans/alacak olarak gorunuyor.
+- Yeni aidat ve mevcut avans senaryolari icin temel hesaplama duzeltmeleri yapildi.
+- Tahsilat allocation sorunlarini yakalayan tutarlilik kontrolleri eklendi.
+- Tutarlilik uyarilari denetim ekraninda daha detayli gosteriliyor.
+- Nuri Huri ve benzeri odeme yaptigi halde borclu gorunme senaryolari icin allocation/ledger kontrolu genisletildi.
+
+Kalan / kontrol edilecekler:
+
+- Eski verilerdeki hatali allocationlari otomatik onaran admin araci eklenmeli.
+- Tahsilat edit/delete sonrasi allocation geri alma ve yeniden hesaplama daha fazla testle guvenceye alinmali.
+- Tutarlilik uyarisindan ilgili tahsilat, daire, ekstre veya import satirina direkt linkler eklenebilir.
+- Daire/malik detayina daha acik hesap ozeti kutusu eklenmeli:
+  - Toplam tahakkuk
+  - Toplam tahsilat
+  - Devir alacagi
+  - Devir borcu
+  - Avans
+  - Net bakiye
+- Tahsilat ekraninda "en eski borctan kapatiliyor / su kadar avans kalacak" metni daha acik hale getirilmeli.
 
 ## Asama 4: Gelir Raporlari, Dashboard, Global Arama ve Ciktilar
 
-- Gelir ekrani gider ekraniyla ayni seviyeye getirilecek.
-- Gelir Raporu, Gelir/Gider Ozeti, Aylik Nakit Akisi ve Borc/Alacak Yaslandirma raporlari eklenecek.
-- Excel/PDF ciktilarinda aktif filtre ozeti yer alacak.
-- Global arama daire, malik, makbuz no, aciklama, banka/kasa hareketi, kategori, belge ve talep arayacak.
-- Dashboard gercek uyari kartlariyla yenilenecek.
+Durum: Buyuk bolumu tamamlandi.
+
+Tamamlananlar:
+
+- Gelir ekrani gider ekraniyla ayni seviyeye yaklastirildi.
+- Gider ekranina kategori ve tarih araligi filtresi eklendi.
+- Gider icmalinde kasa ve banka rakamlari ayrildi.
+- Gelir Raporu eklendi.
+- Gelir/Gider Ozeti eklendi.
+- Aylik Nakit Akisi eklendi.
+- Borc/Alacak Yaslandirma raporu eklendi.
+- Daire Borc/Alacak raporunda donem filtresi kaldirildi; her dairenin toplam borc/alacak bakiyesi gosteriliyor.
+- Daire Borc/Alacak raporunda daire no ve sorumlu hesap linkleri ilgili detay sayfalarina gidiyor.
+- Excel/PDF ciktilarina aktif filtre ozeti eklenmeye baslandi.
+- Global arama daire, malik, makbuz no, aciklama, banka/kasa hareketi, kategori, belge ve talep arayacak sekilde genisletildi.
+- Dashboard gercek uyari kartlariyla yenilendi:
+  - Vadesi gecmis borc
+  - Yuksek alacak/avans
+  - Tutarlilik kontrolu
+  - Problemli import satirlari
+  - Bu ay nakit eksi durumu
+  - Yedekleme uyarisi
+- Hazirun cetveli eklendi; Excel/PDF cikti destekli.
+- Hazirun cetvelinden telefon kaldirildi.
+- Hazirun cetveli kullanici ornek dosyasindaki duzene yaklastirildi.
+- Aidat durum cetveli eklendi; Excel/PDF cikti destekli.
+- Aidat durum cetveli kullanici ornek dosyasindaki yatay, kompakt duzene yaklastirildi.
+- Birlesik daire adlari raporlarda sade gosterilecek sekilde duzeltildi.
+
+Kalan / kontrol edilecekler:
+
+- Tum Excel/PDF ciktilarinda filtre ozeti standart hale getirilmeli.
+- Gelir raporlarinda kategori, kasa/banka ve tarih bazli ozet kartlari daha da iyilestirilebilir.
+- Dashboard kartlari icin esik degerler ayarlanabilir yapilabilir.
+- Global arama sonuc ekraninda daha iyi gruplama ve klavye ile secim eklenebilir.
+- Hazirun ve aidat durum cetveli canli yazici/PDF ciktilariyla son kez karsilastirilmali.
 
 ## Asama 5: Yedekleme, Geri Yukleme ve Operasyon
 
-- Sistem yoneticisine ozel yedekleme ekrani eklenecek.
-- Gunluk otomatik yedek, manuel yedek indirme ve geri yukleme desteklenecek.
-- PostgreSQL icin pg_dump/pg_restore, SQLite icin dosya kopyalama kullanilacak.
-- Yedekleme ve geri yukleme islemleri audit'e yazilacak.
+Durum: Tamamlandi, operasyonel iyilestirme yapilabilir.
+
+Tamamlananlar:
+
+- Sistem yoneticisine ozel yedekleme ekrani eklendi.
+- Gunluk otomatik yedek destegi eklendi.
+- Manuel yedek alma ve indirme eklendi.
+- Geri yukleme destegi eklendi.
+- Geri yukleme oncesi otomatik "restore oncesi" yedek aliniyor.
+- PostgreSQL icin `pg_dump/pg_restore`, SQLite icin dosya kopyalama destekleniyor.
+- Coolify/container ortaminda `pg_dump` bulunamama sorunu icin arac kurulumu/ayar destegi eklendi.
+- PostgreSQL 17 server ile pg_dump 16 uyumsuzlugu giderildi.
+- Yedekleme ve geri yukleme islemleri audit'e yaziliyor.
+- Dashboard son yedek durumunu ve gecikmis yedek uyarisini gosteriyor.
+
+Kalan / kontrol edilecekler:
+
+- Geri yukleme islemi canli ortamda dikkatli bir test proseduruyle belgelenmeli.
+- Yedek dosyalarinin saklama suresi ve disk doluluk uyarisi dashboard'a eklenebilir.
 
 ## Asama 6: Otomatik Testler
 
-- Kumburgaz.Web.Tests test projesi eklenecek.
-- Devir, avans, tahsilat, import, rapor ve yetki senaryolari test edilecek.
-- Her asama sonunda dotnet build ve testler calistirilacak.
+Durum: Basladi ve temel kapsam var.
+
+Tamamlananlar:
+
+- `Kumburgaz.Web.Tests` test projesi eklendi.
+- Devir alacagi aidattan duser senaryosu test edildi.
+- Devir borcu net borca eklenir senaryosu test edildi.
+- Tahsilat en eski borctan kapatir senaryosu test edildi.
+- Fazla tahsilat avans olur senaryosu test edildi.
+- Yeni aidat olusunca avans dusme mantigi test edildi.
+- Import mukerrer satir yakalama senaryolari test edildi.
+- Import rollback davranisi icin temel testler eklendi.
+- Gelir/gider/transfer kasa-banka bakiyesini etkiler senaryolari test edilmeye baslandi.
+- Rapor/ekstre/daire detay bakiyesi icin temel tutarlilik testleri eklendi.
+- Rapor export formatlari icin temel test eklendi.
+- Son test sonucu: `dotnet test .\kumburgaz.sln` basarili, 13 test gecti.
+
+Kalan / kontrol edilecekler:
+
+- Yetkisiz kullanici finans/admin islemlerine erisemez testleri genisletilmeli.
+- Tahsilat edit/delete allocation geri alma testleri artirilmali.
+- Audit restore ve soft delete davranislari icin testler eklenmeli.
+- Backup/restore servisleri icin mock veya sqlite tabanli testler eklenmeli.
+- Dashboard uyari kartlari icin controller/view model testleri eklenebilir.
+
+## Siradaki Onerilen Isler
+
+1. Asama 3 veri onarim araci:
+   - Hatali veya eksik tahsilat allocationlarini listele.
+   - Secili daire/tahsilat icin allocationlari yeniden hesapla.
+   - Islem oncesi ve sonrasi farki goster.
+
+2. Asama 3 hesap ozeti:
+   - Daire ve malik detayina toplam tahakkuk, tahsilat, devir, avans ve net bakiye kutulari ekle.
+
+3. Asama 6 test genisletme:
+   - Tahsilat edit/delete, audit restore ve yetki testlerini ekle.
+
+4. Asama 4 cikti standardi:
+   - Tum Excel/PDF raporlarinda filtre ozeti ve tarih bilgisi ayni formatta gosterilsin.
+
+5. Asama 5 operasyon:
+   - Yedek saklama suresi, disk doluluk ve son yedek gecikme esikleri ayarlanabilir olsun.
+
+## Kabul Kriterleri Durumu
+
+- Ayni daire icin daire detayi, malik detayi, ekstre, borc/alacak raporu ve dashboard ayni net bakiyeyi gostermeli: Kismi tamamlandi, eski veri onarim araci ile guclendirilmeli.
+- Import edilen her dosyanin batch numarasi olmali: Tamamlandi.
+- Hangi satirdan hangi kaydin olustugu gorulebilmeli: Kismi tamamlandi, linkler iyilestirilebilir.
+- Mukerrer import kayit uretmemeli: Tamamlandi, daha fazla canli CSV testi onerilir.
+- Finansal kayit silinince fiziksel olarak kaybolmamali: Buyuk olcude tamamlandi.
+- Audit ve geri alma mumkun olmali: Tamamlandi, detay gorunumu iyilestirildi.
+- Gelirler ayri raporlanabilmeli: Tamamlandi.
+- Gelir/gider ozeti alinabilmeli: Tamamlandi.
+- Yonetici son yedek zamanini gorebilmeli: Tamamlandi.
+- Manuel yedek indirilebilmeli ve geri yukleme yapilabilmeli: Tamamlandi.
+- Register herkese acik olmamali: Tamamlandi.
+- Test projesi temel finansal senaryolari otomatik dogrulamali: Basladi, 13 test mevcut.

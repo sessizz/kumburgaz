@@ -22,6 +22,8 @@ Tamamlananlar:
 
 - Herkese acik kayit kapatildi.
 - Roller netlestirildi: `SistemYonetici`, `SiteYonetici`, `MuhasebeGorevli`, `Personel`, `SadeceGoruntuleme`.
+- Ayarlar altinda kullanici yonetimi eklendi: kullanici acma, sifre verme/degistirme, rol verme ve kullaniciyi kilitleme.
+- Kullanici bir malik/personel/tedarikci hesabina baglanabiliyor; audit kayitlarinda bagli hesap adi gorunuyor.
 - Controller/action bazli yetki politikalari eklendi.
 - `AuditLog` tablosu ve denetim ekrani eklendi.
 - Create/update/delete/restore/import/rollback islemleri audit'e yazilmaya baslandi.

@@ -4,4 +4,6 @@ public class ApplicationUser : IdentityUser
 {
     public string? FullName { get; set; }
     public string? Title { get; set; }
+    public int? AccountId { get; set; }
+    public Account? Account { get; set; }
 }

@@ -1,0 +1,58 @@
+@model SystemUserFormViewModel
+@{
+    var isEdit = !string.IsNullOrWhiteSpace(Model.Id);
+}
+
+<form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@Model.Id" method="post" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5 max-w-4xl">
+    <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
+    <input type="hidden" asp-for="Id" />
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label asp-for="Email" class="label font-semibold">E-posta</label>
+            <input asp-for="Email" class="input input-bordered w-full" />
+            <span asp-validation-for="Email" class="text-error text-xs"></span>
+        </div>
+        <div>
+            <label asp-for="Password" class="label font-semibold">Şifre</label>
+            <input asp-for="Password" class="input input-bordered w-full" autocomplete="new-password" placeholder="@(isEdit ? "Değişmeyecekse boş bırak" : "")" />
+            <span asp-validation-for="Password" class="text-error text-xs"></span>
+        </div>
+        <div>
+            <label asp-for="FullName" class="label font-semibold">Ad Soyad</label>
+            <input asp-for="FullName" class="input input-bordered w-full" />
+        </div>
+        <div>
+            <label asp-for="Title" class="label font-semibold">Görev / Ünvan</label>
+            <input asp-for="Title" class="input input-bordered w-full" />
+        </div>
+        <div class="md:col-span-2">
+            <label asp-for="AccountId" class="label font-semibold">Bağlı Hesap</label>
+            <select asp-for="AccountId" asp-items="Model.AccountOptions" class="select select-bordered w-full"></select>
+            <div class="text-xs text-gray-400 mt-1">Malik/personel hesabına bağlanırsa audit kayıtlarında bu hesap adı görünür.</div>
+        </div>
+    </div>
+
+    <div>
+        <div class="font-semibold mb-2">Roller</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            @foreach (var role in Model.RoleOptions)
+            {
+                <label class="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2">
+                    <input class="checkbox checkbox-primary checkbox-sm" type="checkbox" name="SelectedRoles" value="@role.Value" checked="@role.Selected" />
+                    <span>@role.Text</span>
+                </label>
+            }
+        </div>
+    </div>
+
+    <label class="flex items-center gap-2">
+        <input asp-for="IsLockedOut" class="checkbox checkbox-error checkbox-sm" />
+        <span>Kullanıcı girişini kilitle</span>
+    </label>
+
+    <div class="flex justify-end gap-2 pt-2">
+        <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+        <button class="btn btn-primary" type="submit">Kaydet</button>
+    </div>
+</form>

@@ -1,4 +1,5 @@
 using Kumburgaz.Web.Models;
+using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -137,6 +138,12 @@ public class ApplicationDbContext(
 
         builder.Entity<Account>()
             .HasIndex(x => new { x.AccountType, x.Name });
+
+        builder.Entity<ApplicationUser>()
+            .HasOne(x => x.Account)
+            .WithMany()
+            .HasForeignKey(x => x.AccountId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.Entity<UnitAccount>()
             .HasIndex(x => new { x.UnitId, x.Role, x.Active });
@@ -307,7 +314,8 @@ public class ApplicationDbContext(
 
         var user = httpContextAccessor?.HttpContext?.User;
         var userId = user?.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userName = user?.Identity?.Name;
+        var userName = user?.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+            ?? user?.Identity?.Name;
         var ip = httpContextAccessor?.HttpContext?.Connection.RemoteIpAddress?.ToString();
         var correlationId = httpContextAccessor?.HttpContext?.TraceIdentifier;
         var now = DateTime.UtcNow;
@@ -368,8 +376,16 @@ public class ApplicationDbContext(
 
     private static string? SerializeValues(EntityEntry entry, bool original)
     {
+        var sensitiveProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            nameof(ApplicationUser.PasswordHash),
+            nameof(ApplicationUser.SecurityStamp),
+            nameof(ApplicationUser.ConcurrencyStamp)
+        };
+
         var values = entry.Properties
             .Where(x => !x.Metadata.IsShadowProperty())
+            .Where(x => entry.Entity is not ApplicationUser || !sensitiveProperties.Contains(x.Metadata.Name))
             .ToDictionary(
                 x => x.Metadata.Name,
                 x => original ? x.OriginalValue : x.CurrentValue);

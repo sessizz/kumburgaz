@@ -131,6 +131,41 @@ public class AccountCollectionRowViewModel
     public bool IsOpeningBalance { get; set; }
 }
 
+public class SystemUserIndexRowViewModel
+{
+    public string Id { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? FullName { get; set; }
+    public string? Title { get; set; }
+    public string? AccountName { get; set; }
+    public string RolesText { get; set; } = string.Empty;
+    public bool IsLockedOut { get; set; }
+}
+
+public class SystemUserFormViewModel
+{
+    public string? Id { get; set; }
+
+    [Required, EmailAddress, MaxLength(256)]
+    public string Email { get; set; } = string.Empty;
+
+    [MaxLength(160)]
+    public string? FullName { get; set; }
+
+    [MaxLength(120)]
+    public string? Title { get; set; }
+
+    public int? AccountId { get; set; }
+
+    [DataType(DataType.Password)]
+    public string? Password { get; set; }
+
+    public bool IsLockedOut { get; set; }
+    public List<string> SelectedRoles { get; set; } = [];
+    public List<SelectListItem> RoleOptions { get; set; } = [];
+    public List<SelectListItem> AccountOptions { get; set; } = [];
+}
+
 public class DuesGenerationPreviewItem
 {
     public int BillingGroupId { get; set; }

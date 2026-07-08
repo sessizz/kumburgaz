@@ -1,16 +1,22 @@
 @using Microsoft.AspNetCore.Identity
 @using Kumburgaz.Web.Models
+@using Kumburgaz.Web.Services
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@{
+    var displayName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+        ?? User.Identity?.Name
+        ?? "?";
+}
 
 @if (SignInManager.IsSignedIn(User))
 {
     <div class="dropdown dropdown-end">
         <div tabindex="0" role="button" class="flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors">
             <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                @(User.Identity?.Name?.Substring(0, 1).ToUpper() ?? "?")
+                @(displayName.Substring(0, 1).ToUpper())
             </div>
-            <span class="hidden sm:block text-sm font-medium text-gray-700">@User.Identity?.Name</span>
+            <span class="hidden sm:block text-sm font-medium text-gray-700">@displayName</span>
             <span class="material-symbols-outlined text-gray-400" style="font-size:16px">expand_more</span>
         </div>
         <ul tabindex="0" class="dropdown-content menu bg-white rounded-xl z-50 w-48 p-1.5 shadow-lg border border-gray-200 mt-1 text-sm">

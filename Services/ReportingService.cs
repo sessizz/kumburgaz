@@ -416,8 +416,15 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Aidat Durum");
         ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        ws.PageSetup.PaperSize = XLPaperSize.A4Paper;
         ws.PageSetup.PagesWide = 1;
         ws.PageSetup.PagesTall = 2;
+        ws.PageSetup.Margins.Left = 0.236;
+        ws.PageSetup.Margins.Right = 0.236;
+        ws.PageSetup.Margins.Top = 0.394;
+        ws.PageSetup.Margins.Bottom = 0.394;
+        ws.PageSetup.Margins.Header = 0.315;
+        ws.PageSetup.Margins.Footer = 0.315;
         ws.Style.Font.FontSize = 9;
 
         var reportTitle = DuesStatusTitle(model.Query);
@@ -429,12 +436,14 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
             .Fill.SetBackgroundColor(XLColor.Yellow)
             .Border.SetOutsideBorder(XLBorderStyleValues.Thin);
+        ws.Row(1).Height = 18.75;
 
         var blockChunks = model.Blocks.Chunk(3).ToList();
         var rowOffset = 3;
         foreach (var blockChunk in blockChunks)
         {
             var maxRows = blockChunk.Max(x => x.Rows.Count);
+            ws.Row(rowOffset).Height = 31.5;
             for (var blockIndex = 0; blockIndex < blockChunk.Length; blockIndex++)
             {
                 var block = blockChunk[blockIndex];
@@ -442,21 +451,29 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 ws.Cell(rowOffset, startColumn).Value = "DAİRE NO.";
                 ws.Cell(rowOffset, startColumn + 1).Value = "ADI SOYADI";
                 ws.Cell(rowOffset, startColumn + 2).Value = "BAKİYE";
-                ws.Range(rowOffset, startColumn, rowOffset, startColumn + 2).Style
-                    .Font.SetBold()
-                    .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center)
-                    .Border.SetOutsideBorder(XLBorderStyleValues.Thin)
-                    .Border.SetInsideBorder(XLBorderStyleValues.Thin);
+                var headerRange = ws.Range(rowOffset, startColumn, rowOffset, startColumn + 2);
+                headerRange.Style.Font.Bold = true;
+                headerRange.Style.Font.FontSize = 12;
+                headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                headerRange.Style.Alignment.WrapText = true;
+                headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
 
                 for (var rowIndex = 0; rowIndex < block.Rows.Count; rowIndex++)
                 {
                     var row = block.Rows[rowIndex];
                     var excelRow = rowOffset + rowIndex + 1;
+                    ws.Row(excelRow).Height = 15.75;
                     ws.Cell(excelRow, startColumn).Value = CompactUnitNo(row);
                     ws.Cell(excelRow, startColumn + 1).Value = row.ResponsibleAccountName;
                     ws.Cell(excelRow, startColumn + 2).Value = CompactBalance(row.RemainingAmount);
+                    ws.Range(excelRow, startColumn, excelRow, startColumn + 2).Style.Font.FontSize = 12;
+                    ws.Range(excelRow, startColumn, excelRow, startColumn + 2).Style.Border.TopBorder = XLBorderStyleValues.Hair;
+                    ws.Range(excelRow, startColumn, excelRow, startColumn + 2).Style.Border.BottomBorder = XLBorderStyleValues.Hair;
+                    ws.Cell(excelRow, startColumn).Style.Border.LeftBorder = XLBorderStyleValues.Hair;
+                    ws.Cell(excelRow, startColumn + 2).Style.Border.RightBorder = XLBorderStyleValues.Hair;
                     ws.Cell(excelRow, startColumn + 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                    ws.Range(excelRow, startColumn, excelRow, startColumn + 2).Style.Border.OutsideBorder = XLBorderStyleValues.Hair;
 
                     if (row.RemainingAmount != 0)
                     {
@@ -472,10 +489,10 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         for (var blockIndex = 0; blockIndex < 3; blockIndex++)
         {
             var startColumn = blockIndex * 4 + 1;
-            ws.Column(startColumn).Width = 10;
-            ws.Column(startColumn + 1).Width = 24;
-            ws.Column(startColumn + 2).Width = 10;
-            ws.Column(startColumn + 3).Width = 5;
+            ws.Column(startColumn).Width = 8.7109375;
+            ws.Column(startColumn + 1).Width = 26.7109375;
+            ws.Column(startColumn + 2).Width = 8.7109375;
+            ws.Column(startColumn + 3).Width = blockIndex == 2 ? 5.7109375 : 4.7109375;
         }
 
         using var ms = new MemoryStream();
@@ -489,12 +506,17 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
 
         return Document.Create(container =>
         {
-            foreach (var blockChunk in model.Blocks.Chunk(3))
+            const int rowsPerPage = 32;
+            var blocks = model.Blocks.Take(3).ToList();
+            var maxRows = blocks.Count == 0 ? 0 : blocks.Max(x => x.Rows.Count);
+            var pageCount = Math.Max(1, (int)Math.Ceiling(maxRows / (decimal)rowsPerPage));
+            for (var pageIndex = 0; pageIndex < pageCount; pageIndex++)
             {
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4.Landscape());
-                    page.Margin(10);
+                    page.MarginHorizontal(17);
+                    page.MarginVertical(28);
                     page.Header().AlignCenter().Element(header =>
                     {
                         header.Width(250).Border(1).Background(Colors.Yellow.Medium).PaddingVertical(3).AlignCenter()
@@ -502,12 +524,16 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                     });
                     page.Content().PaddingTop(8).Row(row =>
                     {
-                        foreach (var block in blockChunk)
+                        foreach (var block in blocks)
                         {
-                            row.RelativeItem().PaddingRight(8).Element(container => BuildCompactDuesStatusBlock(container, block));
+                            var visibleRows = block.Rows
+                                .Skip(pageIndex * rowsPerPage)
+                                .Take(rowsPerPage)
+                                .ToList();
+                            row.RelativeItem().PaddingRight(8).Element(container => BuildCompactDuesStatusBlock(container, visibleRows));
                         }
 
-                        for (var i = blockChunk.Length; i < 3; i++)
+                        for (var i = blocks.Count; i < 3; i++)
                         {
                             row.RelativeItem();
                         }
@@ -524,7 +550,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         }).GeneratePdf();
     }
 
-    private static void BuildCompactDuesStatusBlock(IContainer container, DuesStatusReportBlock block)
+    private static void BuildCompactDuesStatusBlock(IContainer container, List<DuesDebtReportRow> rows)
     {
         container.Table(table =>
         {
@@ -542,7 +568,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 CompactHeaderCell(header.Cell(), "BAKİYE");
             });
 
-            foreach (var row in block.Rows)
+            foreach (var row in rows)
             {
                 CompactBodyCell(table.Cell(), CompactUnitNo(row), alignRight: false, highlight: false);
                 CompactBodyCell(table.Cell(), row.ResponsibleAccountName, alignRight: false, highlight: false);

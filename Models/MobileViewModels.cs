@@ -30,6 +30,7 @@ public class MobileUnitListItem
     public string UnitNo { get; set; } = string.Empty;
     public string Display { get; set; } = string.Empty;
     public string? OwnerName { get; set; }
+    public string? ResponsibleAccountName { get; set; }
     // Pozitif = borc, negatif = alacak/avans, 0 = temiz
     public decimal Balance { get; set; }
 }
@@ -43,7 +44,11 @@ public class MobileUnitBlockGroup
 public class MobileUnitListViewModel
 {
     public string? Query { get; set; }
+    public string Status { get; set; } = "all";
     public int TotalCount { get; set; }
+    public int DebtorCount { get; set; }
+    public int CreditorCount { get; set; }
+    public int CleanCount { get; set; }
     public List<MobileUnitBlockGroup> Blocks { get; set; } = [];
 }
 

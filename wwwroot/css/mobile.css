@@ -216,6 +216,46 @@ html, body {
     color: var(--m-text);
 }
 
+.m-filter-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin: -2px 0 12px;
+}
+.m-filter-tab {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 50px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    background: #eef2f7;
+    color: var(--m-muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+}
+.m-filter-tab span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.m-filter-tab strong {
+    color: var(--m-text);
+    font-size: 13px;
+    line-height: 1;
+}
+.m-filter-tab.active {
+    background: var(--m-primary);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(80, 34, 208, .22);
+}
+.m-filter-tab.active strong { color: #fff; }
+
 /* Bar (kategori dagilimi) */
 .m-bar-track { height: 6px; border-radius: 999px; background: #eef2f7; overflow: hidden; margin-top: 6px; }
 .m-bar-fill { height: 100%; border-radius: 999px; background: var(--m-primary); }

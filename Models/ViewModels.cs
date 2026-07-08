@@ -520,6 +520,7 @@ public class CollectionCreateViewModel
     public string? ReferenceNo { get; set; }
     public string? Note { get; set; }
     public string? ReturnUrl { get; set; }
+    public decimal ExistingAllocatedAmount { get; set; }
     public decimal AllocationPreviewDebt { get; set; }
     public decimal AllocationPreviewApplied { get; set; }
     public decimal AllocationPreviewAdvance { get; set; }

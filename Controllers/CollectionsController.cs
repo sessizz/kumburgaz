@@ -176,6 +176,7 @@ public class CollectionsController(
             AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
             ReferenceNo = entity.ReferenceNo,
             Note = entity.Note,
+            ExistingAllocatedAmount = entity.Allocations.Sum(x => x.AppliedAmount),
             ReturnUrl = Request.Query["returnUrl"].FirstOrDefault()
         };
 
@@ -421,7 +422,8 @@ public class CollectionsController(
             if (selectedInstallment is not null)
             {
                 model.BillingGroupId = selectedInstallment.BillingGroupId;
-                var selectedRemaining = effectiveRemaining.GetValueOrDefault(selectedInstallment.Id, selectedInstallment.RemainingAmount);
+                var selectedRemaining = effectiveRemaining.GetValueOrDefault(selectedInstallment.Id, selectedInstallment.RemainingAmount)
+                    + model.ExistingAllocatedAmount;
                 if (model.Amount <= 0)
                 {
                     model.Amount = selectedRemaining;

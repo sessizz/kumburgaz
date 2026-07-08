@@ -9,14 +9,14 @@ Aktif branch: `codex/kumburgaz-improvement-plan`
 
 - Asama 1: Buyuk olcude tamamlandi.
 - Asama 2: Buyuk olcude tamamlandi.
-- Asama 3: Tek hesap defteri, tutarlilik ve temel veri onarim araclari tamamlandi.
+- Asama 3: Tamamlandi.
 - Asama 4: Raporlarin buyuk bolumu tamamlandi, dashboard/global arama/cikti tarafinda ana isler yapildi.
 - Asama 5: Yedekleme ve geri yukleme tamamlandi, PostgreSQL 17 araci duzeltildi.
 - Asama 6: Test projesi eklendi ve temel senaryolar yazildi; test kapsami genisletilmeye devam etmeli.
 
 ## Asama 1: Guvenlik, Roller, Audit ve Soft Delete
 
-Durum: Buyuk olcude tamamlandi.
+Durum: Tamamlandi.
 
 Tamamlananlar:
 
@@ -83,12 +83,12 @@ Tamamlananlar:
 - Malik detayinda hesap ozeti kutulari genisletildi.
 - Tahsilat ekraninda en eski borctan kapatma ve avans kalma mantigi acik metinle gosteriliyor.
 - Tahsilat allocation onarimi icin otomatik test eklendi.
+- Tahsilat tutari degistikce borca uygulanacak ve avans kalacak tutarlar canli guncelleniyor.
+- Tahsilat edit/delete allocation geri alma davranisi otomatik testlerle guvenceye alindi.
 
 Kalan / kontrol edilecekler:
 
-- Tahsilat edit/delete sonrasi allocation geri alma ve yeniden hesaplama daha fazla testle guvenceye alinmali.
-- Tutarlilik uyarisindan import satirina direkt linkler daha da belirginlestirilebilir.
-- Tahsilat tutari degistikce avans/borca uygulama onizlemesini anlik hesaplayan JS iyilestirmesi eklenebilir.
+- Bu asama icin zorunlu kalan is yok. Ilave link/UX iyilestirmeleri Asama 4 veya Asama 6 kapsaminda ele alinabilir.
 
 ## Asama 4: Gelir Raporlari, Dashboard, Global Arama ve Ciktilar
 
@@ -173,7 +173,7 @@ Tamamlananlar:
 Kalan / kontrol edilecekler:
 
 - Yetkisiz kullanici finans/admin islemlerine erisemez testleri genisletilmeli.
-- Tahsilat edit/delete allocation geri alma testleri artirilmali.
+- Tahsilat edit/delete allocation geri alma testleri eklendi; yeni senaryolar geldikce artirilabilir.
 - Audit restore ve soft delete davranislari icin testler eklenmeli.
 - Backup/restore servisleri icin mock veya sqlite tabanli testler eklenmeli.
 - Dashboard uyari kartlari icin controller/view model testleri eklenebilir.
@@ -189,9 +189,6 @@ Kalan / kontrol edilecekler:
 3. Asama 5 operasyon:
    - Yedek saklama suresi, disk doluluk ve son yedek gecikme esikleri ayarlanabilir olsun.
 
-4. Asama 3 ince ayar:
-   - Tahsilat formunda tutar degistikce borca uygulanacak/avans kalacak degerleri anlik guncellensin.
-
 ## Kabul Kriterleri Durumu
 
 - Ayni daire icin daire detayi, malik detayi, ekstre, borc/alacak raporu ve dashboard ayni net bakiyeyi gostermeli: Buyuk olcude tamamlandi; yeni veri onarim araci eski allocation sorunlarini duzeltmek icin eklendi.
@@ -205,4 +202,4 @@ Kalan / kontrol edilecekler:
 - Yonetici son yedek zamanini gorebilmeli: Tamamlandi.
 - Manuel yedek indirilebilmeli ve geri yukleme yapilabilmeli: Tamamlandi.
 - Register herkese acik olmamali: Tamamlandi.
-- Test projesi temel finansal senaryolari otomatik dogrulamali: Basladi, 14 test mevcut.
+- Test projesi temel finansal senaryolari otomatik dogrulamali: Basladi, 15 test mevcut.

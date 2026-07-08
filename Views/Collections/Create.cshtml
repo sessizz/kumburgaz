@@ -21,6 +21,7 @@
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
                 <input asp-for="BillingGroupId" type="hidden" />
                 <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="ExistingAllocatedAmount" type="hidden" />
 
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Aidat Borcu</legend>
@@ -44,11 +45,11 @@
                             </div>
                             <div>
                                 <div class="text-sky-700">Bu tahsilattan borca uygulanacak</div>
-                                <div class="font-bold">@Model.AllocationPreviewApplied.ToString("N2") TL</div>
+                                <div id="allocationAppliedPreview" class="font-bold">@Model.AllocationPreviewApplied.ToString("N2") TL</div>
                             </div>
                             <div>
                                 <div class="text-sky-700">Avans kalacak</div>
-                                <div class="font-bold">@Model.AllocationPreviewAdvance.ToString("N2") TL</div>
+                                <div id="allocationAdvancePreview" class="font-bold">@Model.AllocationPreviewAdvance.ToString("N2") TL</div>
                             </div>
                         </div>
                         <div class="mt-2 text-xs text-sky-700">Kayıt sırasında sistem en eski açık aidattan başlayarak dağıtım yapar.</div>
@@ -63,7 +64,7 @@
                     </fieldset>
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Tutar</legend>
-                        <input asp-for="Amount" class="input input-bordered w-full" />
+                        <input asp-for="Amount" class="input input-bordered w-full" data-allocation-debt="@Model.AllocationPreviewDebt.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
                         <span asp-validation-for="Amount" class="text-error text-xs"></span>
                     </fieldset>
                     <fieldset class="fieldset">
@@ -99,4 +100,28 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const amountInput = document.getElementById("Amount");
+            const appliedEl = document.getElementById("allocationAppliedPreview");
+            const advanceEl = document.getElementById("allocationAdvancePreview");
+            if (!amountInput || !appliedEl || !advanceEl) return;
+
+            const debt = Number.parseFloat(amountInput.dataset.allocationDebt || "0") || 0;
+            const formatter = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const parseAmount = value => {
+                const normalized = (value || "").replace(/\./g, "").replace(",", ".");
+                const parsed = Number.parseFloat(normalized);
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+            const updatePreview = () => {
+                const amount = parseAmount(amountInput.value);
+                appliedEl.textContent = `${formatter.format(Math.min(amount, debt))} TL`;
+                advanceEl.textContent = `${formatter.format(Math.max(0, amount - debt))} TL`;
+            };
+
+            amountInput.addEventListener("input", updatePreview);
+            updatePreview();
+        })();
+    </script>
 }

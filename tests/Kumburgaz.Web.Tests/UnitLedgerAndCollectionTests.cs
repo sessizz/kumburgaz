@@ -102,6 +102,33 @@ public class UnitLedgerAndCollectionTests
         Assert.Empty(await db.Collections.ToListAsync());
     }
 
+    [Fact]
+    public async Task Edited_collection_reverses_old_allocation_and_recalculates_remaining_amount()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db);
+        var installment = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 8_000m);
+        var collectionId = await AddCollectionAsync(db, seed, Utc(2025, 9, 30), 6_000m, installment.Id);
+
+        await new CollectionService(db).UpdateAsync(collectionId, new CollectionCreateViewModel
+        {
+            BillingGroupId = seed.BillingGroupId,
+            DuesInstallmentId = installment.Id,
+            Date = Utc(2025, 9, 30),
+            Amount = 3_000m,
+            PaymentChannel = PaymentChannel.Bank,
+            ReferenceNo = "TEST-EDIT"
+        });
+
+        var installmentAfter = await db.DuesInstallments.FindAsync(installment.Id);
+        var allocation = await db.CollectionAllocations.SingleAsync(x => x.CollectionId == collectionId);
+
+        Assert.NotNull(installmentAfter);
+        Assert.Equal(5_000m, installmentAfter.RemainingAmount);
+        Assert.Equal(InstallmentStatus.PartiallyPaid, installmentAfter.Status);
+        Assert.Equal(3_000m, allocation.AppliedAmount);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

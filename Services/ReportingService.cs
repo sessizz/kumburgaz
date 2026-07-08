@@ -270,8 +270,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                         UnitId = x.Id,
                         UnitDisplay = UnitDisplayHelper.Display(x),
                         UnitNo = x.UnitNo,
-                        ResponsibleAccountName = ownerAccount?.Name ?? x.OwnerName ?? string.Empty,
-                        Phone = ownerAccount?.Phone ?? x.Phone ?? string.Empty
+                        ResponsibleAccountName = ownerAccount?.Name ?? x.OwnerName ?? string.Empty
                     };
                 }).ToList()
             })
@@ -290,22 +289,21 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         var ws = wb.Worksheets.Add("Hazirun");
         ws.Cell(1, 1).Value = "Hazirun Cetveli";
         ws.Cell(2, 1).Value = $"Filtre: BlokId {model.Query.BlockId?.ToString() ?? "Tüm"}";
-        ws.Range(1, 1, 1, 5).Merge().Style.Font.Bold = true;
-        ws.Range(2, 1, 2, 5).Merge();
+        ws.Range(1, 1, 1, 4).Merge().Style.Font.Bold = true;
+        ws.Range(2, 1, 2, 4).Merge();
 
         var rowIndex = 4;
         foreach (var block in model.Blocks)
         {
             ws.Cell(rowIndex, 1).Value = $"{block.BlockName} Blok";
-            ws.Range(rowIndex, 1, rowIndex, 5).Merge().Style.Font.Bold = true;
+            ws.Range(rowIndex, 1, rowIndex, 4).Merge().Style.Font.Bold = true;
             rowIndex++;
 
             ws.Cell(rowIndex, 1).Value = "No";
             ws.Cell(rowIndex, 2).Value = "Daire";
             ws.Cell(rowIndex, 3).Value = "Malik / Sorumlu";
-            ws.Cell(rowIndex, 4).Value = "Telefon";
-            ws.Cell(rowIndex, 5).Value = "İmza";
-            ws.Range(rowIndex, 1, rowIndex, 5).Style.Font.Bold = true;
+            ws.Cell(rowIndex, 4).Value = "İmza";
+            ws.Range(rowIndex, 1, rowIndex, 4).Style.Font.Bold = true;
             rowIndex++;
 
             var sequence = 1;
@@ -314,8 +312,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 ws.Cell(rowIndex, 1).Value = sequence++;
                 ws.Cell(rowIndex, 2).Value = row.UnitDisplay;
                 ws.Cell(rowIndex, 3).Value = row.ResponsibleAccountName;
-                ws.Cell(rowIndex, 4).Value = row.Phone;
-                ws.Cell(rowIndex, 5).Value = string.Empty;
+                ws.Cell(rowIndex, 4).Value = string.Empty;
                 ws.Row(rowIndex).Height = 28;
                 rowIndex++;
             }
@@ -323,8 +320,8 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             rowIndex++;
         }
 
-        ws.Column(5).Width = 30;
-        ws.Columns(1, 4).AdjustToContents();
+        ws.Column(4).Width = 38;
+        ws.Columns(1, 3).AdjustToContents();
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
@@ -356,8 +353,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                                 c.ConstantColumn(28);
                                 c.RelativeColumn(2);
                                 c.RelativeColumn(3);
-                                c.RelativeColumn(2);
-                                c.RelativeColumn(3);
+                                c.RelativeColumn(4);
                             });
 
                             table.Header(header =>
@@ -365,7 +361,6 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                                 header.Cell().Text("No").Bold();
                                 header.Cell().Text("Daire").Bold();
                                 header.Cell().Text("Malik / Sorumlu").Bold();
-                                header.Cell().Text("Telefon").Bold();
                                 header.Cell().Text("İmza").Bold();
                             });
 
@@ -375,7 +370,6 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                                 table.Cell().MinHeight(28).Text(sequence++.ToString());
                                 table.Cell().MinHeight(28).Text(row.UnitDisplay);
                                 table.Cell().MinHeight(28).Text(row.ResponsibleAccountName);
-                                table.Cell().MinHeight(28).Text(string.IsNullOrWhiteSpace(row.Phone) ? "-" : row.Phone);
                                 table.Cell().MinHeight(28).BorderBottom(0.5f).Text(string.Empty);
                             }
                         });

@@ -174,7 +174,6 @@ public class AttendanceReportRow
     public string UnitDisplay { get; set; } = string.Empty;
     public string UnitNo { get; set; } = string.Empty;
     public string ResponsibleAccountName { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
 }
 
 public class DuesStatusReportViewModel

@@ -60,8 +60,7 @@
                                 <th class="w-16">No</th>
                                 <th>Daire</th>
                                 <th>Malik / Sorumlu</th>
-                                <th>Telefon</th>
-                                <th class="w-72">İmza</th>
+                                <th class="w-96">İmza</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -76,7 +75,6 @@
                                     <a class="text-blue-600 hover:underline" asp-controller="Units" asp-action="Detail" asp-route-id="@row.UnitId">@row.UnitDisplay</a>
                                 </td>
                                 <td>@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "-" : row.ResponsibleAccountName)</td>
-                                <td>@(string.IsNullOrWhiteSpace(row.Phone) ? "-" : row.Phone)</td>
                                 <td><div class="h-8 border-b border-gray-300"></div></td>
                             </tr>
                             index++;

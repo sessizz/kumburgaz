@@ -907,6 +907,16 @@ public class DashboardCalendarDay
     public bool IsToday { get; set; }
 }
 
+public class DashboardAlertViewModel
+{
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Severity { get; set; } = "info";
+    public string Icon { get; set; } = "info";
+    public string? Url { get; set; }
+    public string LinkText { get; set; } = "Detaya git";
+}
+
 public class DashboardViewModel
 {
     public decimal CollectionRate { get; set; }
@@ -931,7 +941,7 @@ public class DashboardViewModel
     public List<ServiceRequest> RecentRequests { get; set; } = [];
     public List<Announcement> RecentAnnouncements { get; set; } = [];
     public List<DashboardCalendarDay> CalendarDays { get; set; } = [];
-    public List<string> Alerts { get; set; } = [];
+    public List<DashboardAlertViewModel> Alerts { get; set; } = [];
     public DateTime? LastBackupAt { get; set; }
 }
 

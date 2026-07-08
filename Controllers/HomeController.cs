@@ -81,6 +81,18 @@ public class HomeController(
             .Where(x => x.Date >= monthStart && x.Date < nextMonthStart)
             .SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var monthCollectionCount = await db.Collections.CountAsync(x => x.Date >= monthStart && x.Date < nextMonthStart);
+        var monthOtherIncome = await db.LedgerTransactions
+            .Where(x => x.Date >= monthStart && x.Date < nextMonthStart &&
+                !x.IsTransfer &&
+                x.IncomeExpenseCategory != null &&
+                x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
+            .SumAsync(x => (decimal?)x.Amount) ?? 0m;
+        var monthExpense = await db.LedgerTransactions
+            .Where(x => x.Date >= monthStart && x.Date < nextMonthStart &&
+                !x.IsTransfer &&
+                x.IncomeExpenseCategory != null &&
+                x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
+            .SumAsync(x => (decimal?)x.Amount) ?? 0m;
 
         var forecast = await expenseForecastService.BuildAsync(monthStart);
         var expenseForecast = forecast.Items;
@@ -88,24 +100,87 @@ public class HomeController(
 
         var debtSnapshot = await BuildDebtSnapshotAsync();
         var consistencyIssueCount = await db.ConsistencyCheckResults.CountAsync(x => !x.Resolved);
+        var importProblemRowCount = await db.ImportBatchRows.CountAsync(x =>
+            x.Status == ImportRowStatus.Error ||
+            x.Status == ImportRowStatus.Duplicate ||
+            x.Status == ImportRowStatus.Skipped);
+        var failedImportBatchCount = await db.ImportBatches.CountAsync(x => x.Status == ImportBatchStatus.Failed);
         var backupFiles = backupService.ListBackups();
         var lastBackupAt = backupFiles.OrderByDescending(x => x.CreatedAt).FirstOrDefault()?.CreatedAt;
-        var alerts = new List<string>();
+        var alerts = new List<DashboardAlertViewModel>();
         if (debtSnapshot.TotalDebt > 0m)
         {
-            alerts.Add($"{debtSnapshot.UnitCount} dairede toplam {debtSnapshot.TotalDebt:N2} TL borç var.");
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Vadesi geçmiş borç",
+                Message = $"{debtSnapshot.UnitCount} dairede toplam {debtSnapshot.TotalDebt:N2} TL borç var.",
+                Severity = "error",
+                Icon = "error",
+                Url = Url.Action("DuesDebt", "Reports", new { BalanceStatus = "debt" }),
+                LinkText = "Borçluları aç"
+            });
         }
         if (debtSnapshot.TotalCredit > 0m)
         {
-            alerts.Add($"Toplam {debtSnapshot.TotalCredit:N2} TL avans/alacak bakiyesi var.");
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Yüksek alacak/avans",
+                Message = $"Toplam {debtSnapshot.TotalCredit:N2} TL avans/alacak bakiyesi var.",
+                Severity = "info",
+                Icon = "savings",
+                Url = Url.Action("DuesDebt", "Reports", new { BalanceStatus = "credit" }),
+                LinkText = "Alacaklıları aç"
+            });
         }
         if (consistencyIssueCount > 0)
         {
-            alerts.Add($"{consistencyIssueCount} açık tutarlılık uyarısı var.");
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Tutarlılık kontrolü",
+                Message = $"{consistencyIssueCount} açık tutarlılık uyarısı var.",
+                Severity = "warning",
+                Icon = "rule_settings",
+                Url = Url.Action("Index", "Audit"),
+                LinkText = "Denetimi aç"
+            });
         }
-        if (lastBackupAt is null)
+        if (importProblemRowCount > 0 || failedImportBatchCount > 0)
         {
-            alerts.Add("Henüz yedek alınmamış.");
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Import kontrolü",
+                Message = $"{importProblemRowCount} problemli import satırı, {failedImportBatchCount} başarısız batch var.",
+                Severity = "warning",
+                Icon = "upload_file",
+                Url = Url.Action("Index", "Audit"),
+                LinkText = "Importları aç"
+            });
+        }
+        if (monthCollections + monthOtherIncome < monthExpense)
+        {
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Bu ay nakit eksi",
+                Message = $"Bu ay gelir {monthCollections + monthOtherIncome:N2} TL, gider {monthExpense:N2} TL.",
+                Severity = "warning",
+                Icon = "trending_down",
+                Url = Url.Action("IncomeExpenseSummary", "Reports"),
+                LinkText = "Özeti aç"
+            });
+        }
+        if (lastBackupAt is null || lastBackupAt.Value < DateTime.UtcNow.AddDays(-2))
+        {
+            alerts.Add(new DashboardAlertViewModel
+            {
+                Title = "Yedekleme",
+                Message = lastBackupAt is null
+                    ? "Henüz yedek alınmamış."
+                    : $"Son yedek {lastBackupAt.Value:dd.MM.yyyy HH:mm} tarihinde alınmış.",
+                Severity = "warning",
+                Icon = "backup",
+                Url = Url.Action("Index", "Backups"),
+                LinkText = "Yedekleri aç"
+            });
         }
 
         var upcomingExpenses = expenseForecast.Where(x => x.Name != "Diğer").Take(5).Select((x, index) => new DashboardUpcomingExpense

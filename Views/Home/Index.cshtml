@@ -5,6 +5,20 @@
     string Money(decimal value) => value.ToString("N2") + " TL";
     string ShortMoney(decimal value) => value.ToString("N0") + " TL";
     string SvgNum(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    string AlertBorder(string severity) => severity switch
+    {
+        "error" => "border-red-200 bg-red-50 text-red-900",
+        "warning" => "border-amber-200 bg-amber-50 text-amber-900",
+        "success" => "border-emerald-200 bg-emerald-50 text-emerald-900",
+        _ => "border-sky-200 bg-sky-50 text-sky-900"
+    };
+    string AlertIcon(string severity) => severity switch
+    {
+        "error" => "text-red-600",
+        "warning" => "text-amber-600",
+        "success" => "text-emerald-600",
+        _ => "text-sky-600"
+    };
     var maxCash = Math.Max(1m, Model.Cashflow.SelectMany(x => new[] { x.Income, x.Expense }).DefaultIfEmpty(1m).Max());
     var points = string.Join(" ", Model.Cashflow.Select((x, i) =>
     {
@@ -36,18 +50,41 @@
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
             @if (Model.Alerts.Count > 0)
             {
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <div class="font-bold text-amber-900 flex items-center gap-2">
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="font-bold text-gray-900 flex items-center gap-2">
                         <span class="material-symbols-outlined">notifications_active</span>
                         Uyarılar
                     </div>
-                    <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-amber-900">
+                    <div class="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                         @foreach (var alert in Model.Alerts)
                         {
-                            <div class="flex items-start gap-2">
-                                <span class="material-symbols-outlined text-amber-600" style="font-size:18px;">priority_high</span>
-                                <span>@alert</span>
-                            </div>
+                            var boxClass = AlertBorder(alert.Severity);
+                            var iconClass = AlertIcon(alert.Severity);
+                            if (!string.IsNullOrWhiteSpace(alert.Url))
+                            {
+                                <a class="block rounded-lg border p-3 hover:shadow-sm transition @boxClass" href="@alert.Url">
+                                    <div class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined @iconClass" style="font-size:20px;">@alert.Icon</span>
+                                        <div class="min-w-0">
+                                            <div class="font-bold text-sm">@alert.Title</div>
+                                            <div class="text-sm opacity-90">@alert.Message</div>
+                                            <div class="text-xs font-semibold mt-1 underline">@alert.LinkText</div>
+                                        </div>
+                                    </div>
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="rounded-lg border p-3 @boxClass">
+                                    <div class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined @iconClass" style="font-size:20px;">@alert.Icon</span>
+                                        <div class="min-w-0">
+                                            <div class="font-bold text-sm">@alert.Title</div>
+                                            <div class="text-sm opacity-90">@alert.Message</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                         }
                     </div>
                 </div>

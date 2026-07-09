@@ -1,3 +1,5 @@
+@using Kumburgaz.Web.Services
+@inject PushSenderService PushSender
 @{
     var title = ViewData["Title"]?.ToString() ?? "Kumburgaz";
     var backUrl = ViewData["MobileBack"]?.ToString();
@@ -63,6 +65,25 @@
             document.getElementById('photoLightboxImg').src = '';
         }
     </script>
+
+    @if (PushSender.Enabled)
+    {
+        @Html.AntiForgeryToken()
+        @* Ilk mobil girişte (localStorage'da daha once sorulmadiysa) bildirim izni ister.
+           Gercek tarayici izin istemi yalnizca "Bildirimleri Aç" tiklamasinda tetiklenir;
+           bu dialog kendisi otomatik acilsa da tarayici guvenlik kurali gereği
+           Notification.requestPermission() bir kullanici jesti icinde cagrilmak zorunda. *@
+        <dialog id="pushPromptDialog" class="m-push-prompt">
+            <div class="m-push-prompt-icon">🔔</div>
+            <div class="m-push-prompt-title">Bildirimleri açmak ister misiniz?</div>
+            <div class="m-push-prompt-body">Talep atamaları ve duyurular için anlık bildirim alın.</div>
+            <div class="m-push-prompt-actions">
+                <button type="button" id="pushPromptNo">Şimdi değil</button>
+                <button type="button" id="pushPromptYes">Bildirimleri Aç</button>
+            </div>
+        </dialog>
+        <script src="~/js/mobile-push.js" data-public-key="@PushSender.PublicKey" asp-append-version="true"></script>
+    }
 
     <script src="~/js/mobile.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

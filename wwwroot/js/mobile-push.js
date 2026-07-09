@@ -1,7 +1,11 @@
 /* Kumburgaz mobil PWA - Anlik bildirim (Web Push) abonelik yonetimi.
-   Sadece /m/Bildirimler sayfasinda yuklenir; push destegi yoksa kart gizli kalir. */
+   Layout'ta global yuklenir (push devre disi ise script hic eklenmez).
+   Iki gorevi var: (1) Bildirimler sayfasindaki ac/kapa karti, (2) ilk mobil
+   girişte otomatik "bildirimleri ac?" sorusu. */
 (function () {
     'use strict';
+
+    var ASKED_KEY = 'kumburgaz_push_asked';
 
     function urlBase64ToUint8Array(base64String) {
         var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -14,34 +18,64 @@
         return outputArray;
     }
 
+    function getToken() {
+        var input = document.querySelector('input[name="__RequestVerificationToken"]');
+        return input ? input.value : '';
+    }
+
     function postForm(url, fields) {
+        fields.__RequestVerificationToken = getToken();
         var body = new URLSearchParams(fields);
         return fetch(url, { method: 'POST', credentials: 'same-origin', body: body });
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    // Kullanici jesti (buton tiklamasi) icinden cagrilmali; tarayicilar
+    // Notification.requestPermission()'i jestsiz cagrilarda engeller/yok sayar.
+    function subscribe(publicKey) {
+        return navigator.serviceWorker.ready.then(function (reg) {
+            return Notification.requestPermission().then(function (permission) {
+                if (permission !== 'granted') {
+                    return { ok: false, reason: 'denied' };
+                }
+
+                return reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(publicKey)
+                }).then(function (sub) {
+                    var json = sub.toJSON();
+                    return postForm('/m/Bildirimler/Abone', {
+                        endpoint: json.endpoint,
+                        p256dh: json.keys.p256dh,
+                        auth: json.keys.auth
+                    }).then(function () { return { ok: true }; });
+                });
+            });
+        });
+    }
+
+    function unsubscribe() {
+        return navigator.serviceWorker.ready.then(function (reg) {
+            return reg.pushManager.getSubscription().then(function (existing) {
+                if (!existing) {
+                    return { ok: true };
+                }
+
+                var endpoint = existing.endpoint;
+                return existing.unsubscribe().then(function () {
+                    return postForm('/m/Bildirimler/AbonelikSil', { endpoint: endpoint });
+                }).then(function () { return { ok: true }; });
+            });
+        });
+    }
+
+    function setupToggleCard(publicKey) {
         var card = document.getElementById('pushCard');
-        var scriptTag = document.currentScript || document.querySelector('script[data-public-key]');
-        if (!card || !scriptTag) {
-            return;
-        }
-
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            return;
-        }
-
-        var publicKey = scriptTag.getAttribute('data-public-key');
-        if (!publicKey) {
+        if (!card) {
             return;
         }
 
         var btn = document.getElementById('pushToggleBtn');
         var status = document.getElementById('pushStatus');
-        var tokenInput = card.querySelector('input[name="__RequestVerificationToken"]');
-        var token = tokenInput ? tokenInput.value : '';
-        var subscribeUrl = '/m/Bildirimler/Abone';
-        var unsubscribeUrl = '/m/Bildirimler/AbonelikSil';
-
         card.style.display = 'block';
 
         function setUiSubscribed(subscribed) {
@@ -59,10 +93,7 @@
             navigator.serviceWorker.ready.then(function (reg) {
                 reg.pushManager.getSubscription().then(function (existing) {
                     if (existing) {
-                        var endpoint = existing.endpoint;
-                        existing.unsubscribe().then(function () {
-                            return postForm(unsubscribeUrl, { endpoint: endpoint, __RequestVerificationToken: token });
-                        }).then(function () {
+                        unsubscribe().then(function () {
                             setUiSubscribed(false);
                             btn.disabled = false;
                         }).catch(function () {
@@ -72,34 +103,78 @@
                         return;
                     }
 
-                    Notification.requestPermission().then(function (permission) {
-                        if (permission !== 'granted') {
-                            status.textContent = 'Bildirim izni verilmedi.';
-                            btn.disabled = false;
-                            return;
-                        }
-
-                        reg.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: urlBase64ToUint8Array(publicKey)
-                        }).then(function (sub) {
-                            var json = sub.toJSON();
-                            return postForm(subscribeUrl, {
-                                endpoint: json.endpoint,
-                                p256dh: json.keys.p256dh,
-                                auth: json.keys.auth,
-                                __RequestVerificationToken: token
-                            });
-                        }).then(function () {
+                    subscribe(publicKey).then(function (result) {
+                        if (result.ok) {
                             setUiSubscribed(true);
-                            btn.disabled = false;
-                        }).catch(function () {
-                            status.textContent = 'Abonelik oluşturulamadı.';
-                            btn.disabled = false;
-                        });
+                        } else {
+                            status.textContent = 'Bildirim izni verilmedi.';
+                        }
+                        btn.disabled = false;
+                    }).catch(function () {
+                        status.textContent = 'Abonelik oluşturulamadı.';
+                        btn.disabled = false;
                     });
                 });
             });
         });
+    }
+
+    function setupAutoPrompt(publicKey) {
+        var dialog = document.getElementById('pushPromptDialog');
+        if (!dialog || localStorage.getItem(ASKED_KEY)) {
+            return;
+        }
+
+        var yesBtn = document.getElementById('pushPromptYes');
+        var noBtn = document.getElementById('pushPromptNo');
+
+        function markAsked() {
+            localStorage.setItem(ASKED_KEY, '1');
+        }
+
+        yesBtn.addEventListener('click', function () {
+            yesBtn.disabled = true;
+            subscribe(publicKey).finally(function () {
+                markAsked();
+                dialog.close();
+            });
+        });
+
+        noBtn.addEventListener('click', function () {
+            markAsked();
+            dialog.close();
+        });
+
+        if (Notification.permission !== 'default') {
+            // Kullanici tarayici duzeyinde zaten karar vermis (izin verdi/reddetti); tekrar sormaya gerek yok.
+            markAsked();
+            return;
+        }
+
+        navigator.serviceWorker.ready
+            .then(function (reg) { return reg.pushManager.getSubscription(); })
+            .then(function (existing) {
+                if (existing) {
+                    markAsked();
+                    return;
+                }
+                dialog.showModal();
+            })
+            .catch(function () { /* servis calisani hazir degilse sessizce vazgec */ });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            return;
+        }
+
+        var scriptTag = document.currentScript || document.querySelector('script[data-public-key]');
+        var publicKey = scriptTag ? scriptTag.getAttribute('data-public-key') : null;
+        if (!publicKey) {
+            return;
+        }
+
+        setupToggleCard(publicKey);
+        setupAutoPrompt(publicKey);
     });
 })();

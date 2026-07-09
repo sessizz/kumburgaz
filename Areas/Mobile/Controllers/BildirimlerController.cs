@@ -12,7 +12,6 @@ namespace Kumburgaz.Web.Areas.Mobile.Controllers;
 [Authorize]
 public class BildirimlerController(
     NotificationService notificationService,
-    PushSenderService pushSender,
     ApplicationDbContext db) : Controller
 {
     private string? CurrentUserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -26,8 +25,6 @@ public class BildirimlerController(
         }
 
         var rows = await notificationService.GetForUserAsync(userId);
-        ViewBag.PushEnabled = pushSender.Enabled;
-        ViewBag.PushPublicKey = pushSender.PublicKey;
         return View(rows.Select(x => new MobileNotificationRow
         {
             Id = x.Id,

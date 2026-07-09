@@ -423,6 +423,61 @@ html, body {
     font-weight: 700;
 }
 
+/* Ilk mobil giriste otomatik "bildirimleri ac?" sorusu.
+   display yalnizca [open] iken block olmali (bkz. .m-lightbox notu ustte). */
+.m-push-prompt {
+    border: none;
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 320px;
+    width: calc(100vw - 48px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+    margin: auto;
+}
+.m-push-prompt[open] {
+    display: block;
+}
+.m-push-prompt::backdrop {
+    background: rgba(0, 0, 0, .5);
+}
+.m-push-prompt-icon {
+    font-size: 32px;
+    text-align: center;
+    margin-bottom: 8px;
+}
+.m-push-prompt-title {
+    font-weight: 700;
+    font-size: 17px;
+    text-align: center;
+    margin-bottom: 6px;
+}
+.m-push-prompt-body {
+    font-size: 14px;
+    color: var(--m-muted);
+    text-align: center;
+    margin-bottom: 18px;
+}
+.m-push-prompt-actions {
+    display: flex;
+    gap: 10px;
+}
+.m-push-prompt-actions button {
+    flex: 1;
+    height: 44px;
+    border-radius: 12px;
+    font-weight: 700;
+    border: none;
+}
+#pushPromptNo {
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    color: var(--m-muted);
+}
+#pushPromptYes {
+    background: var(--m-primary);
+    color: #fff;
+}
+
 /* Yardimci */
 .text-muted-m { color: var(--m-muted); }
 .mono-amt { font-variant-numeric: tabular-nums; }

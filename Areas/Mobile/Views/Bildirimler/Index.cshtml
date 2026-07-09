@@ -1,3 +1,5 @@
+@using Kumburgaz.Web.Services
+@inject PushSenderService PushSender
 @model List<MobileNotificationRow>
 @{
     ViewData["Title"] = "Bildirimler";
@@ -12,10 +14,9 @@
     };
 }
 
-@if ((bool)(ViewBag.PushEnabled ?? false))
+@if (PushSender.Enabled)
 {
     <div class="m-card" id="pushCard" style="margin-bottom:14px;display:none;">
-        @Html.AntiForgeryToken()
         <div style="font-weight:700;margin-bottom:4px;">Anlık bildirimler</div>
         <div class="m-row-sub" style="margin-bottom:10px;">Uygulama kapalıyken de talep atamalarından haberdar olun.</div>
         <button type="button" id="pushToggleBtn" style="width:100%;height:44px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-weight:700;">
@@ -23,7 +24,6 @@
         </button>
         <div id="pushStatus" class="m-row-sub" style="margin-top:8px;"></div>
     </div>
-    <script src="~/js/mobile-push.js" data-public-key="@ViewBag.PushPublicKey" asp-append-version="true"></script>
 }
 
 @if (unreadCount > 0)

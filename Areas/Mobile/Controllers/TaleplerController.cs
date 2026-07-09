@@ -1,6 +1,7 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,12 @@ namespace Kumburgaz.Web.Areas.Mobile.Controllers;
 
 [Area("Mobile")]
 [ModuleAuthorize(AppModules.Talepler)]
-public class TaleplerController(ApplicationDbContext db, MobileScopeService scope) : Controller
+public class TaleplerController(
+    ApplicationDbContext db,
+    MobileScopeService scope,
+    PermissionService permissionService,
+    UserManager<ApplicationUser> userManager,
+    NotificationService notificationService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -47,7 +53,71 @@ public class TaleplerController(ApplicationDbContext db, MobileScopeService scop
             return NotFound();
         }
 
-        return View(talep);
+        var canManage = !isResident && permissionService.CanWrite(User, AppModules.Talepler);
+        var model = new MobileTalepDetayViewModel
+        {
+            Request = talep,
+            CanManage = canManage,
+            AssignableUserOptions = canManage
+                ? await AssignableUserHelper.BuildOptionsAsync(userManager, talep.AssignedToUserId)
+                : []
+        };
+
+        return View(model);
+    }
+
+    // Personel/yonetici icin durum degistirme + kullanici secerek atama. Sakin erisemez.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Guncelle(int id, ServiceRequestStatus status, string? assignedToUserId)
+    {
+        if (scope.IsResident(User))
+        {
+            return Forbid();
+        }
+
+        var entity = await db.ServiceRequests.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null)
+        {
+            return NotFound();
+        }
+
+        var previousAssignedToUserId = entity.AssignedToUserId;
+
+        entity.Status = status;
+        entity.ResolvedAt = status is ServiceRequestStatus.Resolved or ServiceRequestStatus.Closed
+            ? (entity.ResolvedAt ?? DateTime.UtcNow)
+            : null;
+
+        entity.AssignedToUserId = string.IsNullOrEmpty(assignedToUserId) ? null : assignedToUserId;
+        if (entity.AssignedToUserId is null)
+        {
+            entity.AssignedTo = null;
+        }
+        else
+        {
+            var user = await userManager.FindByIdAsync(entity.AssignedToUserId);
+            if (user is not null)
+            {
+                entity.AssignedTo = AssignableUserHelper.DisplayName(user);
+            }
+        }
+
+        await db.SaveChangesAsync();
+
+        var assignmentChanged = !string.IsNullOrEmpty(entity.AssignedToUserId) && entity.AssignedToUserId != previousAssignedToUserId;
+        if (assignmentChanged)
+        {
+            await notificationService.NotifyAsync(
+                entity.AssignedToUserId!,
+                NotificationType.TalepAtama,
+                $"Size yeni talep atandı: {entity.Title}",
+                entity.Description,
+                $"/m/Talepler/Detay/{entity.Id}");
+        }
+
+        TempData["MobileSuccess"] = "Talep güncellendi.";
+        return RedirectToAction(nameof(Detay), new { id });
     }
 
     [HttpGet]

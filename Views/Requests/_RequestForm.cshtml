@@ -2,6 +2,7 @@
 @{
     var isEdit = Model.Id > 0;
     var unitOptions = ViewBag.UnitOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
+    var assignableUserOptions = ViewBag.AssignableUserOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? [];
 }
 <div class="max-w-3xl">
     <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
@@ -13,7 +14,11 @@
         <fieldset class="fieldset"><legend class="fieldset-legend">Açıklama</legend><textarea asp-for="Description" class="textarea textarea-bordered w-full min-h-32"></textarea></fieldset>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <fieldset class="fieldset"><legend class="fieldset-legend">Daire</legend><select asp-for="UnitId" asp-items="unitOptions" class="select select-bordered w-full"><option value="">Ortak alan / genel</option></select></fieldset>
-            <fieldset class="fieldset"><legend class="fieldset-legend">Atanan</legend><input asp-for="AssignedTo" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Atanan</legend>
+                <select asp-for="AssignedToUserId" asp-items="assignableUserOptions" class="select select-bordered w-full"></select>
+                <p class="label text-xs">Atama yapılırsa kullanıcıya bildirim gider.</p>
+            </fieldset>
             <fieldset class="fieldset"><legend class="fieldset-legend">Öncelik</legend><select asp-for="Priority" asp-items="Html.GetEnumSelectList<ServiceRequestPriority>()" class="select select-bordered w-full"></select></fieldset>
             <fieldset class="fieldset"><legend class="fieldset-legend">Durum</legend><select asp-for="Status" asp-items="Html.GetEnumSelectList<ServiceRequestStatus>()" class="select select-bordered w-full"></select></fieldset>
             <fieldset class="fieldset"><legend class="fieldset-legend">Oluşturma Tarihi</legend><input asp-for="CreatedAt" type="date" class="input input-bordered w-full" /></fieldset>

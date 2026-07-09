@@ -81,6 +81,7 @@ builder.Services.AddScoped<ResidentAccountService>();
 builder.Services.AddScoped<SakinAreaRestrictionFilter>();
 builder.Services.AddScoped<ImageAttachmentService>();
 builder.Services.AddScoped<MahsupService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
 builder.Services.AddScoped<CollectionAllocationRepairService>();

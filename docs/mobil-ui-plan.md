@@ -2,7 +2,7 @@
 
 Bu dosya mevcut ASP.NET Core MVC uygulamasinin uzerine kurulacak mobil oncelikli PWA katmaninin tasarimini ve asamali uygulama planini icerir.
 
-Son guncelleme: 2026-07-08
+Son guncelleme: 2026-07-09
 Aktif branch: `codex/kumburgaz-improvement-plan`
 
 ## Yaklasim Ozeti
@@ -296,7 +296,7 @@ Kabul kriterleri:
 
 ### Asama 4: Bildirim altyapisi (zil)
 
-Durum: Baslamadi.
+Durum: Tamamlandi.
 
 Kapsam:
 
@@ -309,6 +309,14 @@ Kabul kriterleri:
 
 - Talep atanan kullanici 60 sn icinde rozet gorur; bildirime tiklayinca talep detayina gider ve okundu olur.
 - Sakin talep acabilir, erisimindeki daireler disindaki talepleri goremez.
+
+Dogrulama notlari (uctan uca, gercek sunucuya karsi):
+
+- Masaustu `Requests` Create/Edit: kullaniciya atama yapildiginda `Notification` satiri olusuyor, `AssignedTo` gorunen adi senkronize oluyor; atama degismeden tekrar kaydetmede yeni bildirim OLUSMUYOR (duplicate onlendi).
+- `GET /m/Bildirimler/Ozet` dogru okunmamis sayisini donduruyor; `/m/Bildirimler/Ac/{id}` `LinkUrl`'e yonlendirip `ReadAt` alanini isaretliyor; `TumunuOku` tum bildirimleri tek seferde okunmus yapiyor.
+- Mobil `Talepler/Guncelle`: personel durum + atama degistirebiliyor (degisen atamada bildirim), Sakin dogrudan POST denediginde `Forbid()` ile `AccessDenied`'a yonlendiriliyor ve talep durumu degismiyor.
+- Zil rozeti gercek tarayicida (CDP ile headless Edge, gercek fetch/DOM) dogrulandi: `/m` sayfasi yuklendiginde rozet okunmamis sayisini gosteriyor, zile tiklayinca `/m/Bildirimler` listesine gidiyor.
+- Test sirasinda bulunan ve dogrulanan onemli nokta: `dotnet run` KOMUTU `ASPNETCORE_ENVIRONMENT=Development` OLMADAN calistirilirsa (varsayilan Production'a duser), `MapStaticAssets` derlenmis/sikistirilmis statik dosya manifestini bulamiyor ve gzip Accept-Encoding gonderen gercek tarayicilara BOS govde donduruyor (tum `wwwroot` JS/CSS calismiyor). Bu sadece yayinlanmamis (`dotnet run`) test ortami sorunu; gercek dagitim `Dockerfile` icinde `dotnet publish` kullandigi icin (statik varlik sikistirma adimi orada calisiyor) bu sorun production'da olusmuyor. Yerel/manuel test yaparken mutlaka `ASPNETCORE_ENVIRONMENT=Development` set edilmeli.
 
 ### Asama 5: Web Push
 

@@ -1,9 +1,10 @@
-@model ServiceRequest
+@model MobileTalepDetayViewModel
 @{
-    ViewData["Title"] = Model.Title;
+    var req = Model.Request;
+    ViewData["Title"] = req.Title;
     ViewData["MobileBack"] = Url.Action("Index", "Talepler", new { area = "Mobile" });
 
-    var unitLabel = Model.Unit is null ? "Ortak alan / genel" : (Model.Unit.Block is null ? Model.Unit.UnitNo : $"{Model.Unit.Block.Name}-{Model.Unit.UnitNo}");
+    var unitLabel = req.Unit is null ? "Ortak alan / genel" : (req.Unit.Block is null ? req.Unit.UnitNo : $"{req.Unit.Block.Name}-{req.Unit.UnitNo}");
 
     string StatusLabel(ServiceRequestStatus s) => s switch
     {
@@ -27,16 +28,23 @@
         ServiceRequestStatus.InProgress => "zero",
         _ => "credit"
     };
+    var inputStyle = "width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;background:#fff;";
+    var labelStyle = "font-size:13px;font-weight:600;color:var(--m-muted);";
+}
+
+@if (TempData["MobileSuccess"] is string ok)
+{
+    <div class="m-note" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857;">@ok</div>
 }
 
 <div class="m-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
-        <div style="font-size:16px;font-weight:700;">@Model.Title</div>
-        <span class="m-bal @StatusCls(Model.Status)">@StatusLabel(Model.Status)</span>
+        <div style="font-size:16px;font-weight:700;">@req.Title</div>
+        <span class="m-bal @StatusCls(req.Status)">@StatusLabel(req.Status)</span>
     </div>
-    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    @if (!string.IsNullOrWhiteSpace(req.Description))
     {
-        <div style="font-size:14.5px;line-height:1.6;white-space:pre-line;margin-bottom:10px;">@Model.Description</div>
+        <div style="font-size:14.5px;line-height:1.6;white-space:pre-line;margin-bottom:10px;">@req.Description</div>
     }
     <div class="m-row" style="padding-top:0;">
         <div class="m-row-main"><div class="m-row-title">Daire</div></div>
@@ -44,24 +52,57 @@
     </div>
     <div class="m-row">
         <div class="m-row-main"><div class="m-row-title">Öncelik</div></div>
-        <div class="m-row-sub">@PriorityLabel(Model.Priority)</div>
+        <div class="m-row-sub">@PriorityLabel(req.Priority)</div>
     </div>
-    @if (!string.IsNullOrWhiteSpace(Model.AssignedTo))
+    @if (!string.IsNullOrWhiteSpace(req.AssignedTo))
     {
         <div class="m-row">
             <div class="m-row-main"><div class="m-row-title">Atanan</div></div>
-            <div class="m-row-sub">@Model.AssignedTo</div>
+            <div class="m-row-sub">@req.AssignedTo</div>
         </div>
     }
     <div class="m-row">
         <div class="m-row-main"><div class="m-row-title">Oluşturma</div></div>
-        <div class="m-row-sub">@Model.CreatedAt.ToString("dd.MM.yyyy")</div>
+        <div class="m-row-sub">@req.CreatedAt.ToString("dd.MM.yyyy")</div>
     </div>
-    @if (Model.DueDate.HasValue)
+    @if (req.DueDate.HasValue)
     {
         <div class="m-row">
             <div class="m-row-main"><div class="m-row-title">Hedef tarih</div></div>
-            <div class="m-row-sub">@Model.DueDate.Value.ToString("dd.MM.yyyy")</div>
+            <div class="m-row-sub">@req.DueDate.Value.ToString("dd.MM.yyyy")</div>
         </div>
     }
 </div>
+
+@if (Model.CanManage)
+{
+    <div class="m-section-title">Durum ve Atama</div>
+    <form method="post" asp-area="Mobile" asp-controller="Talepler" asp-action="Guncelle" asp-route-id="@req.Id"
+          class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+        @Html.AntiForgeryToken()
+
+        <label style="display:block;">
+            <span style="@labelStyle">Durum</span>
+            <select name="status" style="@inputStyle">
+                @foreach (var s in Enum.GetValues<ServiceRequestStatus>())
+                {
+                    <option value="@s" selected="@(s == req.Status)">@StatusLabel(s)</option>
+                }
+            </select>
+        </label>
+
+        <label style="display:block;">
+            <span style="@labelStyle">Ata</span>
+            <select name="assignedToUserId" style="@inputStyle">
+                @foreach (var opt in Model.AssignableUserOptions)
+                {
+                    <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                }
+            </select>
+        </label>
+
+        <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+            Kaydet
+        </button>
+    </form>
+}

@@ -34,6 +34,7 @@ public class ApplicationDbContext(
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<MahsupIslem> MahsupIslemleri => Set<MahsupIslem>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
     public DbSet<DocumentRecord> DocumentRecords => Set<DocumentRecord>();
@@ -315,6 +316,11 @@ public class ApplicationDbContext(
 
         builder.Entity<DocumentRecord>()
             .HasIndex(x => new { x.Category, x.DocumentDate });
+
+        // Notification: AspNetUsers'a bilincli olarak soft referans (FK yok), boylece
+        // sakin/personel kullanicisi silinirse bildirim gecmisi hata vermeden kalir.
+        builder.Entity<Notification>()
+            .HasIndex(x => new { x.RecipientUserId, x.ReadAt });
 
         builder.Entity<RolePermission>()
             .HasIndex(x => new { x.RoleName, x.Module })

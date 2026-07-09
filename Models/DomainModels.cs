@@ -756,6 +756,13 @@ public class ServiceRequest
     public string? AssignedTo { get; set; }
 
     /// <summary>
+    /// Atanan kullanicinin AspNetUsers.Id'si. AssignedTo (gorunen ad) eski kayitlar icin
+    /// serbest metin olarak kalir; yeni atamalar bu alani da doldurup bildirim tetikler.
+    /// </summary>
+    [MaxLength(450)]
+    public string? AssignedToUserId { get; set; }
+
+    /// <summary>
     /// True ise talep Sakinler tarafından da görülebilir (mobil uygulamada listelenir).
     /// False ise yalnızca yetkili rollere görünür. Sakinin kendi açtığı talepler otomatik görünür.
     /// </summary>
@@ -764,6 +771,42 @@ public class ServiceRequest
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DueDate { get; set; }
     public DateTime? ResolvedAt { get; set; }
+}
+
+public enum NotificationType
+{
+    TalepAtama = 1,
+    TalepDurum = 2,
+    Duyuru = 3,
+    Sistem = 4
+}
+
+/// <summary>
+/// Kullaniciya ozel bildirim (mobil zil). Push (Asama 5) bu tablodan bagimsiz best-effort calisir;
+/// zil/rozet her zaman bu tablo uzerinden polling ile calisir.
+/// </summary>
+public class Notification
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(450)]
+    public string RecipientUserId { get; set; } = string.Empty;
+
+    public NotificationType Type { get; set; }
+
+    [Required, MaxLength(140)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Body { get; set; }
+
+    [MaxLength(300)]
+    public string? LinkUrl { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Null = okunmamis.</summary>
+    public DateTime? ReadAt { get; set; }
 }
 
 public class DocumentRecord

@@ -3,6 +3,26 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Models;
 
+// Mobil talep detay ekrani (personel icin durum/atama guncelleme formu dahil).
+public class MobileTalepDetayViewModel
+{
+    public ServiceRequest Request { get; set; } = null!;
+    public bool CanManage { get; set; }   // Sakin degilse ve Talepler write yetkisi varsa
+    public List<SelectListItem> AssignableUserOptions { get; set; } = [];
+}
+
+// Mobil bildirim listesi satiri.
+public class MobileNotificationRow
+{
+    public int Id { get; set; }
+    public NotificationType Type { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Body { get; set; }
+    public string? LinkUrl { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsRead { get; set; }
+}
+
 // Mobil gider listesi satiri.
 public class MobileGiderListItem
 {

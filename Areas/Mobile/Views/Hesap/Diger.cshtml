@@ -25,10 +25,9 @@
     var showDuyurular = Perm.CanView(User, AppModules.Duyurular);
     var showTalepler = Perm.CanView(User, AppModules.Talepler);
 }
-@if (showDuyurular || showTalepler)
-{
-    <div class="m-section-title">Hızlı erişim</div>
-    <div class="m-list">
+@* Bildirimler herkese acik (sadece [Authorize]); bolum bu yuzden kosulsuz gosterilir. *@
+<div class="m-section-title">Hızlı erişim</div>
+<div class="m-list">
         @if (showDuyurular)
         {
             <a class="m-list-item" asp-area="Mobile" asp-controller="Duyurular" asp-action="Index">
@@ -49,8 +48,14 @@
                 <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
             </a>
         }
-    </div>
-}
+        <a class="m-list-item" asp-area="Mobile" asp-controller="Bildirimler" asp-action="Index">
+            <span style="color:var(--m-muted);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+            </span>
+            <div class="m-li-main"><div class="m-li-title">Bildirimler</div></div>
+            <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+        </a>
+</div>
 
 <div class="m-section-title">Hesap</div>
 <div class="m-list">

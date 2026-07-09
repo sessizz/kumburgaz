@@ -1,0 +1,42 @@
+@model MobileChangePasswordViewModel
+@{
+    ViewData["Title"] = "Şifre Değiştir";
+    ViewData["MobileBack"] = Url.Action("Diger", "Hesap", new { area = "Mobile" });
+}
+
+<form method="post" asp-area="Mobile" asp-controller="Hesap" asp-action="Sifre" class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+    @Html.AntiForgeryToken()
+
+    <div asp-validation-summary="All" class="m-note" style="display:none;"></div>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="m-note">
+            @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@err.ErrorMessage</div>
+            }
+        </div>
+    }
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Mevcut PIN</span>
+        <input asp-for="CurrentPin" type="password" inputmode="numeric" autocomplete="current-password"
+               style="width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:16px;" />
+    </label>
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Yeni PIN (5 haneli)</span>
+        <input asp-for="NewPin" type="password" inputmode="numeric" maxlength="5" autocomplete="new-password"
+               style="width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:16px;" />
+    </label>
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Yeni PIN (tekrar)</span>
+        <input asp-for="ConfirmPin" type="password" inputmode="numeric" maxlength="5" autocomplete="new-password"
+               style="width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:16px;" />
+    </label>
+
+    <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+        Kaydet
+    </button>
+</form>

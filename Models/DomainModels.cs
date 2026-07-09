@@ -9,6 +9,9 @@ public static class AppRoles
     public const string MuhasebeGorevli = "MuhasebeGorevli";
     public const string Personel = "Personel";
     public const string SadeceGoruntuleme = "SadeceGoruntuleme";
+    // Daire sahibi/kiracı için mobil (Sakin) rolü. Yalnızca mobil alanda çalışır;
+    // masaüstü ekranları SakinAreaRestrictionFilter ile kapalıdır.
+    public const string Sakin = "Sakin";
 
     public static readonly string[] All =
     [
@@ -16,7 +19,8 @@ public static class AppRoles
         SiteYonetici,
         MuhasebeGorevli,
         Personel,
-        SadeceGoruntuleme
+        SadeceGoruntuleme,
+        Sakin
     ];
 
     // Rol anahtarları ile kullanıcıya gösterilen Türkçe adları eşleyen tek kaynak.
@@ -27,7 +31,8 @@ public static class AppRoles
         [SiteYonetici] = "Site Yöneticisi",
         [MuhasebeGorevli] = "Muhasebe Görevlisi",
         [Personel] = "Personel",
-        [SadeceGoruntuleme] = "Sadece Görüntüleme"
+        [SadeceGoruntuleme] = "Sadece Görüntüleme",
+        [Sakin] = "Sakin (Daire Sahibi/Kiracı)"
     };
 
     public static string Display(string? roleName)
@@ -342,6 +347,14 @@ public class Account : ISoftDeletable
 
     public bool Active { get; set; } = true;
 
+    /// <summary>
+    /// Mobil giriş için 5 haneli PIN (yalnızca Malik/Kiracı hesaplarında dolu).
+    /// Sistem yöneticisi bu değeri "Kullanıcı Giriş Bilgileri" raporunda görebilir.
+    /// Kullanıcı adı olarak hesabın Id'si kullanılır.
+    /// </summary>
+    [MaxLength(12)]
+    public string? MobilePassword { get; set; }
+
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }
     public string? DeletedByUserId { get; set; }
@@ -349,6 +362,26 @@ public class Account : ISoftDeletable
 
     public ICollection<UnitAccount> UnitAccounts { get; set; } = new List<UnitAccount>();
     public ICollection<DuesInstallment> DuesInstallments { get; set; } = new List<DuesInstallment>();
+    public ICollection<AccountUnitAccess> UnitAccessGrants { get; set; } = new List<AccountUnitAccess>();
+}
+
+/// <summary>
+/// Bir hesaba (Sakin) sahipliğinden bağımsız olarak ek daire erişimi tanımlar.
+/// Örnek: Malik B8/C24'ün sahibi ama C21'de yakını oturuyor ve aidatını o ödüyor;
+/// C21 bu tablo ile hesabın erişimine eklenir. Sistem/site yöneticisi düzenler.
+/// </summary>
+public class AccountUnitAccess
+{
+    public int Id { get; set; }
+    public int AccountId { get; set; }
+    public Account? Account { get; set; }
+    public int UnitId { get; set; }
+    public Unit? Unit { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [MaxLength(450)]
+    public string? CreatedByUserId { get; set; }
+    [MaxLength(256)]
+    public string? CreatedByUserName { get; set; }
 }
 
 public class UnitAccount : ISoftDeletable

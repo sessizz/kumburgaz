@@ -34,8 +34,11 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = false;
         options.Password.RequireDigit = true;
-        options.Password.RequiredLength = 6;
+        // Sakin girişleri 5 haneli sayısal PIN kullanır (kullanıcının açık tercihi);
+        // bu yüzden büyük/küçük harf ve sembol zorunluluğu kapalı.
+        options.Password.RequiredLength = 5;
         options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
         options.Password.RequireNonAlphanumeric = false;
     })
     .AddRoles<IdentityRole>()
@@ -73,13 +76,20 @@ builder.Services.AddScoped<ImportBatchService>();
 builder.Services.AddScoped<UnitLedgerService>();
 builder.Services.AddScoped<UnitStatementService>();
 builder.Services.AddScoped<AccountAssignmentService>();
+builder.Services.AddScoped<MobileScopeService>();
+builder.Services.AddScoped<ResidentAccountService>();
+builder.Services.AddScoped<SakinAreaRestrictionFilter>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
 builder.Services.AddScoped<CollectionAllocationRepairService>();
 builder.Services.AddHostedService<BackupHostedService>();
 builder.Services.AddHostedService<ConsistencyCheckHostedService>();
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    // Sakin rolü masaüstü controller'lara erişemez (gerçek sunucu sınırı).
+    options.Filters.Add<SakinAreaRestrictionFilter>();
+});
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeAreaPage("Identity", "/Account/Register", AppPolicies.SystemAdmin);
@@ -117,6 +127,8 @@ using (var scope = app.Services.CreateScope())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await SeedIdentityAsync(roleManager, userManager);
     await SeedRolePermissionsAsync(db);
+    var residentAccountService = scope.ServiceProvider.GetRequiredService<ResidentAccountService>();
+    await SeedResidentAccountsAsync(db, residentAccountService);
 }
 
 app.UseHttpsRedirection();
@@ -289,6 +301,10 @@ static async Task SeedRolePermissionsAsync(ApplicationDbContext db)
         (AppRoles.SadeceGoruntuleme,
             [],
             [AppModules.Panel, AppModules.Raporlar]),
+        // Sakin yalnızca mobil alanda çalışır; Muhasebe write mahsuplu gider içindir (Aşama 3).
+        (AppRoles.Sakin,
+            [AppModules.Muhasebe, AppModules.Talepler],
+            [AppModules.Panel, AppModules.Daireler, AppModules.Aidatlar, AppModules.Duyurular]),
     };
 
     var existing = await db.RolePermissions
@@ -321,5 +337,18 @@ static async Task SeedRolePermissionsAsync(ApplicationDbContext db)
     {
         db.RolePermissions.AddRange(toAdd);
         await db.SaveChangesAsync();
+    }
+}
+
+// Mevcut tüm Malik/Kiracı hesapları için mobil giriş + 5 haneli PIN üretir (idempotent).
+static async Task SeedResidentAccountsAsync(ApplicationDbContext db, ResidentAccountService residentAccountService)
+{
+    var accounts = await db.Accounts
+        .Where(x => x.AccountType == AccountType.Owner || x.AccountType == AccountType.Tenant)
+        .ToListAsync();
+
+    foreach (var account in accounts)
+    {
+        await residentAccountService.EnsureLoginAsync(account);
     }
 }

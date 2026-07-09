@@ -20,6 +20,7 @@ public class ApplicationDbContext(
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<UnitAccount> UnitAccounts => Set<UnitAccount>();
+    public DbSet<AccountUnitAccess> AccountUnitAccesses => Set<AccountUnitAccess>();
     public DbSet<CombinedUnitMember> CombinedUnitMembers => Set<CombinedUnitMember>();
     public DbSet<DuesType> DuesTypes => Set<DuesType>();
     public DbSet<BillingGroup> BillingGroups => Set<BillingGroup>();
@@ -148,6 +149,26 @@ public class ApplicationDbContext(
 
         builder.Entity<UnitAccount>()
             .HasIndex(x => new { x.UnitId, x.Role, x.Active });
+
+        builder.Entity<AccountUnitAccess>()
+            .HasIndex(x => new { x.AccountId, x.UnitId })
+            .IsUnique();
+
+        builder.Entity<AccountUnitAccess>()
+            .HasOne(x => x.Account)
+            .WithMany(x => x.UnitAccessGrants)
+            .HasForeignKey(x => x.AccountId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AccountUnitAccess>()
+            .HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Silinmiş hesap/daire üzerinden erişim tanımı görünmesin (soft-delete ile uyum).
+        builder.Entity<AccountUnitAccess>()
+            .HasQueryFilter(x => !x.Account!.IsDeleted && !x.Unit!.IsDeleted);
 
         builder.Entity<UnitAccount>()
             .HasOne(x => x.Unit)
@@ -391,6 +412,8 @@ public class ApplicationDbContext(
         var values = entry.Properties
             .Where(x => !x.Metadata.IsShadowProperty())
             .Where(x => entry.Entity is not ApplicationUser || !sensitiveProperties.Contains(x.Metadata.Name))
+            // Mobil giriş PIN'i denetim kaydına düz metin yazılmaz.
+            .Where(x => entry.Entity is not Account || !string.Equals(x.Metadata.Name, nameof(Account.MobilePassword), StringComparison.Ordinal))
             .ToDictionary(
                 x => x.Metadata.Name,
                 x => original ? x.OriginalValue : x.CurrentValue);

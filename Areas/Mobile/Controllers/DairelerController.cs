@@ -12,16 +12,26 @@ public class DairelerController(
     ApplicationDbContext db,
     IReportingService reportingService,
     UnitStatementService statementService,
-    UnitLedgerService unitLedgerService) : Controller
+    UnitLedgerService unitLedgerService,
+    MobileScopeService scope) : Controller
 {
     public async Task<IActionResult> Index(string? q = null, string status = "all")
     {
         var term = q?.Trim();
         status = NormalizeStatus(status);
 
-        var units = await db.Units.AsNoTracking()
+        // Sakin ise yalnizca erisimindeki daireler; yonetici icin kisit yok.
+        var allowedUnitIds = await scope.GetAllowedUnitIdsAsync(User);
+
+        var unitsQuery = db.Units.AsNoTracking()
             .Include(x => x.Block)
-            .Where(x => x.Active)
+            .Where(x => x.Active);
+        if (allowedUnitIds is not null)
+        {
+            unitsQuery = unitsQuery.Where(x => allowedUnitIds.Contains(x.Id));
+        }
+
+        var units = await unitsQuery
             .OrderBy(x => x.Block!.Name)
             .ThenBy(x => x.UnitNo)
             .ToListAsync();
@@ -100,6 +110,12 @@ public class DairelerController(
 
     public async Task<IActionResult> Detay(int id)
     {
+        // Sakin yalnizca erisimindeki daireyi acabilir.
+        if (!await scope.CanAccessUnitAsync(User, id))
+        {
+            return NotFound();
+        }
+
         var unit = await db.Units.AsNoTracking()
             .Include(x => x.Block)
             .FirstOrDefaultAsync(x => x.Id == id);

@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
@@ -13,11 +14,52 @@ public class ReportsController(
     ApplicationDbContext db,
     IReportingService reportingService,
     BalanceDetailedReportService balanceDetailedReportService,
-    UnitLedgerService unitLedgerService) : Controller
+    UnitLedgerService unitLedgerService,
+    ResidentAccountService residentAccountService) : Controller
 {
     public IActionResult Index()
     {
         return View();
+    }
+
+    // Kullanıcı Giriş Bilgileri: her malik/kiracı için kullanıcı adı (=hesap Id) ve 5 haneli PIN.
+    // Şifre görünür olduğu için yalnızca Sistem Yöneticisi erişebilir.
+    [Authorize(Policy = AppPolicies.SystemAdmin)]
+    public async Task<IActionResult> LoginCredentials()
+    {
+        var rows = await residentAccountService.GetCredentialsAsync();
+        return View(rows);
+    }
+
+    [Authorize(Policy = AppPolicies.SystemAdmin)]
+    public async Task<IActionResult> LoginCredentialsExcel()
+    {
+        var rows = await residentAccountService.GetCredentialsAsync();
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("Giris Bilgileri");
+        var headers = new[] { "Hesap", "Tur", "Telefon", "Daireler", "Kullanici Adi", "Sifre" };
+        for (var i = 0; i < headers.Length; i++)
+        {
+            ws.Cell(1, i + 1).Value = headers[i];
+            ws.Cell(1, i + 1).Style.Font.Bold = true;
+        }
+
+        var r = 2;
+        foreach (var row in rows)
+        {
+            ws.Cell(r, 1).Value = row.AccountName;
+            ws.Cell(r, 2).Value = row.AccountTypeLabel;
+            ws.Cell(r, 3).Value = row.Phone ?? string.Empty;
+            ws.Cell(r, 4).Value = row.Units;
+            ws.Cell(r, 5).Value = row.UserName;
+            ws.Cell(r, 6).Value = row.Password ?? string.Empty;
+            r++;
+        }
+
+        ws.Columns().AdjustToContents();
+        using var stream = new MemoryStream();
+        wb.SaveAs(stream);
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "kullanici-giris-bilgileri.xlsx");
     }
 
     public async Task<IActionResult> CashBankStatement([FromQuery] CashBankStatementQuery query)

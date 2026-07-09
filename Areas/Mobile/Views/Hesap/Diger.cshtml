@@ -1,0 +1,49 @@
+@{
+    ViewData["Title"] = "Diğer";
+    var isResident = User.IsInRole(AppRoles.Sakin);
+    var displayName = User.FindFirst(Kumburgaz.Web.Services.ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+        ?? User.Identity?.Name;
+}
+
+@if (TempData["MobileSuccess"] is string ok)
+{
+    <div class="m-note" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857;">@ok</div>
+}
+
+<div class="m-card" style="display:flex;align-items:center;gap:12px;">
+    <div style="width:44px;height:44px;border-radius:999px;background:var(--m-primary);color:#fff;display:flex;align-items:center;justify-content:center;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
+    </div>
+    <div class="m-li-main">
+        <div class="m-li-title">@displayName</div>
+        <div class="m-li-sub">@(isResident ? "Sakin" : "Yönetim")</div>
+    </div>
+</div>
+
+<div class="m-section-title">Hesap</div>
+<div class="m-list">
+    <a class="m-list-item" asp-area="Mobile" asp-controller="Hesap" asp-action="Sifre">
+        <span style="color:var(--m-muted);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="16" r="1" /><rect x="3" y="10" width="18" height="12" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" /></svg>
+        </span>
+        <div class="m-li-main"><div class="m-li-title">Şifre Değiştir</div></div>
+        <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+    </a>
+    @if (!isResident)
+    {
+        <a class="m-list-item" href="/">
+            <span style="color:var(--m-muted);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+            </span>
+            <div class="m-li-main"><div class="m-li-title">Masaüstü sürüm</div></div>
+            <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+        </a>
+    }
+</div>
+
+<form method="post" action="/Identity/Account/Logout?returnUrl=%2FIdentity%2FAccount%2FLogin" style="margin-top:8px;">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="m-card" style="width:100%;text-align:center;color:var(--m-debt);font-weight:700;font-size:15px;border:none;cursor:pointer;">
+        Çıkış Yap
+    </button>
+</form>

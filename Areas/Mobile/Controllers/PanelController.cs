@@ -10,10 +10,19 @@ namespace Kumburgaz.Web.Areas.Mobile.Controllers;
 [ModuleAuthorize(AppModules.Panel)]
 public class PanelController(
     ApplicationDbContext db,
-    IReportingService reportingService) : Controller
+    IReportingService reportingService,
+    MobileScopeService scope,
+    UnitLedgerService unitLedgerService) : Controller
 {
     public async Task<IActionResult> Index()
     {
+        var allowedUnitIds = await scope.GetAllowedUnitIdsAsync(User);
+        if (allowedUnitIds is not null)
+        {
+            // Sakin: kendi dairelerine göre sade panel.
+            return View("Resident", await BuildResidentPanelAsync(allowedUnitIds));
+        }
+
         var todayUtc = DateTime.UtcNow.Date;
         var monthStart = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var nextMonthStart = monthStart.AddMonths(1);
@@ -46,6 +55,59 @@ public class PanelController(
         };
 
         return View(vm);
+    }
+
+    private async Task<MobileResidentPanelViewModel> BuildResidentPanelAsync(IReadOnlyList<int> allowedUnitIds)
+    {
+        if (allowedUnitIds.Count == 0)
+        {
+            return new MobileResidentPanelViewModel { HasUnits = false };
+        }
+
+        var units = await db.Units.AsNoTracking()
+            .Include(x => x.Block)
+            .Where(x => allowedUnitIds.Contains(x.Id))
+            .OrderBy(x => x.Block!.Name).ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        var summaries = await unitLedgerService.BuildSummariesAsync(allowedUnitIds);
+        var unitItems = units.Select(x => new MobileUnitListItem
+        {
+            Id = x.Id,
+            UnitNo = x.UnitNo,
+            Display = x.Block is null ? x.UnitNo : $"{x.Block.Name}-{x.UnitNo}",
+            OwnerName = x.OwnerName,
+            Balance = summaries.TryGetValue(x.Id, out var s) ? s.NetBalance : 0m
+        }).ToList();
+
+        var allowed = allowedUnitIds.ToList();
+        var payments = await db.Collections.AsNoTracking()
+            .Include(x => x.Unit).ThenInclude(x => x!.Block)
+            .Where(x => allowed.Contains(x.UnitId))
+            .OrderByDescending(x => x.Date).ThenByDescending(x => x.Id)
+            .Take(5)
+            .ToListAsync();
+
+        var announcements = await db.Announcements.AsNoTracking()
+            .Where(x => x.IsPublished)
+            .OrderByDescending(x => x.PublishDate)
+            .Take(3)
+            .ToListAsync();
+
+        return new MobileResidentPanelViewModel
+        {
+            HasUnits = true,
+            UnitCount = unitItems.Count,
+            Balance = unitItems.Sum(x => x.Balance),
+            Units = unitItems,
+            RecentPayments = payments.Select(x => new MobileResidentPaymentRow
+            {
+                Date = x.Date,
+                UnitDisplay = x.Unit?.Block is null ? (x.Unit?.UnitNo ?? "") : $"{x.Unit.Block.Name}-{x.Unit.UnitNo}",
+                Amount = x.Amount
+            }).ToList(),
+            RecentAnnouncements = announcements
+        };
     }
 
     private async Task<List<MobileCategoryAmount>> ExpensesByCategoryAsync(DateTime start, DateTime end)

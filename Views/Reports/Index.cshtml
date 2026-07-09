@@ -25,7 +25,14 @@
         <h2 class="text-xl font-medium text-sky-500 mb-7">Yönetimsel Raporlar</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-24 gap-y-3 text-[17px] text-gray-400">
             <span>Daire Listesi</span>
-            <span>Kullanıcı Giriş Bilgileri</span>
+            @if (User.IsInRole(AppRoles.SistemYonetici))
+            {
+                <a class="text-gray-700 hover:text-sky-600" asp-controller="Reports" asp-action="LoginCredentials">Kullanıcı Giriş Bilgileri</a>
+            }
+            else
+            {
+                <span>Kullanıcı Giriş Bilgileri</span>
+            }
             <a class="text-gray-700 hover:text-sky-600" asp-controller="Reports" asp-action="Attendance">Hazirun Cetveli</a>
             <span>Personeller</span>
             <span>Hane Bilgileri</span>

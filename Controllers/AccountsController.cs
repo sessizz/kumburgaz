@@ -3,13 +3,19 @@ using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Controllers;
 
 [ModuleAuthorize(AppModules.Hesaplar)]
-public class AccountsController(ApplicationDbContext db, UnitLedgerService unitLedgerService) : Controller
+public class AccountsController(
+    ApplicationDbContext db,
+    UnitLedgerService unitLedgerService,
+    ResidentAccountService residentAccountService) : Controller
 {
+    private static string UnitLabel(Unit unit)
+        => unit.Block is null ? unit.UnitNo : $"{unit.Block.Name}-{unit.UnitNo}";
     public async Task<IActionResult> Index(string? q = null, AccountType? type = null)
     {
         var query = db.Accounts
@@ -262,19 +268,23 @@ public class AccountsController(ApplicationDbContext db, UnitLedgerService unitL
         ApplyModel(account, model);
         db.Accounts.Add(account);
         await db.SaveChangesAsync();
+        // Malik/Kiracı ise mobil giriş + PIN otomatik oluştur.
+        await residentAccountService.EnsureLoginAsync(account);
         TempData["ActionSuccess"] = "Hesap oluşturuldu.";
         return RedirectToAction(nameof(Index));
     }
 
     public async Task<IActionResult> Edit(int id)
     {
-        var account = await db.Accounts.FindAsync(id);
+        var account = await db.Accounts
+            .Include(x => x.UnitAccounts).ThenInclude(x => x.Unit).ThenInclude(x => x!.Block)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (account is null)
         {
             return NotFound();
         }
 
-        return View(ToFormModel(account));
+        return View(await BuildEditPageAsync(account));
     }
 
     [HttpPost]
@@ -286,21 +296,84 @@ public class AccountsController(ApplicationDbContext db, UnitLedgerService unitL
             return NotFound();
         }
 
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        var account = await db.Accounts.FindAsync(model.Id.Value);
+        var account = await db.Accounts
+            .Include(x => x.UnitAccounts).ThenInclude(x => x.Unit).ThenInclude(x => x!.Block)
+            .FirstOrDefaultAsync(x => x.Id == model.Id.Value);
         if (account is null)
         {
             return NotFound();
         }
 
+        if (!ModelState.IsValid)
+        {
+            return View(await BuildEditPageAsync(account, model));
+        }
+
         ApplyModel(account, model);
         await db.SaveChangesAsync();
+        // Malik/Kiracı olduysa giriş oluştur (idempotent).
+        await residentAccountService.EnsureLoginAsync(account);
         TempData["ActionSuccess"] = "Hesap güncellendi.";
         return RedirectToAction(nameof(Index));
+    }
+
+    // Hesaba, sahibi olmadığı bir daireyi ek erişim olarak tanımlar (yönetici).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddUnitAccess(int accountId, int unitId)
+    {
+        var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == accountId);
+        var unitExists = await db.Units.AnyAsync(x => x.Id == unitId);
+        if (account is null || !unitExists)
+        {
+            TempData["ActionError"] = "Hesap veya daire bulunamadı.";
+            return RedirectToAction(nameof(Edit), new { id = accountId });
+        }
+
+        var alreadyGranted = await db.AccountUnitAccesses.AnyAsync(x => x.AccountId == accountId && x.UnitId == unitId);
+        var alreadyOwned = await db.UnitAccounts.AnyAsync(x => x.AccountId == accountId && x.UnitId == unitId && x.Active);
+        if (!alreadyGranted && !alreadyOwned)
+        {
+            db.AccountUnitAccesses.Add(new AccountUnitAccess
+            {
+                AccountId = accountId,
+                UnitId = unitId,
+                CreatedByUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                CreatedByUserName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+            });
+            await db.SaveChangesAsync();
+            TempData["ActionSuccess"] = "Daire erişimi eklendi.";
+        }
+
+        return RedirectToAction(nameof(Edit), new { id = accountId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveUnitAccess(int accountId, int unitId)
+    {
+        var grant = await db.AccountUnitAccesses.FirstOrDefaultAsync(x => x.AccountId == accountId && x.UnitId == unitId);
+        if (grant is not null)
+        {
+            db.AccountUnitAccesses.Remove(grant);
+            await db.SaveChangesAsync();
+            TempData["ActionSuccess"] = "Daire erişimi kaldırıldı.";
+        }
+
+        return RedirectToAction(nameof(Edit), new { id = accountId });
+    }
+
+    // Mobil giriş şifresini görme/sıfırlama yalnızca Sistem Yöneticisi.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Policy = AppPolicies.SystemAdmin)]
+    public async Task<IActionResult> ResetMobilePassword(int accountId)
+    {
+        var pin = await residentAccountService.ResetPasswordAsync(accountId);
+        TempData[pin is null ? "ActionError" : "ActionSuccess"] = pin is null
+            ? "Şifre üretilemedi (hesap Malik/Kiracı olmalı)."
+            : $"Yeni şifre: {pin}";
+        return RedirectToAction(nameof(Edit), new { id = accountId });
     }
 
     [HttpPost]
@@ -330,6 +403,57 @@ public class AccountsController(ApplicationDbContext db, UnitLedgerService unitL
         await db.SaveChangesAsync();
         TempData["ActionSuccess"] = "Hesap silindi.";
         return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<AccountEditPageViewModel> BuildEditPageAsync(Account account, AccountFormViewModel? form = null)
+    {
+        var isResident = account.AccountType is AccountType.Owner or AccountType.Tenant;
+
+        var owned = account.UnitAccounts
+            .Where(x => x.Active && x.Unit is not null)
+            .Select(x => new AccountUnitAccessRow
+            {
+                UnitId = x.UnitId,
+                Display = UnitLabel(x.Unit!),
+                Role = AccountDisplayHelper.RoleLabel(x.Role),
+                IsOwned = true
+            })
+            .OrderBy(x => x.Display)
+            .ToList();
+        var ownedIds = owned.Select(x => x.UnitId).ToHashSet();
+
+        var grants = await db.AccountUnitAccesses.AsNoTracking()
+            .Where(x => x.AccountId == account.Id)
+            .Include(x => x.Unit).ThenInclude(x => x!.Block)
+            .ToListAsync();
+        var granted = grants
+            .Where(x => x.Unit is not null)
+            .Select(x => new AccountUnitAccessRow { UnitId = x.UnitId, Display = UnitLabel(x.Unit!), IsOwned = false })
+            .OrderBy(x => x.Display)
+            .ToList();
+
+        var exclude = ownedIds.Concat(granted.Select(x => x.UnitId)).ToHashSet();
+        var unitOptions = await db.Units.AsNoTracking()
+            .Where(x => x.Active && !exclude.Contains(x.Id))
+            .Include(x => x.Block)
+            .OrderBy(x => x.Block!.Name).ThenBy(x => x.UnitNo)
+            .Select(x => new SelectListItem($"{x.Block!.Name}-{x.UnitNo}", x.Id.ToString()))
+            .ToListAsync();
+
+        var hasLogin = isResident && await db.Users.AnyAsync(x => x.AccountId == account.Id);
+
+        return new AccountEditPageViewModel
+        {
+            Form = form ?? ToFormModel(account),
+            IsResidentAccount = isResident,
+            CanManageLogin = User.IsInRole(AppRoles.SistemYonetici),
+            HasLogin = hasLogin,
+            UserName = account.Id.ToString(),
+            MobilePassword = account.MobilePassword,
+            OwnedUnits = owned,
+            GrantedUnits = granted,
+            UnitOptions = unitOptions
+        };
     }
 
     private static AccountFormViewModel ToFormModel(Account account)

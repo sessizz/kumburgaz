@@ -27,6 +27,13 @@ public class SystemUsersController(
         foreach (var user in users)
         {
             var roles = await userManager.GetRolesAsync(user);
+            // Sakin (daire sahibi/kiracı) girişleri bu ekranda gösterilmez;
+            // onlar Hesaplar + "Kullanıcı Giriş Bilgileri" raporundan yönetilir.
+            if (roles.Contains(AppRoles.Sakin))
+            {
+                continue;
+            }
+
             rows.Add(new SystemUserIndexRowViewModel
             {
                 Id = user.Id,
@@ -167,6 +174,7 @@ public class SystemUsersController(
     private async Task<SystemUserFormViewModel> BuildFormAsync(SystemUserFormViewModel model)
     {
         var roleNames = await roleManager.Roles
+            .Where(x => x.Name != AppRoles.Sakin)
             .OrderBy(x => x.Name)
             .Select(x => x.Name!)
             .ToListAsync();

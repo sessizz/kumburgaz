@@ -13,7 +13,7 @@
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
-            <form asp-action="Edit" asp-route-id="@ViewBag.TransactionId" method="post" class="space-y-4">
+            <form asp-action="Edit" asp-route-id="@ViewBag.TransactionId" method="post" enctype="multipart/form-data" class="space-y-4">
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -48,6 +48,28 @@
                     </fieldset>
                 </div>
 
+                @if (Model.ExistingAttachments.Count > 0)
+                {
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Ekli fotoğraflar</legend>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var att in Model.ExistingAttachments)
+                            {
+                                <span class="badge badge-ghost gap-1">
+                                    <a asp-action="Ek" asp-route-id="@att.Id" target="_blank" class="hover:underline">@att.FileName</a>
+                                    <button type="submit" form="ekSil-@att.Id" class="text-error" title="Kaldır">✕</button>
+                                </span>
+                            }
+                        </div>
+                    </fieldset>
+                }
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Fiş / fatura fotoğrafı ekle</legend>
+                    <input type="file" name="Fotograflar" accept="image/*" multiple class="file-input file-input-bordered w-full" />
+                    <p class="label text-xs">Sunucuda otomatik olarak sıkıştırılır.</p>
+                </fieldset>
+
                 <div class="flex gap-2 justify-end pt-2">
                     <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
                     <button class="btn btn-primary" type="submit">
@@ -56,6 +78,17 @@
                     </button>
                 </div>
             </form>
+
+            @* Ek silme formlari, iç içe <form> gecersiz oldugu icin ana formun disinda; buton yukarida "form" attribute'u ile bunlara baglanir. *@
+            @foreach (var att in Model.ExistingAttachments)
+            {
+                <form id="ekSil-@att.Id" asp-action="EkSil" method="post" class="hidden"
+                      onsubmit="return confirm('Bu fotoğraf kaldırılsın mı?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="attachmentId" value="@att.Id" />
+                    <input type="hidden" name="ledgerTransactionId" value="@ViewBag.TransactionId" />
+                </form>
+            }
         </div>
     </div>
 </div>

@@ -141,6 +141,12 @@
                         <td class="text-sm text-gray-500">@row.Description</td>
                         <td>
                             <div class="flex justify-end gap-1">
+                                @if (Model.AttachmentIdByLedgerId.TryGetValue(row.Id, out var attachmentId))
+                                {
+                                    <a class="btn btn-xs btn-ghost" asp-action="Ek" asp-route-id="@attachmentId" target="_blank" title="Fiş fotoğrafı">
+                                        <span class="material-symbols-outlined ms-sm">attachment</span>
+                                    </a>
+                                }
                                 <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@row.Id">
                                     <span class="material-symbols-outlined ms-sm">edit</span>
                                 </a>

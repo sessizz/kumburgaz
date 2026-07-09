@@ -13,7 +13,8 @@ namespace Kumburgaz.Web.Controllers;
 [ModuleAuthorize(AppModules.Muhasebe)]
 public class LedgerController(
     ApplicationDbContext db,
-    ImportBatchService importBatchService) : Controller
+    ImportBatchService importBatchService,
+    ImageAttachmentService imageAttachmentService) : Controller
 {
     public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
@@ -31,7 +32,8 @@ public class LedgerController(
             EndDate = endDate,
             CategoryOptions = await BuildExpenseCategoryOptionsAsync(selectedCategoryIds),
             Rows = rows,
-            CategorySummaryRows = BuildCategorySummaryRows(rows)
+            CategorySummaryRows = BuildCategorySummaryRows(rows),
+            AttachmentIdByLedgerId = await BuildFirstAttachmentMapAsync(rows.Select(x => x.Id))
         });
     }
 
@@ -115,14 +117,14 @@ public class LedgerController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(LedgerTransactionCreateViewModel model)
+    public async Task<IActionResult> Create(LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar)
     {
         if (!ModelState.IsValid)
         {
             return View(await BuildAsync(model));
         }
 
-        db.LedgerTransactions.Add(new LedgerTransaction
+        var entity = new LedgerTransaction
         {
             Date = DateTimeHelper.EnsureUtc(model.Date),
             IncomeExpenseCategoryId = model.IncomeExpenseCategoryId,
@@ -131,9 +133,11 @@ public class LedgerController(
             CashBoxId = cashBoxId,
             BankAccountId = bankAccountId,
             Description = model.Description
-        });
-
+        };
+        db.LedgerTransactions.Add(entity);
         await db.SaveChangesAsync();
+
+        await SaveAttachmentsAsync(entity.Id, Fotograflar);
         return RedirectToAction(nameof(Index));
     }
 
@@ -154,7 +158,8 @@ public class LedgerController(
             Amount = entity.Amount,
             PaymentChannel = entity.PaymentChannel,
             AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
-            Description = entity.Description
+            Description = entity.Description,
+            ExistingAttachments = await BuildAttachmentSummariesAsync(id)
         };
 
         ViewBag.TransactionId = id;
@@ -163,11 +168,12 @@ public class LedgerController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, LedgerTransactionCreateViewModel model)
+    public async Task<IActionResult> Edit(int id, LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar)
     {
         if (!ModelState.IsValid)
         {
             ViewBag.TransactionId = id;
+            model.ExistingAttachments = await BuildAttachmentSummariesAsync(id);
             return View(await BuildAsync(model));
         }
 
@@ -186,7 +192,36 @@ public class LedgerController(
         entity.Description = model.Description;
 
         await db.SaveChangesAsync();
+        await SaveAttachmentsAsync(id, Fotograflar);
         return RedirectToAction(nameof(Index));
+    }
+
+    // Gider/gelir fisine eklenmis fotografi gosterir.
+    public async Task<IActionResult> Ek(int id)
+    {
+        var attachment = await db.Attachments.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (attachment is null)
+        {
+            return NotFound();
+        }
+
+        return File(attachment.Content, attachment.ContentType, attachment.FileName);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EkSil(int attachmentId, int ledgerTransactionId)
+    {
+        var attachment = await db.Attachments
+            .FirstOrDefaultAsync(x => x.Id == attachmentId && x.EntityType == nameof(LedgerTransaction) && x.EntityId == ledgerTransactionId);
+        if (attachment is not null)
+        {
+            db.Attachments.Remove(attachment);
+            await db.SaveChangesAsync();
+            TempData["ActionSuccess"] = "Fotoğraf kaldırıldı.";
+        }
+
+        return RedirectToAction(nameof(Edit), new { id = ledgerTransactionId });
     }
 
     [HttpPost]
@@ -450,6 +485,60 @@ public class LedgerController(
         model.AccountOptions = await FinancialAccountHelper.BuildOptionsAsync(db, model.AccountKey);
 
         return model;
+    }
+
+    private async Task SaveAttachmentsAsync(int ledgerTransactionId, List<IFormFile>? files)
+    {
+        var uploaded = (files ?? []).Where(f => f.Length > 0).ToList();
+        if (uploaded.Count == 0)
+        {
+            return;
+        }
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value;
+
+        foreach (var file in uploaded)
+        {
+            var compressed = await imageAttachmentService.CompressAsync(file);
+            db.Attachments.Add(new Attachment
+            {
+                EntityType = nameof(LedgerTransaction),
+                EntityId = ledgerTransactionId,
+                FileName = compressed.FileName,
+                ContentType = compressed.ContentType,
+                ByteSize = compressed.Content.Length,
+                Content = compressed.Content,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<List<LedgerAttachmentSummary>> BuildAttachmentSummariesAsync(int ledgerTransactionId)
+    {
+        return await db.Attachments.AsNoTracking()
+            .Where(x => x.EntityType == nameof(LedgerTransaction) && x.EntityId == ledgerTransactionId)
+            .OrderBy(x => x.Id)
+            .Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName })
+            .ToListAsync();
+    }
+
+    private async Task<Dictionary<int, int>> BuildFirstAttachmentMapAsync(IEnumerable<int> ledgerIds)
+    {
+        var ids = ledgerIds.ToList();
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return await db.Attachments.AsNoTracking()
+            .Where(x => x.EntityType == nameof(LedgerTransaction) && ids.Contains(x.EntityId))
+            .GroupBy(x => x.EntityId)
+            .Select(g => new { EntityId = g.Key, Id = g.Min(a => a.Id) })
+            .ToDictionaryAsync(x => x.EntityId, x => x.Id);
     }
 
     private IQueryable<LedgerTransaction> BuildExpenseQuery(IReadOnlyCollection<int> categoryIds, DateTime? startDate, DateTime? endDate)

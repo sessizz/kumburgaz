@@ -613,6 +613,13 @@ public class LedgerTransactionCreateViewModel
     public string? Description { get; set; }
     public List<SelectListItem> CategoryOptions { get; set; } = [];
     public List<SelectListItem> AccountOptions { get; set; } = [];
+    public List<LedgerAttachmentSummary> ExistingAttachments { get; set; } = [];
+}
+
+public class LedgerAttachmentSummary
+{
+    public int Id { get; set; }
+    public string FileName { get; set; } = string.Empty;
 }
 
 public class LedgerIndexViewModel
@@ -626,6 +633,7 @@ public class LedgerIndexViewModel
     public List<SelectListItem> CategoryOptions { get; set; } = [];
     public List<LedgerTransaction> Rows { get; set; } = [];
     public List<LedgerCategorySummaryRow> CategorySummaryRows { get; set; } = [];
+    public Dictionary<int, int> AttachmentIdByLedgerId { get; set; } = [];
     public decimal TotalAmount => Rows.Sum(x => x.Amount);
     public decimal CashAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Cash).Sum(x => x.Amount);
     public decimal BankAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Bank).Sum(x => x.Amount);

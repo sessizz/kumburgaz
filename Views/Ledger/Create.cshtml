@@ -16,7 +16,7 @@
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
-            <form asp-action="Create" method="post" class="space-y-4">
+            <form asp-action="Create" method="post" enctype="multipart/form-data" class="space-y-4">
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -50,6 +50,12 @@
                         <input asp-for="Description" class="input input-bordered w-full" />
                     </fieldset>
                 </div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Fiş / fatura fotoğrafı (opsiyonel)</legend>
+                    <input type="file" name="Fotograflar" accept="image/*" multiple class="file-input file-input-bordered w-full" />
+                    <p class="label text-xs">Sunucuda otomatik olarak sıkıştırılır.</p>
+                </fieldset>
 
                 <div class="flex gap-2 justify-end pt-2">
                     <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>

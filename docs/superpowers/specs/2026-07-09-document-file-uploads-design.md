@@ -7,7 +7,7 @@ Belgeler modulundeki URL tabanli kaydi, dosya icerigini PostgreSQL'de saklayan b
 ## Kapsam
 
 - Yeni belge formundan URL alani kaldirilir.
-- Yeni belge kaydi baslik, kategori, belge tarihi, not ve dosya yukleme alanlarini icerir.
+- Yeni belge kaydi baslik, kategori, belge tarihi, not ve coklu dosya yukleme alanini icerir.
 - Yuklenen her dosya mevcut `Attachment` tablosunda `EntityType = DocumentRecord` ve ilgili belge kimligi ile saklanir.
 - Dosya icerigi, dosya adi, MIME turu ve bayt boyutu PostgreSQL'de tutulur.
 - Belge listesinde kayit satirina tiklamak belge detayina gider.
@@ -37,10 +37,10 @@ Mevcut `DocumentRecord.Url` veritabani alani korunur ancak yeni veya duzenlenmis
 
 ## Arayuz
 
-- Form `multipart/form-data` kullanir ve dosya secicisinin izinli uzantilari belirtir.
+- Form `multipart/form-data` kullanir; dosya secicisi `multiple` niteligini ve izinli uzantilari belirtir. Kullanici bir belge kaydina giderlerde oldugu gibi birden fazla dosya ekleyebilir.
 - Belge listesi baglanti sutunu yerine dosya sayisini ve dosya durumunu gosterir.
 - Belge detayinda onizleme alani ayrica render edilir; indirme sabit bir komuttur.
-- Duzenleme ekrani metadatalari degistirir, ek dosya yukleme ve mevcut ek silme aksiyonlarini sunar.
+- Duzenleme ekrani metadatalari degistirir, ek dosya yukleme ve mevcut her eki tek tek silme aksiyonlarini sunar. Yeni dosyalar mevcut ekleri degistirmez; belgeye eklenir.
 
 ## Testler
 

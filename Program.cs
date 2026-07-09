@@ -80,6 +80,7 @@ builder.Services.AddScoped<MobileScopeService>();
 builder.Services.AddScoped<ResidentAccountService>();
 builder.Services.AddScoped<SakinAreaRestrictionFilter>();
 builder.Services.AddScoped<ImageAttachmentService>();
+builder.Services.AddScoped<DocumentFileService>();
 builder.Services.AddScoped<MahsupService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<PushSenderService>();

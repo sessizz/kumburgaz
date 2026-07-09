@@ -592,6 +592,71 @@ public class LedgerTransaction : ISoftDeletable
     public string? DeletedByUserName { get; set; }
 }
 
+/// <summary>
+/// Fis/fatura fotografi gibi ekler. EntityType/EntityId ile herhangi bir kayda baglanir
+/// (Asama 3'te yalnizca "LedgerTransaction"). Content sunucuda sikistirilmis JPEG olarak tutulur.
+/// </summary>
+public class Attachment : ISoftDeletable
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(60)]
+    public string EntityType { get; set; } = string.Empty;
+
+    public int EntityId { get; set; }
+
+    [Required, MaxLength(200)]
+    public string FileName { get; set; } = string.Empty;
+
+    [Required, MaxLength(80)]
+    public string ContentType { get; set; } = "image/jpeg";
+
+    public int ByteSize { get; set; }
+
+    public byte[] Content { get; set; } = [];
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [MaxLength(450)]
+    public string? CreatedByUserId { get; set; }
+
+    [MaxLength(256)]
+    public string? CreatedByUserName { get; set; }
+
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+}
+
+/// <summary>
+/// Bir "mahsuplu gider" isleminin iki bacagini (aidat tahsilati + gider) birbirine baglar.
+/// Collection/LedgerTransaction tablolarina alan eklenmez; iliski buradan izlenir.
+/// </summary>
+public class MahsupIslem : ISoftDeletable
+{
+    public int Id { get; set; }
+    public int CollectionId { get; set; }
+    public Collection? Collection { get; set; }
+    public int LedgerTransactionId { get; set; }
+    public LedgerTransaction? LedgerTransaction { get; set; }
+    public int UnitId { get; set; }
+    public Unit? Unit { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [MaxLength(450)]
+    public string? CreatedByUserId { get; set; }
+
+    [MaxLength(256)]
+    public string? CreatedByUserName { get; set; }
+
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public string? DeletedByUserId { get; set; }
+    public string? DeletedByUserName { get; set; }
+}
+
 public class BankAccount : ISoftDeletable
 {
     public int Id { get; set; }

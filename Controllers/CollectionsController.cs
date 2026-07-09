@@ -211,6 +211,13 @@ public class CollectionsController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id, string? returnUrl = null)
     {
+        // Mahsuplu gider islemine bagli tahsilat tekil silinemez; ikisi birlikte silinmeli.
+        if (await db.MahsupIslemleri.AnyAsync(x => x.CollectionId == id))
+        {
+            TempData["ActionError"] = "Bu tahsilat bir mahsuplu gider işlemine bağlı, tekil silinemez. Mahsubu bütün olarak Mobil > Gider ekranından silin.";
+            return RedirectAfterSave(returnUrl);
+        }
+
         await collectionService.DeleteAsync(id);
         return RedirectAfterSave(returnUrl);
     }

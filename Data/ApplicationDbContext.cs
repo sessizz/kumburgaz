@@ -32,6 +32,8 @@ public class ApplicationDbContext(
     public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();
     public DbSet<CashBox> CashBoxes => Set<CashBox>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<MahsupIslem> MahsupIslemleri => Set<MahsupIslem>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
     public DbSet<DocumentRecord> DocumentRecords => Set<DocumentRecord>();
@@ -63,6 +65,8 @@ public class ApplicationDbContext(
         ConfigureSoftDelete<LedgerTransaction>(builder);
         ConfigureSoftDelete<BankAccount>(builder);
         ConfigureSoftDelete<CashBox>(builder);
+        ConfigureSoftDelete<Attachment>(builder);
+        ConfigureSoftDelete<MahsupIslem>(builder);
 
         builder.Entity<AuditLog>()
             .HasIndex(x => new { x.EntityName, x.EntityId, x.CreatedAt });
@@ -259,6 +263,35 @@ public class ApplicationDbContext(
             .WithMany()
             .HasForeignKey(x => x.BankAccountId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Attachment>()
+            .HasIndex(x => new { x.EntityType, x.EntityId });
+
+        builder.Entity<MahsupIslem>()
+            .HasOne(x => x.Collection)
+            .WithMany()
+            .HasForeignKey(x => x.CollectionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<MahsupIslem>()
+            .HasOne(x => x.LedgerTransaction)
+            .WithMany()
+            .HasForeignKey(x => x.LedgerTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<MahsupIslem>()
+            .HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<MahsupIslem>()
+            .HasIndex(x => x.CollectionId)
+            .IsUnique();
+
+        builder.Entity<MahsupIslem>()
+            .HasIndex(x => x.LedgerTransactionId)
+            .IsUnique();
 
         builder.Entity<CashBox>()
             .Property(x => x.OpeningBalance)

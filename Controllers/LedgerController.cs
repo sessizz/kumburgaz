@@ -200,6 +200,13 @@ public class LedgerController(
             return RedirectToAction(nameof(Index));
         }
 
+        // Mahsuplu gider islemine bagli gider tekil silinemez; ikisi birlikte silinmeli.
+        if (await db.MahsupIslemleri.AnyAsync(x => x.LedgerTransactionId == id))
+        {
+            TempData["ActionError"] = "Bu gider bir mahsuplu gider işlemine bağlı, tekil silinemez. Mahsubu bütün olarak Mobil > Gider ekranından silin.";
+            return RedirectToAction(nameof(Index));
+        }
+
         db.LedgerTransactions.Remove(entity);
         await db.SaveChangesAsync();
         TempData["ActionSuccess"] = "İşlem silindi.";

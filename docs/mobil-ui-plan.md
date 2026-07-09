@@ -279,7 +279,7 @@ Kabul kriterleri:
 
 ### Asama 3: Gider + Attachment + Mahsuplu Gider (normal kasa)
 
-Durum: Baslamadi.
+Durum: Tamamlandi.
 
 Kapsam:
 
@@ -346,6 +346,8 @@ Kabul kriterleri:
 - Sifre plaintext saklaniyor (sistem yoneticisi gorebilsin diye). Dusuk-hassasiyet 5 haneli PIN olsa da yedeklerde acik durur; gerekirse Data Protection ile sifreli saklamaya gecis acik kapi.
 - SQLite dev ortami `EnsureCreated` kullaniyor: migration'lar dev'de kosmaz, sema degisikliginde `app.db` yeniden olusturulmali.
 - .NET 10 RC paketleri: `SixLabors.ImageSharp` ve `Lib.Net.Http.WebPush` net10 ile test edilmeli; sorun cikarsa ImageSharp yerine SkiaSharp'a gecilebilir.
+- ImageSharp 4.x ticari lisans gerektiriyor (Six Labors Split License) — proje **3.1.x** serisine sabitlenmis olmali (`Kumburgaz.Web.csproj`, su an 3.1.12). Paketi yukseltirken bu detaya dikkat edilmeli.
+- EF Core soft-delete + Restrict FK kombinasyonu: ayni DbContext'te bir bagimlı entity (orn. MahsupIslem) tracked haldeyken referans verdigi principal (Collection/LedgerTransaction) `Remove()` ile isaretlenirse "association severed" hatasi alinir (soft-delete FK'yi hic sifirlamadigi icin). Cozum: bagimliyi once sil+kaydet, sonra `ChangeTracker`'dan `Detach` et (bkz. `MahsupService.DeleteAsync`).
 - bytea buyumesi: fotograflar DB'de oldugundan yedek boyutu buyur; yedek suresi izlenmeli. `Attachment.EntityType/EntityId` yapisi ileride dosya sistemine tasimaya uygun.
 - Eski `AssignedTo` string kayitlarinin `AssignedToUserId`'si bos kalir; bildirim yalnizca yeni atamalarda calisir (kabul edilebilir).
 - iOS push icin ana ekran kurulumu sart; kullanici egitimi Kurulum sayfasiyla yapilir.

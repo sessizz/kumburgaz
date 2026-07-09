@@ -147,6 +147,19 @@ public class DairelerController(
         });
     }
 
+    // Mahsuplu gider formunda secilen dairenin guncel acik borcunu doner.
+    [HttpGet]
+    public async Task<IActionResult> BorcOzet(int unitId)
+    {
+        if (!await scope.CanAccessUnitAsync(User, unitId))
+        {
+            return NotFound();
+        }
+
+        var ledger = await unitLedgerService.BuildAsync(unitId);
+        return Json(new { acikBorc = ledger?.Summary.Debt ?? 0m });
+    }
+
     private static string NormalizeStatus(string? status)
     {
         return status?.Trim().ToLowerInvariant() switch

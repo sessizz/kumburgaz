@@ -3,6 +3,39 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Models;
 
+// Mobil gider listesi satiri.
+public class MobileGiderListItem
+{
+    public int Id { get; set; } // LedgerTransaction.Id
+    public DateTime Date { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string? Description { get; set; }
+    public bool HasAttachment { get; set; }
+    public int? AttachmentId { get; set; }
+    public bool IsMahsup { get; set; }
+    public int? MahsupId { get; set; }
+    public string? UnitDisplay { get; set; }
+}
+
+// Mobil gider ekleme formu (yonetici normal gider + Sakin mahsup akisi).
+public class MobileGiderFormViewModel
+{
+    public bool IsResident { get; set; }
+    public int? UnitId { get; set; }
+    public int? CategoryId { get; set; }
+    public decimal? Amount { get; set; }
+
+    [MaxLength(250)]
+    public string? Description { get; set; }
+
+    // Yonetici icin: normal gider mi, mahsuplu gider mi. Sakin icin her zaman true (UI'da gizli).
+    public bool IsMahsup { get; set; }
+
+    public List<SelectListItem> UnitOptions { get; set; } = [];
+    public List<SelectListItem> CategoryOptions { get; set; } = [];
+}
+
 // Mobil yeni talep formu.
 public class MobileTalepFormViewModel
 {

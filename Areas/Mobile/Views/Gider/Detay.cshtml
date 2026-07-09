@@ -50,10 +50,9 @@
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;">
         @foreach (var att in Model.Attachments)
         {
-            <a href="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" target="_blank">
-                <img src="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" alt="@att.FileName"
-                     style="width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--m-border);" />
-            </a>
+            <img src="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" alt="@att.FileName"
+                 style="width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--m-border);cursor:pointer;"
+                 onclick="openLightbox('@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })')" />
         }
     </div>
 }

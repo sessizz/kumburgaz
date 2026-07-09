@@ -76,7 +76,8 @@
                 @foreach (var att in Model.ExistingAttachments)
                 {
                     <span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:5px 10px;font-size:13px;">
-                        <a href="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" target="_blank" style="color:var(--m-primary);text-decoration:none;">@att.FileName</a>
+                        <a href="#" style="color:var(--m-primary);text-decoration:none;"
+                           onclick="event.preventDefault(); openLightbox('@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })')">@att.FileName</a>
                         @if (Model.CanRemoveAttachments)
                         {
                             <button type="submit" form="ekSil-@att.Id" style="background:none;border:none;color:var(--m-debt);font-weight:700;cursor:pointer;padding:0;">✕</button>

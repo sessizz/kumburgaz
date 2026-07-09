@@ -254,6 +254,26 @@
         </main>
     </div>
 
+    @* Paylasilan fotograf lightbox'i: herhangi bir sayfa openLightbox(url) cagirarak
+       fotografi indirmek/yeni sekme acmak yerine ayni sayfada buyuk gosterir. *@
+    <dialog id="photoLightbox" class="modal">
+        <div class="modal-box max-w-3xl p-2 bg-transparent shadow-none">
+            <button type="button" class="btn btn-sm btn-circle absolute right-2 top-2 z-10" onclick="closeLightbox()">✕</button>
+            <img id="photoLightboxImg" src="" alt="Fotoğraf" class="w-full h-auto rounded-lg" />
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+    </dialog>
+    <script>
+        function openLightbox(url) {
+            document.getElementById('photoLightboxImg').src = url;
+            document.getElementById('photoLightbox').showModal();
+        }
+        function closeLightbox() {
+            document.getElementById('photoLightbox').close();
+            document.getElementById('photoLightboxImg').src = '';
+        }
+    </script>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

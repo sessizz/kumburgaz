@@ -45,6 +45,23 @@
         <partial name="_BottomNav" />
     </div>
 
+    @* Paylasilan fotograf lightbox'i: herhangi bir sayfa openLightbox(url) cagirarak
+       fotografi indirmek/yeni sekme acmak yerine ayni sayfada buyuk gosterir. *@
+    <dialog id="photoLightbox" class="m-lightbox" onclick="if (event.target === this) closeLightbox()">
+        <button type="button" class="m-lightbox-close" onclick="closeLightbox()" aria-label="Kapat">✕</button>
+        <img id="photoLightboxImg" src="" alt="Fotoğraf" />
+    </dialog>
+    <script>
+        function openLightbox(url) {
+            document.getElementById('photoLightboxImg').src = url;
+            document.getElementById('photoLightbox').showModal();
+        }
+        function closeLightbox() {
+            document.getElementById('photoLightbox').close();
+            document.getElementById('photoLightboxImg').src = '';
+        }
+    </script>
+
     <script src="~/js/mobile.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

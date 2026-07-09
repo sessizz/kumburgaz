@@ -383,6 +383,42 @@ html, body {
     .m-filter-tabs { grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: start; }
 }
 
+/* Fotograf lightbox (paylasilan, tum mobil sayfalarda openLightbox(url) ile kullanilir) */
+.m-lightbox {
+    border: none;
+    padding: 0;
+    margin: auto;
+    max-width: 100vw;
+    max-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.m-lightbox::backdrop { background: rgba(0, 0, 0, .92); }
+.m-lightbox img {
+    max-width: 92vw;
+    max-height: 88vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
+.m-lightbox-close {
+    position: fixed;
+    top: calc(14px + env(safe-area-inset-top));
+    right: 14px;
+    z-index: 10;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+}
+
 /* Yardimci */
 .text-muted-m { color: var(--m-muted); }
 .mono-amt { font-variant-numeric: tabular-nums; }

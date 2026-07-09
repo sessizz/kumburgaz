@@ -210,10 +210,9 @@
                         <div class="grid grid-cols-2 gap-2">
                             @foreach (var att in rowAttachments)
                             {
-                                <a href="@Url.Action("Ek", "Ledger", new { id = att.Id })" target="_blank">
-                                    <img src="@Url.Action("Ek", "Ledger", new { id = att.Id })" alt="@att.FileName"
-                                         class="w-full h-32 object-cover rounded-lg border border-gray-200" />
-                                </a>
+                                <img src="@Url.Action("Ek", "Ledger", new { id = att.Id })" alt="@att.FileName"
+                                     class="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer"
+                                     onclick="event.stopPropagation(); openLightbox('@Url.Action("Ek", "Ledger", new { id = att.Id })')" />
                             }
                         </div>
                     </div>

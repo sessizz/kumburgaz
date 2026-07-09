@@ -24,6 +24,8 @@ public class LedgerController(
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
+        var ledgerIds = rows.Select(x => x.Id).ToList();
+
         return View(new LedgerIndexViewModel
         {
             CategoryId = selectedCategoryIds.Count == 1 ? selectedCategoryIds[0] : null,
@@ -33,7 +35,8 @@ public class LedgerController(
             CategoryOptions = await BuildExpenseCategoryOptionsAsync(selectedCategoryIds),
             Rows = rows,
             CategorySummaryRows = BuildCategorySummaryRows(rows),
-            AttachmentIdByLedgerId = await BuildFirstAttachmentMapAsync(rows.Select(x => x.Id))
+            AttachmentsByLedgerId = await BuildAttachmentMapAsync(ledgerIds),
+            MahsupUnitByLedgerId = await BuildMahsupUnitMapAsync(ledgerIds)
         });
     }
 
@@ -526,19 +529,40 @@ public class LedgerController(
             .ToListAsync();
     }
 
-    private async Task<Dictionary<int, int>> BuildFirstAttachmentMapAsync(IEnumerable<int> ledgerIds)
+    private async Task<Dictionary<int, List<LedgerAttachmentSummary>>> BuildAttachmentMapAsync(List<int> ledgerIds)
     {
-        var ids = ledgerIds.ToList();
-        if (ids.Count == 0)
+        if (ledgerIds.Count == 0)
         {
             return [];
         }
 
-        return await db.Attachments.AsNoTracking()
-            .Where(x => x.EntityType == nameof(LedgerTransaction) && ids.Contains(x.EntityId))
+        var attachments = await db.Attachments.AsNoTracking()
+            .Where(x => x.EntityType == nameof(LedgerTransaction) && ledgerIds.Contains(x.EntityId))
+            .OrderBy(x => x.Id)
+            .Select(x => new { x.EntityId, x.Id, x.FileName })
+            .ToListAsync();
+
+        return attachments
             .GroupBy(x => x.EntityId)
-            .Select(g => new { EntityId = g.Key, Id = g.Min(a => a.Id) })
-            .ToDictionaryAsync(x => x.EntityId, x => x.Id);
+            .ToDictionary(g => g.Key, g => g.Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName }).ToList());
+    }
+
+    private async Task<Dictionary<int, string>> BuildMahsupUnitMapAsync(List<int> ledgerIds)
+    {
+        if (ledgerIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.MahsupIslemleri.AsNoTracking()
+            .Where(x => ledgerIds.Contains(x.LedgerTransactionId))
+            .Include(x => x.Unit).ThenInclude(x => x!.Block)
+            .Select(x => new { x.LedgerTransactionId, Unit = x.Unit })
+            .ToListAsync();
+
+        return rows
+            .Where(x => x.Unit is not null)
+            .ToDictionary(x => x.LedgerTransactionId, x => x.Unit!.Block is null ? x.Unit.UnitNo : $"{x.Unit.Block.Name}-{x.Unit.UnitNo}");
     }
 
     private IQueryable<LedgerTransaction> BuildExpenseQuery(IReadOnlyCollection<int> categoryIds, DateTime? startDate, DateTime? endDate)

@@ -633,7 +633,8 @@ public class LedgerIndexViewModel
     public List<SelectListItem> CategoryOptions { get; set; } = [];
     public List<LedgerTransaction> Rows { get; set; } = [];
     public List<LedgerCategorySummaryRow> CategorySummaryRows { get; set; } = [];
-    public Dictionary<int, int> AttachmentIdByLedgerId { get; set; } = [];
+    public Dictionary<int, List<LedgerAttachmentSummary>> AttachmentsByLedgerId { get; set; } = [];
+    public Dictionary<int, string> MahsupUnitByLedgerId { get; set; } = [];
     public decimal TotalAmount => Rows.Sum(x => x.Amount);
     public decimal CashAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Cash).Sum(x => x.Amount);
     public decimal BankAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Bank).Sum(x => x.Amount);

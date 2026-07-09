@@ -130,13 +130,18 @@
                 @foreach (var row in Model.Rows)
                 {
                     var hasAttachments = Model.AttachmentsByLedgerId.TryGetValue(row.Id, out var rowAttachments) && rowAttachments.Count > 0;
+                    var firstAttachmentUrl = hasAttachments ? Url.Action("Ek", "Ledger", new { id = rowAttachments![0].Id }) : null;
                     <tr class="cursor-pointer hover:bg-gray-50" onclick="document.getElementById('giderModal-@row.Id').showModal()">
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
                         <td>
                             <span class="@CategoryBadgeClass(row.IncomeExpenseCategoryId)">@row.IncomeExpenseCategory?.Name</span>
                             @if (hasAttachments)
                             {
-                                <span class="material-symbols-outlined align-middle text-gray-400" style="font-size:16px;" title="Fiş fotoğrafı var">attachment</span>
+                                <span class="material-symbols-outlined align-middle text-primary" style="font-size:19px;cursor:pointer;"
+                                      title="Fiş fotoğrafı - üzerine gelin veya tıklayın"
+                                      onmouseenter="showAttPreview(this, '@firstAttachmentUrl')"
+                                      onmouseleave="hideAttPreview()"
+                                      onclick="event.stopPropagation(); openLightbox('@firstAttachmentUrl')">attachment</span>
                             }
                         </td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
@@ -229,6 +234,35 @@
             <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
         </dialog>
     }
+
+    @* Fis ikonu uzerine gelince beliren kucuk on izleme; position:fixed oldugu icin
+       tablonun overflow-x-auto sarmalayicisi tarafindan kirpilmaz. *@
+    <div id="giderAttPreview" style="display:none;position:fixed;z-index:60;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 10px 25px -5px rgba(0,0,0,.25),0 8px 10px -6px rgba(0,0,0,.1);padding:5px;">
+        <img id="giderAttPreviewImg" src="" alt="Fiş önizleme" style="width:170px;height:170px;object-fit:cover;border-radius:7px;display:block;" />
+    </div>
+    <script>
+        function showAttPreview(el, url) {
+            var preview = document.getElementById('giderAttPreview');
+            var img = document.getElementById('giderAttPreviewImg');
+            img.src = url;
+            preview.style.display = 'block';
+            var rect = el.getBoundingClientRect();
+            var previewWidth = 182;
+            var left = rect.left;
+            if (left + previewWidth > window.innerWidth - 8) {
+                left = window.innerWidth - previewWidth - 8;
+            }
+            var top = rect.bottom + 6;
+            if (top + 182 > window.innerHeight - 8) {
+                top = rect.top - 182 - 6;
+            }
+            preview.style.left = left + 'px';
+            preview.style.top = top + 'px';
+        }
+        function hideAttPreview() {
+            document.getElementById('giderAttPreview').style.display = 'none';
+        }
+    </script>
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-200">

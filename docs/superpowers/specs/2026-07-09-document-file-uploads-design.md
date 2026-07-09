@@ -9,7 +9,7 @@ Belgeler modulundeki URL tabanli kaydi, dosya icerigini PostgreSQL'de saklayan b
 - Yeni belge formundan URL alani kaldirilir.
 - Yeni belge kaydi baslik, kategori, belge tarihi, not ve coklu dosya yukleme alanini icerir.
 - Yuklenen her dosya mevcut `Attachment` tablosunda `EntityType = DocumentRecord` ve ilgili belge kimligi ile saklanir.
-- Dosya icerigi, dosya adi, MIME turu ve bayt boyutu PostgreSQL'de tutulur.
+- Dosya icerigi, dosya adi, MIME turu ve bayt boyutu PostgreSQL'de tutulur. Gorseller dahil her dosyanin orijinal baytlari aynen saklanir; belge yuklemesinde sikistirma veya format donusumu yapilmaz.
 - Belge listesinde kayit satirina tiklamak belge detayina gider.
 - Detay ekrani belge metadatasini ve ek dosya listesini gosterir.
 - Detay ekranindaki dosya icin onizleme ve indirme aksiyonlari sunulur.
@@ -29,7 +29,7 @@ Onizleme kitapliklari sadece belge detay ekraninda yuklenir. Dosya baytlari yetk
 
 ## Sunucu Akisi
 
-`DocumentsController` yeni bir multipart form verisini kabul eder. Form gecersizse veya dosya izin listesi / boyut sinirini asmissa, hata ayni ekranda gosterilir ve kayit olusmaz. Basarili kayit once `DocumentRecord` olarak yazilir, sonra dosyalar `Attachment` satirlari halinde eklenir.
+`DocumentsController` yeni bir multipart form verisini kabul eder. Form gecersizse veya dosya izin listesi / boyut sinirini asmissa, hata ayni ekranda gosterilir ve kayit olusmaz. Basarili kayit once `DocumentRecord` olarak yazilir, sonra dosyalar hicbir sikistirma veya format donusumu uygulanmadan `Attachment` satirlari halinde eklenir.
 
 Belge detay, ilgili `Attachment` kayitlarini sorgular. Dosya okuma, indirme ve onizleme aksiyonlari belge modulu yetkisini korur ve sadece `DocumentRecord` eklerini dondurur. Silme, belgeyi ve ona bagli tum ekleri siler.
 

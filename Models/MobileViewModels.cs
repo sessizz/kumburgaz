@@ -18,9 +18,11 @@ public class MobileGiderListItem
     public string? UnitDisplay { get; set; }
 }
 
-// Mobil gider ekleme formu (yonetici normal gider + Sakin mahsup akisi).
+// Mobil gider ekleme/duzenleme formu (yonetici normal gider + Sakin mahsup akisi).
 public class MobileGiderFormViewModel
 {
+    public int? Id { get; set; }  // LedgerTransaction.Id; duzenlemede dolu
+    public bool IsEdit { get; set; }
     public bool IsResident { get; set; }
     public int? UnitId { get; set; }
     public int? CategoryId { get; set; }
@@ -32,8 +34,41 @@ public class MobileGiderFormViewModel
     // Yonetici icin: normal gider mi, mahsuplu gider mi. Sakin icin her zaman true (UI'da gizli).
     public bool IsMahsup { get; set; }
 
+    // Mahsup duzenlemesinde tutar/kategori sabittir (tahsilat/tahakkuk tutarliligini bozmamak icin);
+    // yalnizca aciklama ve fotograflar degistirilebilir.
+    public bool AmountCategoryEditable { get; set; } = true;
+
+    // Mevcut fotograflari kaldirma yalnizca personel/yonetici icin acik.
+    public bool CanRemoveAttachments { get; set; }
+
+    public string? UnitDisplay { get; set; }  // duzenlemede mahsubun daire adi (salt okunur gosterim)
+
     public List<SelectListItem> UnitOptions { get; set; } = [];
     public List<SelectListItem> CategoryOptions { get; set; } = [];
+    public List<MobileAttachmentSummary> ExistingAttachments { get; set; } = [];
+}
+
+public class MobileAttachmentSummary
+{
+    public int Id { get; set; }
+    public string FileName { get; set; } = string.Empty;
+}
+
+// Mobil gider detay ekrani.
+public class MobileGiderDetailViewModel
+{
+    public int Id { get; set; }
+    public DateTime Date { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string? Description { get; set; }
+    public string? AccountLabel { get; set; }
+    public bool IsMahsup { get; set; }
+    public int? MahsupId { get; set; }
+    public string? UnitDisplay { get; set; }
+    public List<MobileAttachmentSummary> Attachments { get; set; } = [];
+    public bool CanEdit { get; set; }
+    public bool CanDeleteMahsup { get; set; }
 }
 
 // Mobil yeni talep formu.

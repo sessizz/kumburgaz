@@ -34,7 +34,7 @@ else
     <div class="m-list">
         @foreach (var g in Model)
         {
-            <div class="m-list-item" style="align-items:flex-start;">
+            <a class="m-list-item" style="align-items:flex-start;" asp-area="Mobile" asp-controller="Gider" asp-action="Detay" asp-route-id="@g.Id">
                 <div class="m-li-main">
                     <div class="m-li-title">@g.CategoryName</div>
                     <div class="m-li-sub" style="white-space:normal;">
@@ -48,14 +48,13 @@ else
                             <text> · @g.Description</text>
                         }
                     </div>
-                    <div style="display:flex; gap:10px; margin-top:6px; align-items:center;">
-                        @if (g.HasAttachment && g.AttachmentId.HasValue)
+                    <div style="display:flex; gap:6px; margin-top:6px; align-items:center;">
+                        @if (g.HasAttachment)
                         {
-                            <a href="@Url.Action("Ek", "Gider", new { area = "Mobile", id = g.AttachmentId })" target="_blank"
-                               style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--m-primary);text-decoration:none;font-weight:600;">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                            <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--m-muted);">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
                                 Fiş
-                            </a>
+                            </span>
                         }
                         @if (g.IsMahsup)
                         {
@@ -65,17 +64,11 @@ else
                 </div>
                 <div style="text-align:right;flex:none;">
                     <div class="m-row-amt m-amt-debt">@Tl(g.Amount)</div>
-                    @if (g.IsMahsup && !isResident)
-                    {
-                        <form method="post" asp-area="Mobile" asp-controller="Gider" asp-action="MahsupSil" style="margin-top:6px;"
-                              onsubmit="return confirm('Mahsup bütün olarak silinecek (tahsilat + gider + ek). Emin misiniz?');">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="mahsupId" value="@g.MahsupId" />
-                            <button type="submit" style="background:none;border:none;color:var(--m-debt);font-size:12px;font-weight:700;cursor:pointer;padding:0;">Sil</button>
-                        </form>
-                    }
                 </div>
-            </div>
+                <span class="m-li-chev">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                </span>
+            </a>
         }
     </div>
 }

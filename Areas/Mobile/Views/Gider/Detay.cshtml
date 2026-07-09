@@ -1,0 +1,80 @@
+@model MobileGiderDetailViewModel
+@{
+    ViewData["Title"] = Model.CategoryName;
+    ViewData["MobileBack"] = Url.Action("Index", "Gider", new { area = "Mobile" });
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+}
+
+@if (TempData["MobileSuccess"] is string ok)
+{
+    <div class="m-note" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857;">@ok</div>
+}
+@if (TempData["MobileError"] is string err)
+{
+    <div class="m-note">@err</div>
+}
+
+<div class="m-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;">
+        <div>
+            <div style="font-size:16px;font-weight:700;">@Model.CategoryName</div>
+            <div class="m-li-sub">@Model.Date.ToString("dd.MM.yyyy")</div>
+        </div>
+        <div class="m-row-amt m-amt-debt" style="font-size:18px;">@Tl(Model.Amount)</div>
+    </div>
+
+    @if (Model.IsMahsup)
+    {
+        <span style="display:inline-block;font-size:11px;font-weight:700;color:var(--m-primary);background:#eff6ff;padding:2px 8px;border-radius:999px;margin-bottom:10px;">
+            Mahsup · @Model.UnitDisplay
+        </span>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <div style="font-size:14.5px;line-height:1.5;margin-bottom:10px;">@Model.Description</div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.AccountLabel))
+    {
+        <div class="m-row" style="padding-top:0;">
+            <div class="m-row-main"><div class="m-row-title">Kasa / Banka</div></div>
+            <div class="m-row-sub">@Model.AccountLabel</div>
+        </div>
+    }
+</div>
+
+@if (Model.Attachments.Count > 0)
+{
+    <div class="m-section-title">Fiş / fatura fotoğrafları</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;">
+        @foreach (var att in Model.Attachments)
+        {
+            <a href="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" target="_blank">
+                <img src="@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })" alt="@att.FileName"
+                     style="width:100%;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--m-border);" />
+            </a>
+        }
+    </div>
+}
+
+@if (Model.CanEdit)
+{
+    <a asp-area="Mobile" asp-controller="Gider" asp-action="Duzenle" asp-route-id="@Model.Id"
+       style="display:flex;align-items:center;justify-content:center;gap:8px;height:46px;background:var(--m-surface);border:1px solid var(--m-border);color:var(--m-text);border-radius:12px;font-weight:700;text-decoration:none;margin-bottom:10px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+        Düzenle
+    </a>
+}
+
+@if (Model.CanDeleteMahsup)
+{
+    <form method="post" asp-area="Mobile" asp-controller="Gider" asp-action="MahsupSil"
+          onsubmit="return confirm('Mahsup bütün olarak silinecek (tahsilat + gider + ek). Emin misiniz?');">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="mahsupId" value="@Model.MahsupId" />
+        <button type="submit" style="width:100%;height:46px;background:var(--m-debt-bg);color:var(--m-debt);border:none;border-radius:12px;font-weight:700;">
+            Mahsubu Sil
+        </button>
+    </form>
+}

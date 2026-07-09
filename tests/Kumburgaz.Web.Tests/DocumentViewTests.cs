@@ -19,6 +19,22 @@ public class DocumentViewTests
         Assert.DoesNotContain("asp-for=\"Url\"", markup);
     }
 
+    [Fact]
+    public void Document_detail_loads_jszip_before_docx_preview()
+    {
+        var markup = File.ReadAllText(Path.Combine(
+            FindProjectRoot(),
+            "Views",
+            "Documents",
+            "Details.cshtml"));
+
+        var jsZipIndex = markup.IndexOf("~/lib/jszip/jszip.min.js", StringComparison.Ordinal);
+        var docxPreviewIndex = markup.IndexOf("~/lib/docx-preview/docx-preview.min.js", StringComparison.Ordinal);
+
+        Assert.True(jsZipIndex >= 0, "Belge detayinda JSZip yuklenmelidir.");
+        Assert.True(docxPreviewIndex > jsZipIndex, "JSZip, docx-preview dosyasindan once yuklenmelidir.");
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

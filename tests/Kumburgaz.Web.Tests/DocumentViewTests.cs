@@ -35,6 +35,19 @@ public class DocumentViewTests
         Assert.True(docxPreviewIndex > jsZipIndex, "JSZip, docx-preview dosyasindan once yuklenmelidir.");
     }
 
+    [Fact]
+    public void Pdf_preview_uses_an_a4_like_desktop_aspect_ratio()
+    {
+        var css = File.ReadAllText(Path.Combine(
+            FindProjectRoot(),
+            "wwwroot",
+            "css",
+            "document-preview.css"));
+
+        Assert.Contains(".document-preview-pdf { width:100%; aspect-ratio:210 / 297;", css);
+        Assert.DoesNotContain(".document-preview-pdf { width:100%; height:480px;", css);
+    }
+
     private static string FindProjectRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

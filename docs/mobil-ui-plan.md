@@ -320,19 +320,31 @@ Dogrulama notlari (uctan uca, gercek sunucuya karsi):
 
 ### Asama 5: Web Push
 
-Durum: Baslamadi.
+Durum: Tamamlandi.
 
 Kapsam:
 
-- Migration: PushSubscription tablosu.
-- `Lib.Net.Http.WebPush`, VAPID env konfigurasyonu, abone ol/cik endpoint'leri, `sw.js` push handler'lari, `PushDispatchHostedService`.
-- Duyuru yayininda fan-out (bildirim + push).
+- Migration: PushSubscription tablosu (`UserId`, `Endpoint` unique, `P256dh`, `Auth`, `UserAgent`, `CreatedAt`, `FailCount`; Notification ile ayni sebeple soft referans, FK yok).
+- `Lib.Net.Http.WebPush` paketi (3.3.1), `PushSenderService` (VAPID `Push:Subject/PublicKey/PrivateKey` config; ucu bos ise `Enabled=false`, gonderim sessizce atlanir).
+- `PushQueue` (unbounded `Channel<PushJob>`) + `PushDispatchHostedService` (arka planda tuketir, istegi bekletmez; 404/410 donen abonelik otomatik silinir).
+- `NotificationService.NotifyAsync` her cagride push isini kuyruga ekler (best-effort; kuyruk/gonderim hatasi DB bildirimini etkilemez).
+- `/m/Bildirimler/Abone` (POST, form-encoded: endpoint/p256dh/auth) ve `/m/Bildirimler/AbonelikSil` (POST, endpoint) uc noktalari; `wwwroot/js/mobile-push.js` (sadece Bildirimler sayfasinda yuklenir) `Notification.requestPermission()` + `pushManager.subscribe()` + form POST akisini yonetir.
+- `wwwroot/sw.js` icinde `push` (payload JSON: title/body/url) ve `notificationclick` (ilgili pencereyi odaklar veya yeni pencere acar) handler'lari.
+- Duyuru yayininda fan-out: `AnnouncementsController` artik `UserManager` + `NotificationService` enjekte eder; `Create` (IsPublished=true) ve `Edit` (yayinlanmamis -> yayinlanmis gecisi) tum kayitli kullanicilara (Sakin dahil) Duyuru tipi bildirim + push gonderir. Ayni duyuru tekrar duzenlenirse (zaten yayinda ise) yeniden bildirim GONDERILMEZ.
+- Coolify env degiskenleri: `Push__Subject` (`mailto:...`), `Push__PublicKey`, `Push__PrivateKey` (VAPID anahtar cifti; appsettings.json'da bos deger, private key asla dosyaya yazilmaz).
 
 Kabul kriterleri:
 
 - Android Chrome'da izin veren kullanici, uygulama kapaliyken talep atamasinda sistem bildirimi alir.
 - iOS 16.4+ ana ekran kurulumuyla calisir.
 - Anahtar tanimsizsa uygulama hatasiz calisir (yalniz zil); 410 donen abonelik otomatik silinir.
+
+Dogrulama notlari (uctan uca, gercek sunucuya karsi, test VAPID anahti uretilerek):
+
+- Headless Edge (CDP) ile `Browser.grantPermissions` kullanilarak bildirim izni programatik verildi, `/m/Bildirimler` sayfasinda "Anlık bildirimleri aç" butonuna GERCEK mouse tiklamasiyla tiklandi; `pushManager.subscribe()` GERCEK bir WNS (Windows Notification Service) endpoint'i uretti ve bu `/m/Bildirimler/Abone` uzerinden `PushSubscriptions` tablosuna dogru kullanici ID'siyle kaydedildi.
+- Ayni tarayici oturumu icinde (abonelik acikken) `Requests/Create` ile talep atamasi tetiklendi; `PushDispatchHostedService` kuyruktan isi aldi, VAPID ile imzali GERCEK bir push mesaji WNS'e gonderdi ve servis calisani (`sw.js`) `push` olayini alip `showNotification()` cagirdi — tarayicida `reg.getNotifications()` ile dogrulanan bildirim, atama basligi ve aciklamasiyla birebir eslesti (ekran goruntusu: `push_realtime.png`). Bu, ucu ucuna gercek bir push teslimati kanitidir (mock/simulasyon degil).
+- Duyuru yayini: yeni duyuru `IsPublished=true` ile olusturulunca 4 kayitli kullanicinin (1 yonetici + 3 Sakin) hepsine Duyuru tipi bildirim gitti. Taslak (`IsPublished=false`) olusturulan duyuru bildirim GONDERMEDI; ayni duyuru sonradan yayina alininca (false->true gecisi) bildirim gonderildi; zaten yayinda olan duyuru tekrar duzenlenince YENIDEN bildirim gonderilmedi (spam onlendi).
+- Abonelik silme (`AbonelikSil`) dogru `Endpoint` ile eslesen kaydi sildi; farkli bir `pushManager.subscribe()` cagrisi WNS'den farkli bir endpoint uretebiliyor (ayni cihaz/tarayicida bile), bu yuzden coklu abonelik satiri normal bir durum.
 
 ### Asama 6: Raporlar, Kasa-Banka ve cila
 

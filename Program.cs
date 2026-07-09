@@ -82,11 +82,14 @@ builder.Services.AddScoped<SakinAreaRestrictionFilter>();
 builder.Services.AddScoped<ImageAttachmentService>();
 builder.Services.AddScoped<MahsupService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<PushSenderService>();
+builder.Services.AddSingleton<PushQueue>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
 builder.Services.AddScoped<CollectionAllocationRepairService>();
 builder.Services.AddHostedService<BackupHostedService>();
 builder.Services.AddHostedService<ConsistencyCheckHostedService>();
+builder.Services.AddHostedService<PushDispatchHostedService>();
 
 builder.Services.AddControllersWithViews(options =>
 {

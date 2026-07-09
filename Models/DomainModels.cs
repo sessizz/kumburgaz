@@ -809,6 +809,36 @@ public class Notification
     public DateTime? ReadAt { get; set; }
 }
 
+/// <summary>
+/// Tarayici Push API aboneligi (Asama 5). AspNetUsers'a Notification ile ayni sebeple soft referans.
+/// Ayni cihaz/tarayici birden fazla kullanici tarafindan kullanilabildigi icin UserId son abone olan
+/// kullaniciya gore guncellenir (Endpoint benzersizdir).
+/// </summary>
+public class PushSubscription
+{
+    public int Id { get; set; }
+
+    [Required, MaxLength(450)]
+    public string UserId { get; set; } = string.Empty;
+
+    [Required, MaxLength(500)]
+    public string Endpoint { get; set; } = string.Empty;
+
+    [Required, MaxLength(200)]
+    public string P256dh { get; set; } = string.Empty;
+
+    [Required, MaxLength(200)]
+    public string Auth { get; set; } = string.Empty;
+
+    [MaxLength(300)]
+    public string? UserAgent { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Gonderim 404/410 donerse artar; servis bu kaydi otomatik siler.</summary>
+    public int FailCount { get; set; }
+}
+
 public class DocumentRecord
 {
     public int Id { get; set; }

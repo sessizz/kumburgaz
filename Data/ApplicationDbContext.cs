@@ -35,6 +35,7 @@ public class ApplicationDbContext(
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<MahsupIslem> MahsupIslemleri => Set<MahsupIslem>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<ServiceRequest> ServiceRequests => Set<ServiceRequest>();
     public DbSet<DocumentRecord> DocumentRecords => Set<DocumentRecord>();
@@ -321,6 +322,13 @@ public class ApplicationDbContext(
         // sakin/personel kullanicisi silinirse bildirim gecmisi hata vermeden kalir.
         builder.Entity<Notification>()
             .HasIndex(x => new { x.RecipientUserId, x.ReadAt });
+
+        // PushSubscription: Notification ile ayni sebeple soft referans (FK yok).
+        builder.Entity<PushSubscription>()
+            .HasIndex(x => x.Endpoint)
+            .IsUnique();
+        builder.Entity<PushSubscription>()
+            .HasIndex(x => x.UserId);
 
         builder.Entity<RolePermission>()
             .HasIndex(x => new { x.RoleName, x.Module })

@@ -1,14 +1,19 @@
 using System.Security.Claims;
+using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Areas.Mobile.Controllers;
 
 [Area("Mobile")]
 [Authorize]
-public class BildirimlerController(NotificationService notificationService) : Controller
+public class BildirimlerController(
+    NotificationService notificationService,
+    PushSenderService pushSender,
+    ApplicationDbContext db) : Controller
 {
     private string? CurrentUserId => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -21,6 +26,8 @@ public class BildirimlerController(NotificationService notificationService) : Co
         }
 
         var rows = await notificationService.GetForUserAsync(userId);
+        ViewBag.PushEnabled = pushSender.Enabled;
+        ViewBag.PushPublicKey = pushSender.PublicKey;
         return View(rows.Select(x => new MobileNotificationRow
         {
             Id = x.Id,
@@ -31,6 +38,60 @@ public class BildirimlerController(NotificationService notificationService) : Co
             CreatedAt = x.CreatedAt,
             IsRead = x.ReadAt.HasValue
         }).ToList());
+    }
+
+    // Tarayici Push API aboneligini kaydeder/gunceller (Anlik bildirimleri ac butonu).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Abone(string endpoint, string p256dh, string auth)
+    {
+        var userId = CurrentUserId;
+        if (userId is null || string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(p256dh) || string.IsNullOrWhiteSpace(auth))
+        {
+            return BadRequest();
+        }
+
+        var existing = await db.PushSubscriptions.FirstOrDefaultAsync(x => x.Endpoint == endpoint);
+        if (existing is null)
+        {
+            db.PushSubscriptions.Add(new Models.PushSubscription
+            {
+                UserId = userId,
+                Endpoint = endpoint,
+                P256dh = p256dh,
+                Auth = auth,
+                UserAgent = Request.Headers.UserAgent.ToString()
+            });
+        }
+        else
+        {
+            existing.UserId = userId;
+            existing.P256dh = p256dh;
+            existing.Auth = auth;
+            existing.UserAgent = Request.Headers.UserAgent.ToString();
+            existing.FailCount = 0;
+        }
+
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    // Push aboneligini kaldirir (kullanici anlik bildirimleri kapatinca).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AbonelikSil(string endpoint)
+    {
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            var existing = await db.PushSubscriptions.FirstOrDefaultAsync(x => x.Endpoint == endpoint);
+            if (existing is not null)
+            {
+                db.PushSubscriptions.Remove(existing);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        return Ok();
     }
 
     // Zil rozeti icin JSON polling ucnoktasi (60 sn'de bir cagrilir).

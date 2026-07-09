@@ -1,5 +1,5 @@
-/* Kumburgaz PWA service worker - Asama 1
-   Yalnizca statik varlik onbellegi + cevrimdisi sayfasi. Push ilerleyen asamada eklenecek.
+/* Kumburgaz PWA service worker
+   Statik varlik onbellegi + cevrimdisi sayfasi + Web Push (Asama 5).
    Kural: HTML/auth'lu yanitlar ASLA onbellege yazilmaz. */
 
 const STATIC_CACHE = 'kumburgaz-static-v1';
@@ -70,4 +70,41 @@ self.addEventListener('fetch', (event) => {
     }
 
     // Diger GET: dogrudan agdan.
+});
+
+self.addEventListener('push', (event) => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        data = {};
+    }
+
+    const title = data.title || 'Kumburgaz';
+    const options = {
+        body: data.body || '',
+        icon: '/img/icons/icon-192.png',
+        badge: '/img/icons/icon-192.png',
+        data: { url: data.url || '/m' }
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const url = (event.notification.data && event.notification.data.url) || '/m';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            for (const client of clientList) {
+                if (client.url.includes(url) && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(url);
+            }
+        })
+    );
 });

@@ -6,9 +6,10 @@ namespace Kumburgaz.Web.Services;
 
 /// <summary>
 /// Kullaniciya ozel bildirim olusturma/okuma. Zil ikonu bu servis uzerinden calisir.
-/// Push gonderimi (Asama 5) ayrica ve best-effort eklenecek; burada yalnizca DB kaydi tutulur.
+/// Push gonderimi best-effort: DB kaydi her zaman yazilir, push kuyruga sadece eklenir
+/// (kuyruk/istemci hatasi bildirimi engellemez, isteği bekletmez).
 /// </summary>
-public sealed class NotificationService(ApplicationDbContext db)
+public sealed class NotificationService(ApplicationDbContext db, PushQueue pushQueue)
 {
     public async Task NotifyAsync(string recipientUserId, NotificationType type, string title, string? body, string? linkUrl)
     {
@@ -27,6 +28,7 @@ public sealed class NotificationService(ApplicationDbContext db)
         });
 
         await db.SaveChangesAsync();
+        pushQueue.Enqueue(new PushJob(recipientUserId, title, body, linkUrl));
     }
 
     public Task<int> GetUnreadCountAsync(string userId)

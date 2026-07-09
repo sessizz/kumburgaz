@@ -1,0 +1,13 @@
+@model Announcement
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["MobileBack"] = Url.Action("Index", "Duyurular", new { area = "Mobile" });
+}
+
+<div class="m-card">
+    <div class="m-li-sub" style="margin-bottom:6px;">
+        @Model.PublishDate.ToString("dd.MM.yyyy")@(Model.Priority != "Normal" ? " · " + Model.Priority : "")
+    </div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:10px;">@Model.Title</div>
+    <div style="font-size:14.5px;line-height:1.6;white-space:pre-line;">@Model.Body</div>
+</div>

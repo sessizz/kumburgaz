@@ -75,6 +75,7 @@ public class RequestsController(ApplicationDbContext db) : Controller
         entity.Status = model.Status;
         entity.Priority = model.Priority;
         entity.AssignedTo = model.AssignedTo;
+        entity.IsVisibleToResidents = model.IsVisibleToResidents;
         entity.CreatedAt = DateTime.SpecifyKind(model.CreatedAt, DateTimeKind.Utc);
         entity.DueDate = model.DueDate.HasValue ? DateTime.SpecifyKind(model.DueDate.Value, DateTimeKind.Utc) : null;
         entity.ResolvedAt = model.Status is ServiceRequestStatus.Resolved or ServiceRequestStatus.Closed

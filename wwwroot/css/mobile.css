@@ -27,7 +27,10 @@ html, body {
     -webkit-tap-highlight-color: transparent;
 }
 
-.m-app { min-height: 100vh; }
+.m-app { min-height: 100vh; display: flex; flex-direction: column; }
+.m-topbar { order: 0; }
+.m-bottomnav { order: 1; }
+.m-main { order: 2; }
 
 /* Ust cubuk */
 .m-topbar {
@@ -334,6 +337,51 @@ html, body {
 .m-nav-item.active { color: var(--m-primary); }
 .m-nav-item.is-disabled { color: #cbd5e1; pointer-events: none; }
 .m-nav-item svg { width: 24px; height: 24px; }
+
+/* Genis ekran (tablet/masaustu): Sakin dahil herkes /m'i dar telefon goruntusu yerine
+   normal bir web sayfasi gibi kullanabilsin. Alt sekme cubugu sabitten cikip
+   ust cubugun altina yatay bir menuye donusur; icerik genisligi artar. */
+@media (min-width: 760px) {
+    .m-main {
+        max-width: 960px;
+        padding: 20px 24px 28px;
+    }
+
+    .m-bottomnav {
+        position: static;
+        height: auto;
+        padding-bottom: 0;
+        border-top: none;
+        border-bottom: 1px solid var(--m-border);
+        box-shadow: 0 1px 4px -2px rgba(15, 23, 42, .12);
+        justify-content: center;
+        gap: 4px;
+        padding: 0 16px;
+    }
+
+    .m-nav-item {
+        flex: none;
+        flex-direction: row;
+        gap: 8px;
+        padding: 14px 18px;
+        font-size: 13px;
+    }
+    .m-nav-item svg { width: 20px; height: 20px; }
+    .m-nav-item.active { position: relative; }
+    .m-nav-item.active::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        bottom: 0;
+        height: 2px;
+        background: var(--m-primary);
+        border-radius: 2px 2px 0 0;
+    }
+
+    .m-stat-grid { grid-template-columns: repeat(4, 1fr); }
+    .m-filter-tabs { grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: start; }
+}
 
 /* Yardimci */
 .text-muted-m { color: var(--m-muted); }

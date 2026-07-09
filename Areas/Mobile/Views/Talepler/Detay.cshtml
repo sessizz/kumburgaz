@@ -1,0 +1,67 @@
+@model ServiceRequest
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["MobileBack"] = Url.Action("Index", "Talepler", new { area = "Mobile" });
+
+    var unitLabel = Model.Unit is null ? "Ortak alan / genel" : (Model.Unit.Block is null ? Model.Unit.UnitNo : $"{Model.Unit.Block.Name}-{Model.Unit.UnitNo}");
+
+    string StatusLabel(ServiceRequestStatus s) => s switch
+    {
+        ServiceRequestStatus.Open => "Açık",
+        ServiceRequestStatus.InProgress => "İşlemde",
+        ServiceRequestStatus.Resolved => "Çözüldü",
+        ServiceRequestStatus.Closed => "Kapalı",
+        _ => s.ToString()
+    };
+    string PriorityLabel(ServiceRequestPriority p) => p switch
+    {
+        ServiceRequestPriority.Low => "Düşük",
+        ServiceRequestPriority.Normal => "Normal",
+        ServiceRequestPriority.High => "Yüksek",
+        ServiceRequestPriority.Urgent => "Acil",
+        _ => p.ToString()
+    };
+    string StatusCls(ServiceRequestStatus s) => s switch
+    {
+        ServiceRequestStatus.Open => "debt",
+        ServiceRequestStatus.InProgress => "zero",
+        _ => "credit"
+    };
+}
+
+<div class="m-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
+        <div style="font-size:16px;font-weight:700;">@Model.Title</div>
+        <span class="m-bal @StatusCls(Model.Status)">@StatusLabel(Model.Status)</span>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <div style="font-size:14.5px;line-height:1.6;white-space:pre-line;margin-bottom:10px;">@Model.Description</div>
+    }
+    <div class="m-row" style="padding-top:0;">
+        <div class="m-row-main"><div class="m-row-title">Daire</div></div>
+        <div class="m-row-sub">@unitLabel</div>
+    </div>
+    <div class="m-row">
+        <div class="m-row-main"><div class="m-row-title">Öncelik</div></div>
+        <div class="m-row-sub">@PriorityLabel(Model.Priority)</div>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Model.AssignedTo))
+    {
+        <div class="m-row">
+            <div class="m-row-main"><div class="m-row-title">Atanan</div></div>
+            <div class="m-row-sub">@Model.AssignedTo</div>
+        </div>
+    }
+    <div class="m-row">
+        <div class="m-row-main"><div class="m-row-title">Oluşturma</div></div>
+        <div class="m-row-sub">@Model.CreatedAt.ToString("dd.MM.yyyy")</div>
+    </div>
+    @if (Model.DueDate.HasValue)
+    {
+        <div class="m-row">
+            <div class="m-row-main"><div class="m-row-title">Hedef tarih</div></div>
+            <div class="m-row-sub">@Model.DueDate.Value.ToString("dd.MM.yyyy")</div>
+        </div>
+    }
+</div>

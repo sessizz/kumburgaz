@@ -31,6 +31,20 @@ public class ReportsController(
         return View(rows);
     }
 
+    // Tek hesabın paylaşılabilir giriş bilgisi (kullanıcı adı + PIN). Sakine iletmek için.
+    [Authorize(Policy = AppPolicies.SystemAdmin)]
+    public async Task<IActionResult> LoginCredentialDetail(int id)
+    {
+        var rows = await residentAccountService.GetCredentialsAsync();
+        var row = rows.FirstOrDefault(x => x.AccountId == id);
+        if (row is null)
+        {
+            return NotFound();
+        }
+
+        return View(row);
+    }
+
     [Authorize(Policy = AppPolicies.SystemAdmin)]
     public async Task<IActionResult> LoginCredentialsExcel()
     {

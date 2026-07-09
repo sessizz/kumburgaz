@@ -19,6 +19,13 @@
             <fieldset class="fieldset"><legend class="fieldset-legend">Oluşturma Tarihi</legend><input asp-for="CreatedAt" type="date" class="input input-bordered w-full" /></fieldset>
             <fieldset class="fieldset"><legend class="fieldset-legend">Hedef Tarih</legend><input asp-for="DueDate" type="date" class="input input-bordered w-full" /></fieldset>
         </div>
+        <label class="flex items-center gap-3 cursor-pointer bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <input asp-for="IsVisibleToResidents" type="checkbox" class="toggle toggle-primary" />
+            <span>
+                <span class="font-semibold">Sakinlere görünür</span>
+                <span class="block text-sm text-gray-500">İşaretlenirse daire sahibi/kiracı mobil uygulamada bu talebi görebilir. İşaretlenmezse yalnızca yetkili roller görür.</span>
+            </span>
+        </label>
         <div class="flex justify-end gap-2"><a class="btn btn-ghost" asp-action="Index">Vazgeç</a><button class="btn btn-primary"><span class="material-symbols-outlined ms-sm">save</span>Kaydet</button></div>
     </form>
 </div>

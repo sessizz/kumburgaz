@@ -1,5 +1,6 @@
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
+using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -12,8 +13,30 @@ namespace Kumburgaz.Web.Controllers;
 public class SystemUsersController(
     ApplicationDbContext db,
     UserManager<ApplicationUser> userManager,
-    RoleManager<IdentityRole> roleManager) : Controller
+    RoleManager<IdentityRole> roleManager,
+    ResidentAccountService residentAccountService) : Controller
 {
+    // Bir hesabın bağlı kullanıcısı kalmadıysa ve Malik/Kiracı ise mobil giriş (PIN) oluşturur.
+    private async Task EnsureResidentLoginIfOrphanedAsync(int? accountId)
+    {
+        if (accountId is null)
+        {
+            return;
+        }
+
+        var stillLinked = await db.Users.AnyAsync(x => x.AccountId == accountId.Value);
+        if (stillLinked)
+        {
+            return;
+        }
+
+        var account = await db.Accounts.FirstOrDefaultAsync(x => x.Id == accountId.Value);
+        if (account is not null)
+        {
+            await residentAccountService.EnsureLoginAsync(account);
+        }
+    }
+
     public async Task<IActionResult> Index()
     {
         var users = await userManager.Users
@@ -138,6 +161,7 @@ public class SystemUsersController(
             return NotFound();
         }
 
+        var previousAccountId = user.AccountId;
         var email = string.IsNullOrWhiteSpace(model.Email) ? null : model.Email.Trim();
         user.UserName = model.UserName.Trim();
         user.Email = email;
@@ -151,6 +175,12 @@ public class SystemUsersController(
         {
             AddIdentityErrors(updateResult);
             return View(await BuildFormAsync(model));
+        }
+
+        // Hesap bağı değiştiyse, bağı kesilen eski hesap Malik/Kiracı ise ona otomatik mobil PIN oluştur.
+        if (previousAccountId != model.AccountId)
+        {
+            await EnsureResidentLoginIfOrphanedAsync(previousAccountId);
         }
 
         if (!string.IsNullOrWhiteSpace(model.Password))

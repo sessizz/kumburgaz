@@ -1,0 +1,60 @@
+@model List<ServiceRequest>
+@{
+    ViewData["Title"] = "Talepler";
+    var isResident = (bool)(ViewBag.IsResident ?? false);
+
+    string StatusLabel(ServiceRequestStatus s) => s switch
+    {
+        ServiceRequestStatus.Open => "Açık",
+        ServiceRequestStatus.InProgress => "İşlemde",
+        ServiceRequestStatus.Resolved => "Çözüldü",
+        ServiceRequestStatus.Closed => "Kapalı",
+        _ => s.ToString()
+    };
+    string StatusCls(ServiceRequestStatus s) => s switch
+    {
+        ServiceRequestStatus.Open => "debt",
+        ServiceRequestStatus.InProgress => "zero",
+        _ => "credit"
+    };
+}
+
+@if (TempData["MobileSuccess"] is string ok)
+{
+    <div class="m-note" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857;">@ok</div>
+}
+
+<a asp-area="Mobile" asp-controller="Talepler" asp-action="Yeni"
+   style="display:flex;align-items:center;justify-content:center;gap:8px;height:46px;background:var(--m-primary);color:#fff;border-radius:12px;font-weight:700;text-decoration:none;margin-bottom:14px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+    Yeni Talep
+</a>
+
+@if (Model.Count == 0)
+{
+    <div class="m-empty">
+        <div class="m-empty-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+        </div>
+        <div>Kayıtlı talep yok.</div>
+    </div>
+}
+else
+{
+    <div class="m-list">
+        @foreach (var t in Model)
+        {
+            var unitLabel = t.Unit is null ? "Ortak alan" : (t.Unit.Block is null ? t.Unit.UnitNo : $"{t.Unit.Block.Name}-{t.Unit.UnitNo}");
+            <a class="m-list-item" asp-area="Mobile" asp-controller="Talepler" asp-action="Detay" asp-route-id="@t.Id">
+                <div class="m-li-main">
+                    <div class="m-li-title">@t.Title</div>
+                    <div class="m-li-sub">@unitLabel · @t.CreatedAt.ToString("dd.MM.yyyy")</div>
+                </div>
+                <span class="m-bal @StatusCls(t.Status)">@StatusLabel(t.Status)</span>
+                <span class="m-li-chev">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                </span>
+            </a>
+        }
+    </div>
+}

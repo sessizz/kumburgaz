@@ -690,6 +690,12 @@ public class ServiceRequest
     [MaxLength(120)]
     public string? AssignedTo { get; set; }
 
+    /// <summary>
+    /// True ise talep Sakinler tarafından da görülebilir (mobil uygulamada listelenir).
+    /// False ise yalnızca yetkili rollere görünür. Sakinin kendi açtığı talepler otomatik görünür.
+    /// </summary>
+    public bool IsVisibleToResidents { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DueDate { get; set; }
     public DateTime? ResolvedAt { get; set; }

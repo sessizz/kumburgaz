@@ -74,10 +74,10 @@ else
         <div class="m-list">
             @foreach (var a in Model.RecentAnnouncements)
             {
-                <div class="m-list-item" style="display:block;">
+                <a class="m-list-item" style="display:block;" asp-area="Mobile" asp-controller="Duyurular" asp-action="Detay" asp-route-id="@a.Id">
                     <div class="m-li-title">@a.Title</div>
                     <div class="m-li-sub" style="white-space:normal;">@a.PublishDate.ToString("dd.MM.yyyy")</div>
-                </div>
+                </a>
             }
         </div>
     }

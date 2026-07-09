@@ -3,6 +3,25 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Kumburgaz.Web.Models;
 
+// Mobil yeni talep formu.
+public class MobileTalepFormViewModel
+{
+    [Required(ErrorMessage = "Başlık zorunludur.")]
+    [MaxLength(140)]
+    public string Title { get; set; } = string.Empty;
+
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    public int? UnitId { get; set; }
+
+    // Yalnızca yetkili (Sakin olmayan) kullanıcıya gösterilir; Sakinde her zaman görünür işaretlenir.
+    public bool IsVisibleToResidents { get; set; } = true;
+
+    public List<SelectListItem> UnitOptions { get; set; } = [];
+    public bool IsResident { get; set; }
+}
+
 // Sakinin kendi PIN'ini degistirmesi.
 public class MobileChangePasswordViewModel
 {

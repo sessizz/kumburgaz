@@ -383,7 +383,9 @@ html, body {
     .m-filter-tabs { grid-template-columns: repeat(4, minmax(0, 220px)); justify-content: start; }
 }
 
-/* Fotograf lightbox (paylasilan, tum mobil sayfalarda openLightbox(url) ile kullanilir) */
+/* Fotograf lightbox (paylasilan, tum mobil sayfalarda openLightbox(url) ile kullanilir).
+   display yalnizca [open] iken flex olmali; yoksa kapali dialog da (varsayilan UA
+   display:none kuralini ezerek) sayfanin altinda gorunur kalir. */
 .m-lightbox {
     border: none;
     padding: 0;
@@ -393,6 +395,8 @@ html, body {
     width: 100vw;
     height: 100vh;
     background: transparent;
+}
+.m-lightbox[open] {
     display: flex;
     align-items: center;
     justify-content: center;

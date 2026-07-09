@@ -3,7 +3,7 @@
     var isEdit = Model.Id > 0;
 }
 <div class="max-w-3xl">
-    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <form method="post" enctype="multipart/form-data" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
         @Html.AntiForgeryToken()
         <input asp-for="Id" type="hidden" />
         <div class="flex items-center justify-between"><h1 class="text-2xl font-extrabold text-gray-900">@(isEdit ? "Belge Düzenle" : "Yeni Belge")</h1><a class="btn btn-ghost btn-sm" asp-action="Index">Geri</a></div>
@@ -13,7 +13,13 @@
             <fieldset class="fieldset"><legend class="fieldset-legend">Kategori</legend><input asp-for="Category" class="input input-bordered w-full" /></fieldset>
             <fieldset class="fieldset"><legend class="fieldset-legend">Belge Tarihi</legend><input asp-for="DocumentDate" type="date" class="input input-bordered w-full" /></fieldset>
         </div>
-        <fieldset class="fieldset"><legend class="fieldset-legend">Dosya / URL</legend><input asp-for="Url" class="input input-bordered w-full" placeholder="https://..." /></fieldset>
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Dosyalar</legend>
+            <input type="file" name="files" multiple
+                   accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.xlsx,.xls,.csv,.txt"
+                   class="file-input file-input-bordered w-full" />
+            <div class="text-xs text-gray-500 mt-2">Birden fazla dosya seçebilirsiniz. Her dosya en fazla 25 MB olabilir.</div>
+        </fieldset>
         <fieldset class="fieldset"><legend class="fieldset-legend">Not</legend><textarea asp-for="Note" class="textarea textarea-bordered w-full min-h-28"></textarea></fieldset>
         <div class="flex justify-end gap-2"><a class="btn btn-ghost" asp-action="Index">Vazgeç</a><button class="btn btn-primary"><span class="material-symbols-outlined ms-sm">save</span>Kaydet</button></div>
     </form>

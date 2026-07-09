@@ -9,15 +9,15 @@
     @if (TempData["ActionError"] is string error) { <div class="alert alert-error"><span class="material-symbols-outlined">error</span><span>@error</span></div> }
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table class="table table-zebra">
-            <thead><tr><th>Belge</th><th>Kategori</th><th>Tarih</th><th>Bağlantı</th><th class="text-end">İşlem</th></tr></thead>
+            <thead><tr><th>Belge</th><th>Kategori</th><th>Tarih</th><th>Dosyalar</th><th class="text-end">İşlem</th></tr></thead>
             <tbody>
             @foreach (var item in Model)
             {
                 <tr>
-                    <td><div class="font-semibold">@item.Title</div><div class="text-xs text-gray-500 line-clamp-1">@item.Note</div></td>
+                    <td><a class="font-semibold link link-hover" asp-action="Details" asp-route-id="@item.Id">@item.Title</a><div class="text-xs text-gray-500 line-clamp-1">@item.Note</div></td>
                     <td><span class="pill pill-info">@item.Category</span></td>
                     <td>@item.DocumentDate.ToString("dd.MM.yyyy")</td>
-                    <td>@if (!string.IsNullOrWhiteSpace(item.Url)) { <a class="link link-primary" href="@item.Url" target="_blank">Aç</a> } else { <span class="text-gray-300">—</span> }</td>
+                    <td><a class="btn btn-xs btn-outline" asp-action="Details" asp-route-id="@item.Id"><span class="material-symbols-outlined ms-sm">folder_open</span>Detay</a></td>
                     <td><div class="flex justify-end gap-1"><a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id"><span class="material-symbols-outlined ms-sm">edit</span></a><form method="post" asp-action="Delete" asp-route-id="@item.Id" onsubmit="return confirm('Bu belge silinsin mi?');">@Html.AntiForgeryToken()<button class="btn btn-xs btn-ghost text-error"><span class="material-symbols-outlined ms-sm">delete</span></button></form></div></td>
                 </tr>
             }

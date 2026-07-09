@@ -1,0 +1,15 @@
+.document-detail-grid { display:grid; grid-template-columns:minmax(280px, .85fr) minmax(0, 1.5fr); gap:16px; align-items:start; }
+.document-preview { min-height:520px; background:#f8fafc; padding:16px; overflow:auto; }
+.document-preview-empty, .document-preview-message { min-height:460px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#64748b; font-size:14px; text-align:center; }
+.document-preview-empty .material-symbols-outlined { font-size:40px; color:#94a3b8; }
+.document-preview-image { display:block; max-width:100%; height:auto; margin:auto; }
+.document-preview-pdf { width:100%; height:480px; border:0; background:#fff; }
+.document-preview-text { white-space:pre-wrap; word-break:break-word; font:13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color:#1e293b; margin:0; }
+.document-preview-sheet-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.document-preview-sheet-tabs button { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:4px; padding:4px 8px; font-size:12px; }
+.document-preview-sheet-tabs button.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+.document-preview-table { width:100%; border-collapse:collapse; background:#fff; font-size:12px; }
+.document-preview-table td { border:1px solid #e2e8f0; padding:6px 8px; vertical-align:top; white-space:pre-wrap; }
+.docx-wrapper { background:#e2e8f0; padding:16px 0; }
+.docx-wrapper > section.docx { margin:0 auto 16px; box-shadow:0 1px 4px rgba(15,23,42,.18); }
+@media (max-width: 900px) { .document-detail-grid { grid-template-columns:1fr; } .document-preview { min-height:360px; } .document-preview-pdf { height:420px; } }

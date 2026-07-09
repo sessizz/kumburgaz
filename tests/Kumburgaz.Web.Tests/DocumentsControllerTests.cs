@@ -115,6 +115,51 @@ public class DocumentsControllerTests
     }
 
     [Fact]
+    public async Task Edit_adds_new_files_without_removing_existing_document_attachments()
+    {
+        await using var db = CreateDb();
+        var document = new DocumentRecord { Title = "Tutanak", Category = "Genel", DocumentDate = new DateTime(2026, 7, 9) };
+        db.DocumentRecords.Add(document);
+        await db.SaveChangesAsync();
+        db.Attachments.Add(new Attachment
+        {
+            EntityType = nameof(DocumentRecord),
+            EntityId = document.Id,
+            FileName = "eski.pdf",
+            ContentType = "application/pdf",
+            Content = [1],
+            ByteSize = 1
+        });
+        await db.SaveChangesAsync();
+
+        await CreateController(db).Edit(document, [CreateFile("yeni.png", "image/png", [2, 3])]);
+
+        var attachments = await db.Attachments.OrderBy(x => x.FileName).ToListAsync();
+        Assert.Equal(["eski.pdf", "yeni.png"], attachments.Select(x => x.FileName));
+        Assert.Equal(new byte[] { 2, 3 }, attachments.Single(x => x.FileName == "yeni.png").Content);
+    }
+
+    [Fact]
+    public async Task DeleteAttachment_soft_deletes_only_the_selected_document_attachment()
+    {
+        await using var db = CreateDb();
+        var document = new DocumentRecord { Title = "Tutanak", Category = "Genel" };
+        db.DocumentRecords.Add(document);
+        await db.SaveChangesAsync();
+        var selected = new Attachment { EntityType = nameof(DocumentRecord), EntityId = document.Id, FileName = "sil.pdf", ContentType = "application/pdf", Content = [1], ByteSize = 1 };
+        var remaining = new Attachment { EntityType = nameof(DocumentRecord), EntityId = document.Id, FileName = "kal.pdf", ContentType = "application/pdf", Content = [2], ByteSize = 1 };
+        db.Attachments.AddRange(selected, remaining);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db).DeleteAttachment(document.Id, selected.Id);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("kal.pdf", (await db.Attachments.SingleAsync()).FileName);
+        var deleted = await db.Attachments.IgnoreQueryFilters().SingleAsync(x => x.Id == selected.Id);
+        Assert.True(deleted.IsDeleted);
+    }
+
+    [Fact]
     public async Task Delete_hides_all_attachments_owned_by_the_document()
     {
         await using var db = CreateDb();

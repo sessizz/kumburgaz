@@ -239,3 +239,35 @@ public class MobileUnitDetailViewModel
     // Odemeler (tarih azalan)
     public List<StatementEntry> Collections { get; set; } = [];
 }
+
+// Asama 6: Mobil Raporlar ana ekrani (personel/yonetici; Sakin bu modulu goremez).
+public class MobileRaporlarViewModel
+{
+    public int DebtorCount { get; set; }
+    public decimal TotalDebt { get; set; }
+    public int CreditorCount { get; set; }
+    public decimal TotalCredit { get; set; }
+    public string SelectedMonth { get; set; } = string.Empty;   // "yyyy-MM"
+    public string SelectedMonthLabel { get; set; } = string.Empty;
+    public List<SelectListItem> MonthOptions { get; set; } = [];
+    public List<MobileCategoryAmount> CategoryExpenses { get; set; } = [];
+    public decimal CategoryExpenseTotal { get; set; }
+}
+
+// Asama 6: Mobil Kasa-Banka listesi ve detayi (personel/yonetici; Sakin bu modulu goremez).
+public class MobileKasaBankaListViewModel
+{
+    public List<CashBankListItemViewModel> Items { get; set; } = [];
+    public decimal TotalBalance => Items.Sum(x => x.Balance);
+}
+
+public class MobileKasaBankaDetayViewModel
+{
+    public string Kind { get; set; } = "cash";
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public decimal Balance { get; set; }
+    public decimal MonthInflow { get; set; }
+    public decimal MonthOutflow { get; set; }
+    public IReadOnlyList<TxDayGroup> Groups { get; set; } = [];
+}

@@ -348,7 +348,7 @@ Dogrulama notlari (uctan uca, gercek sunucuya karsi, test VAPID anahti uretilere
 
 ### Asama 6: Raporlar, Kasa-Banka ve cila
 
-Durum: Baslamadi.
+Durum: Tamamlandi.
 
 Kapsam:
 
@@ -360,6 +360,23 @@ Kabul kriterleri:
 
 - Rapor rakamlari masaustu raporlarla birebir.
 - Cevrimdisi acilista offline sayfasi gelir; testler yesil.
+
+Uygulama notlari:
+
+- `/m/Raporlar`: Borclular/Alacaklilar kartlari `/m/Daireler?status=debt|credit`'e link verir (ayri sorgu yazmak yerine mevcut, masaustuyle ayni kaynagi (`GetDuesDebtReportAsync`) kullanan Daireler ekranini yeniden kullanir). Kategori-filtreli gider tablosu icin yeni `Services/CategoryExpenseHelper.cs` cikarildi; hem Panel hem Raporlar ayni sorguyu kullanir (Panel ilk 3 kategoriyi, Raporlar tumunu gosterir).
+- `/m/KasaBanka`: yeni `Services/CashBankBalanceHelper.cs` masaustu `CashBankController.Index` ile mobilin AYNI bakiye hesaplamasini kullanmasini saglar (masaustu de bu helper'a tasindi, kod tekrari kalmadi). Detay sayfasi masaustunun `CashBankDetailService.BuildAsync` sonucunu (gunluk gruplanmis) dogrudan kullanir, salt okunur.
+- Alt sekme cubugundaki "Raporlar" sekmesi artik `AppModules.Raporlar` view yetkisine gore acik/kapali: Sakin'de devre disi placeholder olarak kalir (yetkisi yok), personelde gercek linke doner.
+- `/m/Yardim/Kurulum`: rol farki yok, Android/iOS "Ana Ekrana Ekle" adimlari + iOS 16.4+ push sarti anlatimi.
+- `wwwroot/sw.js` cache adi `v1` -> `v2` (versiyonlu cache disiplini).
+- Birim testleri (`tests/Kumburgaz.Web.Tests/`): `MobileScopeServiceTests` (Sakin/personel erisim ayrimi, sahiplik+ek-erisim birlesimi, aktif olmayan sahiplik yoksayilir), `MahsupServiceTests` (olusturma/silme, gecersiz tutar/kategori reddi, aidat borcunun dogru dusmesi/geri acilmasi), `ResidentAccountServiceTests` (giris olusturma, idempotentlik, PIN degisimi). Testler InMemory EF provider kullanir; `AccountUnitAccess`'in `!Account.IsDeleted && !Unit.IsDeleted` sorgu filtresi gercek `Account`/`Unit` satiri gerektirir, ve global `!IsDeleted` filtresi soft-delete sonrasi `FindAsync`'i de etkiler (kontrol icin `IgnoreQueryFilters()` gerekir) — ikisi de test yazarken gozden kacirilan noktalardi.
+
+Dogrulama notlari (uctan uca, gercek sunucuya karsi):
+
+- Raporlar rakamlari (Borclular 1 daire/1.200 TL, Alacaklilar 1 daire/500 TL, kategori giderleri) masaustu Panel ile birebir eslesti; ay secici degistirilince rakamlar dogru degisti.
+- "Borclular" karti tiklaninca `/m/Daireler?status=debt`'e gitti ve ayni daireyi (A-2, 1.200 TL borc) gosterdi.
+- Kasa-Banka toplam bakiyesi masaustu `/CashBank` sayfasindaki rakamla (ayni negatif deger dahil) birebir eslesti (ayni `CashBankBalanceHelper` kaynagi kullanildigi icin beklenen); detay sayfasinda gunluk gruplu hareketler dogru goruntulendi.
+- Sakin: `/m/Raporlar` ve `/m/KasaBanka`'ya dogrudan URL ile erisim 403 Forbidden döndü; Diger sayfasinda "Kasa-Banka" linki hic gorunmedi; alt sekme cubugunda "Raporlar" devre disi placeholder olarak kaldi.
+- `dotnet test`: 33/33 yesil.
 
 ## Riskler ve Acik Sorular
 

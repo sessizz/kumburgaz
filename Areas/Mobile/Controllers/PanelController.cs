@@ -36,8 +36,8 @@ public class PanelController(
         var debtReport = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery());
         var summary = DuesDebtSummaryHelper.Build(debtReport);
 
-        var monthExpenses = await ExpensesByCategoryAsync(monthStart, nextMonthStart);
-        var lastMonthExpenses = await ExpensesByCategoryAsync(lastMonthStart, monthStart);
+        var monthExpenses = await CategoryExpenseHelper.GetAsync(db, monthStart, nextMonthStart);
+        var lastMonthExpenses = await CategoryExpenseHelper.GetAsync(db, lastMonthStart, monthStart);
 
         var vm = new MobilePanelViewModel
         {
@@ -110,16 +110,4 @@ public class PanelController(
         };
     }
 
-    private async Task<List<MobileCategoryAmount>> ExpensesByCategoryAsync(DateTime start, DateTime end)
-    {
-        return await db.LedgerTransactions
-            .Where(x => !x.IsTransfer
-                && x.Date >= start && x.Date < end
-                && x.IncomeExpenseCategory != null
-                && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
-            .GroupBy(x => x.IncomeExpenseCategory!.Name)
-            .Select(g => new MobileCategoryAmount { Name = g.Key, Amount = g.Sum(t => t.Amount) })
-            .OrderByDescending(x => x.Amount)
-            .ToListAsync();
-    }
 }

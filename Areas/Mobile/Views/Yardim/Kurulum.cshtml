@@ -1,0 +1,36 @@
+@{
+    ViewData["Title"] = "Kurulum Yardımı";
+    ViewData["MobileBack"] = Url.Action("Diger", "Hesap", new { area = "Mobile" });
+}
+
+<div class="m-section-title">Ana Ekrana Ekle</div>
+<div class="m-card" style="margin-bottom:16px;">
+    <div style="font-weight:700;margin-bottom:6px;">Android (Chrome)</div>
+    <ol style="margin:0;padding-left:18px;font-size:14px;color:var(--m-muted);line-height:1.7;">
+        <li>Sağ üstteki ⋮ menüsüne dokunun.</li>
+        <li>"Ana ekrana ekle" seçeneğine dokunun.</li>
+        <li>Onaylayın — uygulama simgesi ana ekranınıza eklenir.</li>
+    </ol>
+</div>
+
+<div class="m-card" style="margin-bottom:16px;">
+    <div style="font-weight:700;margin-bottom:6px;">iPhone / iPad (Safari)</div>
+    <ol style="margin:0;padding-left:18px;font-size:14px;color:var(--m-muted);line-height:1.7;">
+        <li>Alt menüden <strong>Paylaş</strong> ikonuna dokunun.</li>
+        <li>"Ana Ekrana Ekle" seçeneğine kaydırıp dokunun.</li>
+        <li>Sağ üstten "Ekle" ile onaylayın.</li>
+    </ol>
+    <div class="m-row-sub" style="margin-top:10px;">
+        Anlık bildirimler yalnızca <strong>iOS 16.4</strong> ve üzerinde, uygulama ana ekrana eklendikten
+        sonra çalışır. Safari sekmesinde açıkken bildirim izni istenemez.
+    </div>
+</div>
+
+<div class="m-section-title">Anlık Bildirimler</div>
+<div class="m-card">
+    <div class="m-row-sub">
+        Uygulamayı ana ekranınıza ekledikten sonra giriş yaptığınızda size bildirimleri açmak
+        isteyip istemediğiniz sorulur. "Bildirimler" sayfasından istediğiniz zaman
+        açıp kapatabilirsiniz.
+    </div>
+</div>

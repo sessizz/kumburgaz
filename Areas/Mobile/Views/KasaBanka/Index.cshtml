@@ -1,0 +1,48 @@
+@model MobileKasaBankaListViewModel
+@{
+    ViewData["Title"] = "Kasa-Banka";
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+}
+
+<div class="m-stat-grid" style="grid-template-columns:1fr;margin-bottom:16px;">
+    <div class="m-stat">
+        <div class="m-stat-label">Toplam Bakiye</div>
+        <div class="m-stat-value mono-amt">@Tl(Model.TotalBalance)</div>
+    </div>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="m-empty">
+        <div>Kayıtlı kasa veya banka hesabı yok.</div>
+    </div>
+}
+else
+{
+    <div class="m-list">
+        @foreach (var item in Model.Items)
+        {
+            <a class="m-list-item" asp-area="Mobile" asp-controller="KasaBanka" asp-action="Detay" asp-route-kind="@item.Type" asp-route-id="@item.Id">
+                <span style="color:var(--m-muted);">
+                    @if (item.Type == "bank")
+                    {
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V10l7-6 7 6v11" /><path d="M9 21v-6h6v6" /></svg>
+                    }
+                    else
+                    {
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="2" /><circle cx="12" cy="13" r="2.5" /></svg>
+                    }
+                </span>
+                <div class="m-li-main">
+                    <div class="m-li-title">@item.Name</div>
+                    @if (!string.IsNullOrWhiteSpace(item.Detail))
+                    {
+                        <div class="m-li-sub">@item.Detail</div>
+                    }
+                </div>
+                <div class="m-row-amt @(item.Balance >= 0 ? "m-amt-credit" : "m-amt-debt")">@Tl(item.Balance)</div>
+            </a>
+        }
+    </div>
+}

@@ -1,0 +1,66 @@
+@model MobileRaporlarViewModel
+@{
+    ViewData["Title"] = "Raporlar";
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+}
+
+<div class="m-section-title">Aidat Durumu</div>
+<div class="m-list" style="margin-bottom:16px;">
+    <a class="m-list-item" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-status="debt">
+        <span style="color:var(--m-debt);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
+        </span>
+        <div class="m-li-main">
+            <div class="m-li-title">Borçlular</div>
+            <div class="m-li-sub">@Model.DebtorCount daire</div>
+        </div>
+        <div class="m-row-amt m-amt-debt">@Tl(Model.TotalDebt)</div>
+    </a>
+    <a class="m-list-item" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-status="credit">
+        <span style="color:var(--m-credit);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m19 15-5-5-4 4-3-3" /></svg>
+        </span>
+        <div class="m-li-main">
+            <div class="m-li-title">Alacaklılar</div>
+            <div class="m-li-sub">@Model.CreditorCount daire</div>
+        </div>
+        <div class="m-row-amt m-amt-credit">@Tl(Model.TotalCredit)</div>
+    </a>
+</div>
+
+<div class="m-section-title">Kategoriye Göre Giderler</div>
+<form method="get" asp-area="Mobile" asp-controller="Raporlar" asp-action="Index" style="margin-bottom:12px;">
+    <select name="ay" class="select select-bordered w-full" style="width:100%;height:44px;border:1px solid var(--m-border);border-radius:12px;padding:0 12px;font-size:15px;background:#fff;" onchange="this.form.submit()">
+        @foreach (var opt in Model.MonthOptions)
+        {
+            <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+        }
+    </select>
+</form>
+
+<div class="m-card">
+    @if (Model.CategoryExpenses.Count == 0)
+    {
+        <div class="text-muted-m" style="font-size:14px;">@Model.SelectedMonthLabel döneminde gider kaydı yok.</div>
+    }
+    else
+    {
+        var max = Model.CategoryExpenses.Max(x => x.Amount);
+        <div class="m-row" style="padding-top:0;">
+            <div class="m-row-title">Toplam</div>
+            <div class="m-row-amt m-amt-debt">@Tl(Model.CategoryExpenseTotal)</div>
+        </div>
+        @foreach (var item in Model.CategoryExpenses)
+        {
+            var pct = max > 0 ? (int)Math.Round((double)(item.Amount / max) * 100) : 0;
+            <div style="padding:10px 0 0;">
+                <div class="m-row" style="padding:0 0 2px;border:none;">
+                    <div class="m-row-title">@item.Name</div>
+                    <div class="m-row-amt">@Tl(item.Amount)</div>
+                </div>
+                <div class="m-bar-track"><div class="m-bar-fill" style="width:@(pct)%;"></div></div>
+            </div>
+        }
+    }
+</div>

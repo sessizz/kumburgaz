@@ -2,7 +2,7 @@
    Statik varlik onbellegi + cevrimdisi sayfasi + Web Push (Asama 5).
    Kural: HTML/auth'lu yanitlar ASLA onbellege yazilmaz. */
 
-const STATIC_CACHE = 'kumburgaz-static-v1';
+const STATIC_CACHE = 'kumburgaz-static-v2';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE = [

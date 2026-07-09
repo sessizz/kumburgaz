@@ -1,0 +1,61 @@
+@model MobileKasaBankaDetayViewModel
+@{
+    ViewData["Title"] = Model.Name;
+    ViewData["MobileBack"] = Url.Action("Index", "KasaBanka", new { area = "Mobile" });
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+
+    string KindLabel(TxKind k) => k switch
+    {
+        TxKind.Tahsilat => "Tahsilat",
+        TxKind.Cikis => "Para Çıkışı",
+        TxKind.Transfer => "Transfer",
+        TxKind.Acilis => "Açılış",
+        _ => "Girdi"
+    };
+}
+
+<div class="m-card">
+    <div class="m-row" style="padding-top:0;">
+        <div class="m-row-main"><div class="m-row-title">Güncel Bakiye</div></div>
+        <div class="m-row-amt @(Model.Balance >= 0 ? "m-amt-credit" : "m-amt-debt")" style="font-size:18px;">@Tl(Model.Balance)</div>
+    </div>
+    <div class="m-row">
+        <div class="m-row-main"><div class="m-row-title">Bu ay giriş</div></div>
+        <div class="m-row-amt m-amt-credit">@Tl(Model.MonthInflow)</div>
+    </div>
+    <div class="m-row">
+        <div class="m-row-main"><div class="m-row-title">Bu ay çıkış</div></div>
+        <div class="m-row-amt m-amt-debt">@Tl(Model.MonthOutflow)</div>
+    </div>
+</div>
+
+<div class="m-section-title">Hareketler</div>
+@if (Model.Groups.Count == 0)
+{
+    <div class="m-empty">
+        <div>Hareket kaydı yok.</div>
+    </div>
+}
+else
+{
+    foreach (var group in Model.Groups)
+    {
+        <div class="m-row-sub" style="margin:14px 0 6px;font-weight:700;">
+            @group.Date.ToString("dd.MM.yyyy") <span style="font-weight:400;">(net @Tl(group.Net))</span>
+        </div>
+        <div class="m-list" style="margin-bottom:4px;">
+            @foreach (var tx in group.Items)
+            {
+                var isPos = tx.Amount >= 0;
+                <div class="m-list-item" style="cursor:default;">
+                    <div class="m-li-main">
+                        <div class="m-li-title">@tx.Description</div>
+                        <div class="m-li-sub">@KindLabel(tx.Kind)@(string.IsNullOrWhiteSpace(tx.Subline) ? "" : $" · {tx.Subline}")</div>
+                    </div>
+                    <div class="m-row-amt @(isPos ? "m-amt-credit" : "m-amt-debt")">@(isPos ? "+" : "")@Tl(tx.Amount)</div>
+                </div>
+            }
+        </div>
+    }
+}

@@ -2,6 +2,7 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Data.Sqlite;
@@ -29,6 +30,13 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 });
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+// Anahtarları veritabanında sakla: konteyner her deploy'da sıfırdan başladığı
+// için dosya sistemine yazılan varsayılan anahtar halkası kaybolur ve mevcut
+// login çerezlerinin şifresi çözülemez hale gelir, herkes oturumdan atılır.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<ApplicationDbContext>()
+    .SetApplicationName("Kumburgaz");
 
 builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     {

@@ -1,5 +1,6 @@
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -11,9 +12,11 @@ namespace Kumburgaz.Web.Data;
 
 public class ApplicationDbContext(
     DbContextOptions<ApplicationDbContext> options,
-    IHttpContextAccessor? httpContextAccessor = null) : IdentityDbContext<ApplicationUser>(options)
+    IHttpContextAccessor? httpContextAccessor = null) : IdentityDbContext<ApplicationUser>(options), IDataProtectionKeyContext
 {
     private bool savingAuditLogs;
+
+    public DbSet<Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey> DataProtectionKeys => Set<Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey>();
 
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Block> Blocks => Set<Block>();

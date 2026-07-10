@@ -32,11 +32,11 @@ body {
 
 /* === CashBank Detail Page === */
 .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
-.pill-ok    { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
-.pill-warn  { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
-.pill-info  { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
-.pill-muted { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
-.pill-neg   { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+.pill-ok    { background:#e3f2ea; color:#1e7a4f; border:1px solid #bfe3cf; }
+.pill-warn  { background:#faf3d9; color:#8a6d1a; border:1px solid #efdfa0; }
+.pill-info  { background:#e2f1f2; color:#0a5c64; border:1px solid #bfe0e2; }
+.pill-muted { background:#eef2f3; color:#557079; border:1px solid #dde8ea; }
+.pill-neg   { background:#fbeae9; color:#c94040; border:1px solid #f2cfcd; }
 .ttype { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500; color:#374151; }
 .ttype .dot { width:6px; height:6px; border-radius:999px; flex:none; }
 .ttype-tahsilat .dot { background:#10b981; }
@@ -47,125 +47,153 @@ body {
 .amount-pos { color:#047857; }
 .amount-neg { color:#b91c1c; }
 .spark { display:flex; align-items:flex-end; gap:3px; height:36px; }
-.spark span { width:6px; background:#dbeafe; border-radius:2px; }
-.spark span.hi { background:#2563eb; }
+.spark span { width:6px; background:#dbeef0; border-radius:2px; }
+.spark span.hi { background:#0e7c86; }
 .tl-item { position:relative; padding-left:28px; padding-bottom:14px; }
 .tl-item::before { content:""; position:absolute; left:9px; top:6px; bottom:-6px; width:1px; background:#e5e7eb; }
 .tl-item:last-child::before { display:none; }
-.tl-dot { position:absolute; left:4px; top:2px; width:12px; height:12px; border-radius:999px; background:#fff; border:2px solid #93c5fd; }
+.tl-dot { position:absolute; left:4px; top:2px; width:12px; height:12px; border-radius:999px; background:#fff; border:2px solid #94cbcf; }
 .tl-item.created .tl-dot { border-color:#10b981; }
-.tl-item.edited  .tl-dot { border-color:#3b82f6; }
+.tl-item.edited  .tl-dot { border-color:#0e7c86; }
 .seg-tab { padding:6px 12px; font-size:13px; font-weight:500; color:#4b5563; border-radius:6px; cursor:pointer; text-decoration:none; display:inline-block; }
-.seg-tab:hover { background:#f3f4f6; color:#111827; }
-.seg-tab.active { background:#eff6ff; color:#1d4ed8; font-weight:600; }
-.tx-row:hover { background:#fafafa; }
+.seg-tab:hover { background:#eef6f7; color:#111827; }
+.seg-tab.active { background:#e2f1f2; color:#0a5c64; font-weight:600; }
+.tx-row:hover { background:#f4f9f9; }
 .acct-tab { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px; color:#4b5563; font-size:14px; font-weight:500; text-decoration:none; cursor:pointer; border:1px solid transparent; transition:background .12s,color .12s,border-color .12s; }
 .acct-tab:hover { background:#f9fafb; color:#111827; }
-.acct-tab.active { background:#eff6ff; color:#1d4ed8; font-weight:600; border-color:#dbeafe; }
+.acct-tab.active { background:#e2f1f2; color:#0a5c64; font-weight:600; border-color:#bfe0e2; }
 .acct-tab .acct-icon { font-size:20px; color:#9ca3af; }
-.acct-tab.active .acct-icon { color:#2563eb; }
+.acct-tab.active .acct-icon { color:#0e7c86; }
 .acct-tab .chev { margin-left:auto; color:#d1d5db; font-size:18px; }
-.acct-tab.active .chev { color:#2563eb; }
+.acct-tab.active .chev { color:#0e7c86; }
 
-/* App-wide badges: original hue family, inverted from soft to solid fill. */
+/* App-wide badges: Marin identity, soft pastel fills with saturated text. */
 .badge {
-  background-color:#64748b !important;
-  border-color:#64748b !important;
-  color:#ffffff !important;
-  font-weight:600;
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#3d5a64 !important;
+  font-weight:700;
 }
 .badge-success {
-  background-color:#4ade80 !important;
-  border-color:#4ade80 !important;
-  color:#f0fdf4 !important;
+  background-color:#e3f2ea !important;
+  border-color:#e3f2ea !important;
+  color:#1e7a4f !important;
 }
 .badge-info {
-  background-color:#38bdf8 !important;
-  border-color:#38bdf8 !important;
-  color:#f0f9ff !important;
+  background-color:#e2f1f2 !important;
+  border-color:#e2f1f2 !important;
+  color:#0a5c64 !important;
 }
 .badge-warning {
-  background-color:#f59e0b !important;
-  border-color:#f59e0b !important;
-  color:#fffbeb !important;
+  background-color:#faf3d9 !important;
+  border-color:#faf3d9 !important;
+  color:#8a6d1a !important;
 }
 .badge-error {
-  background-color:#f87171 !important;
-  border-color:#f87171 !important;
-  color:#fef2f2 !important;
+  background-color:#fbeae9 !important;
+  border-color:#fbeae9 !important;
+  color:#c94040 !important;
 }
 .badge-primary {
-  background-color:#3b82f6 !important;
-  border-color:#3b82f6 !important;
-  color:#eff6ff !important;
+  background-color:#0e7c86 !important;
+  border-color:#0e7c86 !important;
+  color:#eef6f7 !important;
 }
 .badge-ghost {
-  background-color:#94a3b8 !important;
-  border-color:#94a3b8 !important;
-  color:#f8fafc !important;
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#557079 !important;
 }
 
 html[data-theme="light"] body .badge.ledger-category-badge {
-  color:#fff !important;
   font-weight:700;
 }
 html[data-theme="light"] body .badge.ledger-category-0 {
-  background-color:#2563eb !important;
-  border-color:#2563eb !important;
-  color:#eff6ff !important;
+  background-color:#e2eef8 !important;
+  border-color:#e2eef8 !important;
+  color:#2b6a9e !important;
 }
 html[data-theme="light"] body .badge.ledger-category-1 {
-  background-color:#f59e0b !important;
-  border-color:#f59e0b !important;
-  color:#fffbeb !important;
+  background-color:#faf3d9 !important;
+  border-color:#faf3d9 !important;
+  color:#8a6d1a !important;
 }
 html[data-theme="light"] body .badge.ledger-category-2 {
-  background-color:#10b981 !important;
-  border-color:#10b981 !important;
-  color:#ecfdf5 !important;
+  background-color:#e3f2ea !important;
+  border-color:#e3f2ea !important;
+  color:#1e7a4f !important;
 }
 html[data-theme="light"] body .badge.ledger-category-3 {
-  background-color:#8b5cf6 !important;
-  border-color:#8b5cf6 !important;
-  color:#f5f3ff !important;
+  background-color:#e9e6f8 !important;
+  border-color:#e9e6f8 !important;
+  color:#5b4bab !important;
 }
 html[data-theme="light"] body .badge.ledger-category-4 {
-  background-color:#f43f5e !important;
-  border-color:#f43f5e !important;
-  color:#fff1f2 !important;
+  background-color:#fbe7ea !important;
+  border-color:#fbe7ea !important;
+  color:#b23a55 !important;
 }
 html[data-theme="light"] body .badge.ledger-category-5 {
-  background-color:#14b8a6 !important;
-  border-color:#14b8a6 !important;
-  color:#f0fdfa !important;
+  background-color:#dbeef0 !important;
+  border-color:#dbeef0 !important;
+  color:#0a5c64 !important;
 }
 html[data-theme="light"] body .badge.ledger-category-6 {
-  background-color:#6366f1 !important;
-  border-color:#6366f1 !important;
-  color:#eef2ff !important;
+  background-color:#e6e6f7 !important;
+  border-color:#e6e6f7 !important;
+  color:#4a4aa0 !important;
 }
 html[data-theme="light"] body .badge.ledger-category-7 {
-  background-color:#84cc16 !important;
-  border-color:#84cc16 !important;
-  color:#f7fee7 !important;
+  background-color:#eef5d9 !important;
+  border-color:#eef5d9 !important;
+  color:#5c7a1a !important;
 }
 html[data-theme="light"] body .badge.ledger-category-8 {
-  background-color:#d946ef !important;
-  border-color:#d946ef !important;
-  color:#fdf4ff !important;
+  background-color:#f8e6f6 !important;
+  border-color:#f8e6f6 !important;
+  color:#9a3f96 !important;
 }
 html[data-theme="light"] body .badge.ledger-category-9 {
-  background-color:#f97316 !important;
-  border-color:#f97316 !important;
-  color:#fff7ed !important;
+  background-color:#fbeadd !important;
+  border-color:#fbeadd !important;
+  color:#b0622a !important;
 }
 html[data-theme="light"] body .badge.ledger-category-10 {
-  background-color:#06b6d4 !important;
-  border-color:#06b6d4 !important;
-  color:#ecfeff !important;
+  background-color:#dff5f7 !important;
+  border-color:#dff5f7 !important;
+  color:#217680 !important;
 }
 html[data-theme="light"] body .badge.ledger-category-11 {
-  background-color:#64748b !important;
-  border-color:#64748b !important;
-  color:#f8fafc !important;
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#557079 !important;
+}
+
+/* Marin identity: force daisyui's primary tokens (which win over the
+   Tailwind CDN's @theme override due to script injection order) to teal.
+   cache-bust: v2 */
+.btn.btn-primary {
+  background-color: #0e7c86 !important;
+  border-color: #0a5c64 !important;
+  color: #ffffff !important;
+}
+.btn.btn-primary:hover {
+  background-color: #0a5c64 !important;
+  border-color: #0a5c64 !important;
+}
+.btn.btn-outline.btn-primary {
+  background-color: transparent !important;
+  color: #0e7c86 !important;
+  border-color: #0e7c86 !important;
+}
+.btn.btn-outline.btn-primary:hover {
+  background-color: #0e7c86 !important;
+  color: #ffffff !important;
+}
+.link-primary, .text-primary {
+  color: #0e7c86 !important;
+}
+.checkbox:checked, .radio:checked, .toggle:checked {
+  background-color: #0e7c86 !important;
+  border-color: #0e7c86 !important;
 }

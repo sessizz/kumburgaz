@@ -131,7 +131,7 @@
                 {
                     var hasAttachments = Model.AttachmentsByLedgerId.TryGetValue(row.Id, out var rowAttachments) && rowAttachments.Count > 0;
                     var firstAttachmentUrl = hasAttachments ? Url.Action("Ek", "Ledger", new { id = rowAttachments![0].Id }) : null;
-                    <tr class="cursor-pointer hover:bg-gray-50" onclick="document.getElementById('giderModal-@row.Id').showModal()">
+                    <tr class="cursor-pointer" style="transition:background .12s;" onmouseenter="this.style.background='#f4f9f9'" onmouseleave="this.style.background=''" onclick="document.getElementById('giderModal-@row.Id').showModal()">
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
                         <td>
                             <span class="@CategoryBadgeClass(row.IncomeExpenseCategoryId)">@row.IncomeExpenseCategory?.Name</span>

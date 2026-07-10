@@ -2,8 +2,8 @@
    CDN/harici font yoktur; offline calisir. */
 
 :root {
-    --m-primary: #2563eb;
-    --m-primary-dark: #1d4ed8;
+    --m-primary: #0e7c86;
+    --m-primary-dark: #0a5c64;
     --m-bg: #f3f4f6;
     --m-surface: #ffffff;
     --m-border: #e5e7eb;
@@ -255,7 +255,7 @@ html, body {
 .m-filter-tab.active {
     background: var(--m-primary);
     color: #fff;
-    box-shadow: 0 8px 18px rgba(80, 34, 208, .22);
+    box-shadow: 0 8px 18px rgba(14, 124, 134, .22);
 }
 .m-filter-tab.active strong { color: #fff; }
 

@@ -241,24 +241,12 @@ public class HomeController(
             .ThenBy(x => x.UnitDisplay)
             .ToList();
 
-        // Borcu devir/aidat olarak ayrıştır: tahsis edilmemiş tahsilat önce eski devir borcunu kapatır
-        // (devir borcunun taksidi olmadığından ödemesi ancak tahsis edilmemiş olarak görünür).
-        var carriedDebt = 0m;
-        var duesDebt = 0m;
-        foreach (var row in debtorRows)
-        {
-            var carriedGross = Math.Max(0m, -row.OpeningBalance);
-            var carried = Math.Min(Math.Max(0m, carriedGross - row.UnallocatedCredit), row.RemainingAmount);
-            carriedDebt += carried;
-            duesDebt += row.RemainingAmount - carried;
-        }
-
         return new DashboardDebtSnapshot(
             summary.TotalDebt,
             summary.TotalCredit,
             summary.DebtorCount,
-            carriedDebt,
-            duesDebt,
+            summary.CarriedOverDebt,
+            summary.CurrentPeriodDebt,
             debtorRows
                 .Take(5)
                 .Select(x => new DashboardOverdueItem

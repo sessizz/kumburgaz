@@ -35,6 +35,14 @@
                 <span class="material-symbols-outlined ms-sm">edit_note</span>
                 Manuel Kalemler
             </a>
+            <a class="btn btn-sm btn-outline btn-success" asp-action="BalanceDetailedExcel" asp-route-StartDate="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" asp-route-EndDate="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))">
+                <span class="material-symbols-outlined ms-sm">table_chart</span>
+                Excel
+            </a>
+            <a class="btn btn-sm btn-outline btn-error" asp-action="BalanceDetailedPdf" asp-route-StartDate="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" asp-route-EndDate="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))">
+                <span class="material-symbols-outlined ms-sm">picture_as_pdf</span>
+                PDF
+            </a>
             <a class="btn btn-sm btn-ghost" asp-action="Index">Raporlar</a>
         </form>
     </div>
@@ -138,7 +146,7 @@
                     <tbody>
                     @foreach (var row in Model.IncomeRows)
                     {
-                        <tr>
+                        <tr class="@(row.IsCarryOver ? "bg-sky-50" : "")">
                             <td>
                                 <span title="@row.MembersText">@row.Name</span>
                                 @if (row.IsAuto)
@@ -148,6 +156,10 @@
                                 @if (row.IsManual)
                                 {
                                     <span class="badge badge-ghost badge-xs ml-1" title="Manuel girilmiş bilanço kalemi">Manuel</span>
+                                }
+                                @if (row.IsCarryOver)
+                                {
+                                    <span class="badge badge-info badge-xs ml-1" title="@row.MembersText">Devir</span>
                                 }
                                 @if (!string.IsNullOrWhiteSpace(row.Note))
                                 {

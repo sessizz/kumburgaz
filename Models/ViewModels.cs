@@ -1040,6 +1040,7 @@ public class BalanceDetailedRow
     public decimal Total => Cash + Bank;
     public bool IsAuto { get; set; }
     public bool IsManual { get; set; }
+    public bool IsCarryOver { get; set; }
     public string MembersText { get; set; } = string.Empty;
     public string? Note { get; set; }
 }

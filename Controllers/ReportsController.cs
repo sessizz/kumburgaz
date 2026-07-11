@@ -461,6 +461,20 @@ public class ReportsController(
         return View(model);
     }
 
+    public async Task<IActionResult> BalanceDetailedExcel([FromQuery] BalanceDetailedQuery query)
+    {
+        var model = await balanceDetailedReportService.BuildAsync(query);
+        var bytes = balanceDetailedReportService.ExportAsExcel(model);
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "bilanco-detayli.xlsx");
+    }
+
+    public async Task<IActionResult> BalanceDetailedPdf([FromQuery] BalanceDetailedQuery query)
+    {
+        var model = await balanceDetailedReportService.BuildAsync(query);
+        var bytes = balanceDetailedReportService.ExportAsPdf(model);
+        return File(bytes, "application/pdf", "bilanco-detayli.pdf");
+    }
+
     public async Task<IActionResult> BalanceDetailedLines()
     {
         var lines = await db.ReportLines.AsNoTracking()

@@ -43,10 +43,14 @@ public class AccountsController(
         ViewBag.Query = term ?? string.Empty;
         ViewBag.Type = type;
 
-        var accounts = await query
+        // Sıralama veritabanı harmanlamasıyla (collation) değil, Türkçe alfabeye göre yapılsın diye
+        // önce çekilip C# tarafında sıralanıyor (Ç, Ğ, İ, Ö, Ş, Ü harfleri veritabanı harmanlamasında
+        // sona düşebiliyor).
+        var turkishComparer = StringComparer.Create(new System.Globalization.CultureInfo("tr-TR"), ignoreCase: false);
+        var accounts = (await query.ToListAsync())
             .OrderBy(x => x.AccountType)
-            .ThenBy(x => x.Name)
-            .ToListAsync();
+            .ThenBy(x => x.Name, turkishComparer)
+            .ToList();
 
         var unitIds = accounts
             .SelectMany(x => x.UnitAccounts)

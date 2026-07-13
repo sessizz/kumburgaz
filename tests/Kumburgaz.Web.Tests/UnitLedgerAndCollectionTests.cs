@@ -40,6 +40,26 @@ public class UnitLedgerAndCollectionTests
     }
 
     [Fact]
+    public async Task General_collection_pays_off_opening_debt_before_installments()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+        var installment = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 9, 30), 15_000m, period: "2026-2027");
+
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 8), 750m);
+
+        var installmentAfter = await db.DuesInstallments.FindAsync(installment.Id);
+        Assert.NotNull(installmentAfter);
+        Assert.Equal(15_000m, installmentAfter.RemainingAmount);
+        Assert.Empty(await db.CollectionAllocations.ToListAsync());
+
+        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        Assert.NotNull(ledger);
+        Assert.Equal(750m, ledger.Summary.OpeningDebt);
+        Assert.Equal(15_000m, ledger.Summary.NetBalance);
+    }
+
+    [Fact]
     public async Task Collection_is_applied_to_oldest_open_installment_first()
     {
         await using var db = CreateDb();

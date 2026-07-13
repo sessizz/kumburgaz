@@ -4,10 +4,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
+public sealed record UnitCollectionCredit(int UnitId, decimal Amount, DateTime? LastDate);
+
 public interface IDuesLedgerRowService
 {
     Task<List<DuesListItemViewModel>> GetInstallmentRowsAsync();
     Task<List<string>> GetAvailablePeriodsAsync();
+
+    /// <summary>Her dairenin, henüz herhangi bir aidat taksitine tahsis edilmemiş tahsilat fazlasını döner.</summary>
+    Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync();
 }
 
 public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowService
@@ -89,14 +94,9 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             .ToList();
     }
 
-    /// <summary>
-    /// Her dairenin devir/avans bakiyesini aidat satırlarına yansıtır:
-    /// pozitif devir veya tahsis edilmemiş tahsilat → en eski taksitlerin RemainingAmount'unu azaltır,
-    /// negatif devir → ek bir "Devir Bakiyesi" satırı eklenir.
-    /// </summary>
-    private async Task ApplyOpeningBalancesAsync(List<DuesListItemViewModel> rows)
+    public async Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync()
     {
-        var collectionCredits = await db.Collections
+        return await db.Collections
             .AsNoTracking()
             .Select(x => new
             {
@@ -106,11 +106,21 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             })
             .Where(x => x.Credit > 0)
             .GroupBy(x => x.UnitId)
-            .Select(x => new UnitCreditInfo(
+            .Select(x => new UnitCollectionCredit(
                 x.Key,
                 x.Sum(c => c.Credit),
                 x.Max(c => (DateTime?)c.Date)))
             .ToDictionaryAsync(x => x.UnitId);
+    }
+
+    /// <summary>
+    /// Her dairenin devir/avans bakiyesini aidat satırlarına yansıtır:
+    /// pozitif devir veya tahsis edilmemiş tahsilat → en eski taksitlerin RemainingAmount'unu azaltır,
+    /// negatif devir → ek bir "Devir Bakiyesi" satırı eklenir.
+    /// </summary>
+    private async Task ApplyOpeningBalancesAsync(List<DuesListItemViewModel> rows)
+    {
+        var collectionCredits = await GetUnallocatedCollectionCreditByUnitAsync();
 
         var creditUnitIds = collectionCredits.Keys.ToHashSet();
         var units = await db.Units.AsNoTracking()
@@ -212,6 +222,4 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             .ThenBy(x => x!.UnitNo)
             .FirstOrDefault();
     }
-
-    private sealed record UnitCreditInfo(int UnitId, decimal Amount, DateTime? LastDate);
 }

@@ -12,7 +12,8 @@ namespace Kumburgaz.Web.Controllers;
 public class AccountsController(
     ApplicationDbContext db,
     UnitLedgerService unitLedgerService,
-    ResidentAccountService residentAccountService) : Controller
+    ResidentAccountService residentAccountService,
+    IDuesLedgerRowService ledgerService) : Controller
 {
     private static string UnitLabel(Unit unit)
         => unit.Block is null ? unit.UnitNo : $"{unit.Block.Name}-{unit.UnitNo}";
@@ -167,6 +168,7 @@ public class AccountsController(
             .ThenBy(x => x.UnitDisplay)
             .ToList();
 
+        var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync();
         var openingDebtRows = account.UnitAccounts
             .Where(x => x.Active && x.Unit is { Active: true, OpeningBalance: < 0m })
             .Select(x => new AccountOpenInstallmentViewModel
@@ -176,9 +178,11 @@ public class AccountsController(
                 UnitDisplay = UnitDisplayHelper.Display(x.Unit!),
                 DuesTypeName = "Devir Bakiyesi",
                 DueDate = x.Unit!.OpeningBalanceDate ?? DateTime.Today,
-                RemainingAmount = -x.Unit.OpeningBalance,
+                // Tahsis edilmemis tahsilat fazlasi varsa once devir borcunu kapatir.
+                RemainingAmount = Math.Max(0m, -x.Unit.OpeningBalance - (unallocatedCredit.GetValueOrDefault(x.UnitId)?.Amount ?? 0m)),
                 IsOpeningBalance = true
-            });
+            })
+            .Where(x => x.RemainingAmount > 0);
 
         openRows = openingDebtRows
             .Concat(openRows)

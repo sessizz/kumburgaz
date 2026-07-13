@@ -14,9 +14,26 @@ public static class CollectionAdvanceAllocator
             .ThenBy(x => x.Id)
             .ToListAsync();
 
+        // Devreden borcu (devir) olan daireler icin, henuz tahsis edilmemis tahsilat once devir borcuna ayrilir.
+        var devirRemaining = await db.Units
+            .Where(x => x.OpeningBalance < 0m)
+            .ToDictionaryAsync(x => x.Id, x => -x.OpeningBalance);
+
         foreach (var collection in collections)
         {
             var credit = collection.Amount - collection.Allocations.Sum(x => x.AppliedAmount);
+            if (credit <= 0)
+            {
+                continue;
+            }
+
+            if (devirRemaining.TryGetValue(collection.UnitId, out var devirLeft) && devirLeft > 0)
+            {
+                var reserved = Math.Min(credit, devirLeft);
+                devirRemaining[collection.UnitId] = devirLeft - reserved;
+                credit -= reserved;
+            }
+
             if (credit <= 0)
             {
                 continue;

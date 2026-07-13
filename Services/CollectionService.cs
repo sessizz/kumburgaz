@@ -200,6 +200,24 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             .ToListAsync();
 
         var remaining = model.Amount;
+
+        // Belirli bir taksit secilmediyse (genel/serbest tahsilat), daireye ait devreden borcu
+        // once kapatir; kalan varsa aidat taksitlerine dagitilir.
+        if (targetInstallment is null)
+        {
+            var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(x => x.Id == representativeUnitId);
+            if (unit is not null && unit.OpeningBalance < 0m)
+            {
+                var totalUnallocatedForUnit = await db.Collections
+                    .Where(x => x.UnitId == representativeUnitId)
+                    .Select(x => x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault())
+                    .SumAsync();
+                var otherUnallocated = Math.Max(0m, totalUnallocatedForUnit - remaining);
+                var devirLeft = Math.Max(0m, -unit.OpeningBalance - otherUnallocated);
+                remaining -= Math.Min(remaining, devirLeft);
+            }
+        }
+
         foreach (var installment in openInstallments)
         {
             if (remaining <= 0)

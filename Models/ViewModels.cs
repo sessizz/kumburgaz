@@ -485,6 +485,7 @@ public class UnitDetailViewModel
     public decimal Balance { get; set; }
     public StatementEntry? LastDebt { get; set; }
     public UnitLedgerSummary Summary { get; set; } = new();
+    public List<SelectListItem> CollectionPeriodOptions { get; set; } = [];
 }
 
 public class UnitStatementViewModel
@@ -493,6 +494,7 @@ public class UnitStatementViewModel
     public List<StatementEntry> Entries { get; set; } = [];
     public decimal Balance { get; set; }
     public UnitLedgerSummary Summary { get; set; } = new();
+    public List<SelectListItem> CollectionPeriodOptions { get; set; } = [];
 }
 
 public class AddCollectionModalModel
@@ -502,6 +504,7 @@ public class AddCollectionModalModel
     public decimal CurrentDebt { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public List<SelectListItem> AccountOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
 }
 
 public class DuesInstallmentEditViewModel
@@ -567,6 +570,12 @@ public class CollectionCreateViewModel
     [Required]
     public int BillingGroupId { get; set; }
 
+    /// <summary>
+    /// Belirli bir taksit seçilmediğinde (genel/serbest tahsilat) hangi daireye kayıt edileceğini
+    /// belirtir; verilmezse aidat grubundaki temsilci daireye düşülür.
+    /// </summary>
+    public int? PreferredUnitId { get; set; }
+
     public int? DuesInstallmentId { get; set; }
 
     [Required]
@@ -593,6 +602,8 @@ public class CollectionCreateViewModel
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
     public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
     public List<SelectListItem> AccountOptions { get; set; } = [];
+    public string SelectedPeriod { get; set; } = string.Empty;
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel

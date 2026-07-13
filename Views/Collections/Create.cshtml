@@ -17,6 +17,15 @@
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
+            <form method="get" asp-action="Create" class="mb-4">
+                <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Dönem</legend>
+                    <select name="period" class="select select-bordered w-full" onchange="this.form.submit()" asp-items="Model.PeriodOptions"></select>
+                    <p class="text-xs text-gray-400 mt-1">Aşağıdaki aidat borcu listesini seçtiğin döneme daraltır.</p>
+                </fieldset>
+            </form>
+
             <form asp-action="Create" method="post" class="space-y-4">
                 <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
                 <input asp-for="BillingGroupId" type="hidden" />

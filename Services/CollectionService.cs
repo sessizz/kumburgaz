@@ -121,7 +121,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             paymentChannel = model.PaymentChannel;
         }
 
-        var representativeUnitId = targetInstallment?.UnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
+        var representativeUnitId = targetInstallment?.UnitId ?? model.PreferredUnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
         var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase)

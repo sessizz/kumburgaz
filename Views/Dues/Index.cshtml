@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Aidatlar";
     var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
-    var collectionsReturnUrl = Url.Action("Index", "Dues", new { q = Model.Query, tab = "collections" }) ?? "/Dues?tab=collections";
+    var collectionsReturnUrl = Url.Action("Index", "Dues", new { q = Model.Query, tab = "collections", period = Model.SelectedPeriod }) ?? "/Dues?tab=collections";
 }
 
 <div class="space-y-4">
@@ -13,6 +13,7 @@
                 <h1 class="text-2xl font-extrabold">Aidatlar</h1>
                 <form method="get" class="join">
                     <input type="hidden" name="tab" value="@Model.ActiveTab" />
+                    <select name="period" class="select select-bordered select-sm join-item" onchange="this.form.submit()" asp-items="Model.PeriodOptions"></select>
                     <label class="input input-bordered input-sm join-item flex items-center gap-2 min-w-[260px]">
                         <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
                         <input name="q" value="@Model.Query" placeholder="Hesap ara" class="grow" />
@@ -38,11 +39,11 @@
 
         <div role="tablist" class="tabs tabs-border px-5">
             <a role="tab" class="tab @(Model.ActiveTab == "dues" ? "tab-active" : "")"
-               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="dues">
+               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="dues" asp-route-period="@Model.SelectedPeriod">
                 Aidat Borçları
             </a>
             <a role="tab" class="tab @(Model.ActiveTab == "collections" ? "tab-active" : "")"
-               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="collections">
+               asp-controller="Dues" asp-action="Index" asp-route-q="@Model.Query" asp-route-tab="collections" asp-route-period="@Model.SelectedPeriod">
                 Tahsilatlar
             </a>
         </div>

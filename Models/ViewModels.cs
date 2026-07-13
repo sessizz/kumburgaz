@@ -419,6 +419,8 @@ public class DuesIndexViewModel
     public List<Collection> Collections { get; set; } = [];
     public string Query { get; set; } = string.Empty;
     public string ActiveTab { get; set; } = "dues";
+    public string SelectedPeriod { get; set; } = string.Empty;
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
 }
 
 public enum StatementEntryKind
@@ -1000,6 +1002,8 @@ public class DashboardAlertViewModel
 
 public class DashboardViewModel
 {
+    public string SelectedPeriod { get; set; } = string.Empty;
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
     public decimal CollectionRate { get; set; }
     public decimal TotalGenerated { get; set; }
     public decimal OverdueDebt { get; set; }

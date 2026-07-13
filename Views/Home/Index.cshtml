@@ -33,11 +33,14 @@
     <div class="flex items-center justify-between gap-3">
         <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Genel Bakış</h1>
         <div class="flex items-center gap-2">
-            <button class="h-10 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2 text-sm text-gray-700">
+            <form method="get" class="flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300">
+                <span class="material-symbols-outlined text-gray-500">event_repeat</span>
+                <select name="period" class="select select-sm select-ghost -mx-2" onchange="this.form.submit()" asp-items="Model.PeriodOptions"></select>
+            </form>
+            <div class="h-10 px-3 rounded-lg border border-gray-200 bg-white inline-flex items-center gap-2 text-sm text-gray-700">
                 <span class="material-symbols-outlined text-gray-500">calendar_today</span>
                 @DateTime.Today.ToString("dd MMMM yyyy, dddd")
-                <span class="material-symbols-outlined text-gray-400">expand_more</span>
-            </button>
+            </div>
             <button class="h-10 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2 text-sm text-gray-700">
                 <span class="material-symbols-outlined text-gray-500">filter_list</span>
                 Filtrele
@@ -114,7 +117,9 @@
             <div class="min-w-0 flex-1">
                 <div class="text-xs text-gray-500 font-medium">Toplam Aidat</div>
                 <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.TotalGenerated)</div>
-                <div class="text-xs text-gray-400 mt-1">Toplam tahakkuk</div>
+                <div class="text-xs text-gray-400 mt-1">
+                    @(Model.SelectedPeriod == Kumburgaz.Web.Controllers.DuesController.AllPeriodsValue ? "Tüm dönemler tahakkuku" : $"{Model.SelectedPeriod} dönemi tahakkuku")
+                </div>
             </div>
         </div>
 

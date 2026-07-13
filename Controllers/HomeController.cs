@@ -11,24 +11,49 @@ namespace Kumburgaz.Web.Controllers;
 [ModuleAuthorize(AppModules.Panel)]
 public class HomeController(
     ApplicationDbContext db,
-    IReportingService reportingService,
     IExpenseForecastService expenseForecastService,
-    BackupService backupService) : Controller
+    BackupService backupService,
+    IDuesLedgerRowService ledgerService) : Controller
 {
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(string? period = null)
     {
         var todayUtc = DateTime.UtcNow.Date;
         var monthStart = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var nextMonthStart = monthStart.AddMonths(1);
 
-        var openingCredit = await db.Units.Where(x => x.Active && x.OpeningBalance > 0).SumAsync(x => (decimal?)x.OpeningBalance) ?? 0m;
-        var openingDebt   = await db.Units.Where(x => x.Active && x.OpeningBalance < 0).SumAsync(x => (decimal?)(-x.OpeningBalance)) ?? 0m;
+        var periods = await ledgerService.GetAvailablePeriodsAsync();
+        var selectedPeriod = DuesController.ResolvePeriod(period, periods);
+        var duesRows = await ledgerService.GetInstallmentRowsAsync();
+        var openingRows = duesRows.Where(x => x.IsOpeningBalance).ToList();
+        var periodRows = duesRows
+            .Where(x => !x.IsOpeningBalance && (selectedPeriod == DuesController.AllPeriodsValue || x.Period == selectedPeriod))
+            .ToList();
 
-        var actualCollections = await db.Collections.SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var totalGenerated = await db.DuesInstallments.SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var totalCharge = totalGenerated + openingDebt;
-        var totalCollections = actualCollections + openingCredit;
-        var collectionRate = totalCharge > 0 ? Math.Min(100m, totalCollections / totalCharge * 100m) : 0m;
+        var totalGenerated = periodRows.Sum(x => x.Amount);
+        var overdueCarriedDebt = openingRows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
+        var overdueDuesDebt = periodRows.Where(x => !x.IsPaid && x.IsOverdue).Sum(x => x.RemainingAmount);
+        var overdueDebt = overdueCarriedDebt + overdueDuesDebt;
+        var overdueUnitCount = openingRows.Where(x => x.RemainingAmount > 0)
+            .Concat(periodRows.Where(x => !x.IsPaid && x.IsOverdue))
+            .Select(x => x.UnitId)
+            .Where(x => x.HasValue)
+            .Distinct()
+            .Count();
+        var totalCredit = openingRows.Where(x => x.RemainingAmount < 0).Sum(x => -x.RemainingAmount);
+        var collectedInPeriod = totalGenerated - periodRows.Sum(x => x.RemainingAmount);
+        var collectionRate = totalGenerated > 0 ? Math.Min(100m, collectedInPeriod / totalGenerated * 100m) : 0m;
+        var overdueItems = openingRows.Where(x => x.RemainingAmount > 0)
+            .Concat(periodRows.Where(x => !x.IsPaid && x.IsOverdue))
+            .OrderByDescending(x => x.RemainingAmount)
+            .ThenBy(x => x.UnitDisplay)
+            .Take(5)
+            .Select(x => new DashboardOverdueItem
+            {
+                UnitDisplay = x.UnitDisplay,
+                OwnerName = x.ResponsibleAccountName,
+                Amount = x.RemainingAmount
+            })
+            .ToList();
 
         var ledgerIncome = await db.LedgerTransactions
             .Where(x => !x.IsTransfer && x.IncomeExpenseCategory != null && x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
@@ -98,7 +123,6 @@ public class HomeController(
         var expenseForecast = forecast.Items;
         var forecastExpense = forecast.Total;
 
-        var debtSnapshot = await BuildDebtSnapshotAsync();
         var consistencyIssueCount = await db.ConsistencyCheckResults.CountAsync(x => !x.Resolved);
         var importProblemRowCount = await db.ImportBatchRows.CountAsync(x =>
             x.Status == ImportRowStatus.Error ||
@@ -108,24 +132,24 @@ public class HomeController(
         var backupFiles = backupService.ListBackups();
         var lastBackupAt = backupFiles.OrderByDescending(x => x.CreatedAt).FirstOrDefault()?.CreatedAt;
         var alerts = new List<DashboardAlertViewModel>();
-        if (debtSnapshot.TotalDebt > 0m)
+        if (overdueDebt > 0m)
         {
             alerts.Add(new DashboardAlertViewModel
             {
                 Title = "Vadesi geçmiş borç",
-                Message = $"{debtSnapshot.UnitCount} dairede toplam {debtSnapshot.TotalDebt:N2} TL borç var.",
+                Message = $"{overdueUnitCount} dairede toplam {overdueDebt:N2} TL borç var.",
                 Severity = "error",
                 Icon = "error",
                 Url = Url.Action("DuesDebt", "Reports", new { BalanceStatus = "debt" }),
                 LinkText = "Borçluları aç"
             });
         }
-        if (debtSnapshot.TotalCredit > 0m)
+        if (totalCredit > 0m)
         {
             alerts.Add(new DashboardAlertViewModel
             {
                 Title = "Yüksek alacak/avans",
-                Message = $"Toplam {debtSnapshot.TotalCredit:N2} TL avans/alacak bakiyesi var.",
+                Message = $"Toplam {totalCredit:N2} TL avans/alacak bakiyesi var.",
                 Severity = "info",
                 Icon = "savings",
                 Url = Url.Action("DuesDebt", "Reports", new { BalanceStatus = "credit" }),
@@ -193,12 +217,14 @@ public class HomeController(
 
         var vm = new DashboardViewModel
         {
+            SelectedPeriod = selectedPeriod,
+            PeriodOptions = DuesController.BuildPeriodOptions(periods, selectedPeriod),
             CollectionRate = collectionRate,
             TotalGenerated = totalGenerated,
-            OverdueDebt = debtSnapshot.TotalDebt,
-            OverdueUnitCount = debtSnapshot.UnitCount,
-            OverdueCarriedDebt = debtSnapshot.CarriedDebt,
-            OverdueDuesDebt = debtSnapshot.DuesDebt,
+            OverdueDebt = overdueDebt,
+            OverdueUnitCount = overdueUnitCount,
+            OverdueCarriedDebt = overdueCarriedDebt,
+            OverdueDuesDebt = overdueDuesDebt,
             ForecastExpense = forecastExpense,
             MonthCollections = monthCollections,
             MonthCollectionCount = monthCollectionCount,
@@ -210,7 +236,7 @@ public class HomeController(
             ForecastMonthLabel = monthStart.ToString("MMMM yyyy"),
             ExpenseForecast = expenseForecast,
             Cashflow = await BuildCashflowAsync(monthStart),
-            OverdueItems = debtSnapshot.Items,
+            OverdueItems = overdueItems,
             UpcomingExpenses = upcomingExpenses,
             RecentRequests = await db.ServiceRequests.AsNoTracking()
                 .Include(x => x.Unit).ThenInclude(x => x!.Block)
@@ -229,33 +255,6 @@ public class HomeController(
         };
 
         return View(vm);
-    }
-
-    private async Task<DashboardDebtSnapshot> BuildDebtSnapshotAsync()
-    {
-        var reportRows = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery());
-        var summary = DuesDebtSummaryHelper.Build(reportRows);
-        var debtorRows = reportRows
-            .Where(x => x.RemainingAmount > 0)
-            .OrderByDescending(x => x.RemainingAmount)
-            .ThenBy(x => x.UnitDisplay)
-            .ToList();
-
-        return new DashboardDebtSnapshot(
-            summary.TotalDebt,
-            summary.TotalCredit,
-            summary.DebtorCount,
-            summary.CarriedOverDebt,
-            summary.CurrentPeriodDebt,
-            debtorRows
-                .Take(5)
-                .Select(x => new DashboardOverdueItem
-                {
-                    UnitDisplay = x.UnitDisplay,
-                    OwnerName = x.ResponsibleAccountName,
-                    Amount = x.RemainingAmount
-                })
-                .ToList());
     }
 
     private async Task<List<DashboardCashflowMonth>> BuildCashflowAsync(DateTime monthStart)
@@ -316,12 +315,4 @@ public class HomeController(
     {
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
-
-    private sealed record DashboardDebtSnapshot(
-        decimal TotalDebt,
-        decimal TotalCredit,
-        int UnitCount,
-        decimal CarriedDebt,
-        decimal DuesDebt,
-        List<DashboardOverdueItem> Items);
 }

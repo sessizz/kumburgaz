@@ -72,9 +72,10 @@ public class DuesControllerTests
         var controller = new DuesController(
             db,
             new CollectionService(db),
-            new AccountAssignmentService(db));
+            new AccountAssignmentService(db),
+            new DuesLedgerRowService(db));
 
-        var result = await controller.Index(q: "NURI HURI") as ViewResult;
+        var result = await controller.Index(q: "NURI HURI", period: "2025-2026") as ViewResult;
 
         Assert.NotNull(result);
         var model = Assert.IsType<DuesIndexViewModel>(result.Model);

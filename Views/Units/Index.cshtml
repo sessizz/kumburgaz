@@ -136,6 +136,7 @@
                             <th>Bileşenler</th>
                             <th>Aidat Grubu</th>
                             <th>Aidat Tipi</th>
+                            <th class="text-end">Borç / Alacak</th>
                             <th>Durum</th>
                             <th class="text-end">İşlem</th>
                         </tr>
@@ -210,6 +211,23 @@
                                 @if (activeGroup?.BillingGroup?.DuesType is not null)
                                 {
                                     <span class="badge badge-ghost badge-sm">@activeGroup.BillingGroup.DuesType.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            @{
+                                var netBalance = Model.NetBalanceByUnitId.GetValueOrDefault(item.Id);
+                            }
+                            <td class="text-end text-sm tabular-nums">
+                                @if (netBalance > 0)
+                                {
+                                    <span class="text-error font-semibold">@netBalance.ToString("N2") ₺ borç</span>
+                                }
+                                else if (netBalance < 0)
+                                {
+                                    <span class="text-success font-semibold">@Math.Abs(netBalance).ToString("N2") ₺ alacak</span>
                                 }
                                 else
                                 {

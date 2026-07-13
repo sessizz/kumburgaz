@@ -71,6 +71,8 @@ public class UnitIndexViewModel
 {
     public List<Unit> Units { get; set; } = [];
     public List<UnitBillingGroupSummaryItem> BillingGroupSummary { get; set; } = [];
+    /// <summary>Dairenin borç (pozitif) veya alacak (negatif) net bakiyesi.</summary>
+    public Dictionary<int, decimal> NetBalanceByUnitId { get; set; } = [];
 }
 
 public class UnitBillingGroupSummaryItem
@@ -78,6 +80,13 @@ public class UnitBillingGroupSummaryItem
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public class AccountIndexViewModel
+{
+    public List<Account> Accounts { get; set; } = [];
+    /// <summary>Hesabın (birden fazla dairesi varsa toplam) borç (pozitif) veya alacak (negatif) net bakiyesi.</summary>
+    public Dictionary<int, decimal> NetBalanceByAccountId { get; set; } = [];
 }
 
 public class AccountFormViewModel

@@ -1,4 +1,4 @@
-@model List<Kumburgaz.Web.Models.Account>
+@model Kumburgaz.Web.Models.AccountIndexViewModel
 @using Kumburgaz.Web.Models
 @using Kumburgaz.Web.Services
 @{
@@ -73,13 +73,15 @@
                         <th>Telefon</th>
                         <th>E-posta</th>
                         <th>Bağlı Daireler</th>
+                        <th class="text-end">Borç / Alacak</th>
                         <th>Durum</th>
                         <th class="text-end">İşlem</th>
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var account in Model)
+                @foreach (var account in Model.Accounts)
                 {
+                    var netBalance = Model.NetBalanceByAccountId.GetValueOrDefault(account.Id);
                     var unitLinks = account.UnitAccounts
                         .Where(x => x.Active && x.Unit?.Block is not null)
                         .OrderBy(x => x.Unit!.Block!.Name)
@@ -92,6 +94,20 @@
                         <td class="text-sm">@account.Phone</td>
                         <td class="text-sm">@account.Email</td>
                         <td class="text-sm">@(unitLinks.Count == 0 ? "—" : string.Join(", ", unitLinks))</td>
+                        <td class="text-end text-sm tabular-nums">
+                            @if (netBalance > 0)
+                            {
+                                <span class="text-error font-semibold">@netBalance.ToString("N2") ₺ borç</span>
+                            }
+                            else if (netBalance < 0)
+                            {
+                                <span class="text-success font-semibold">@Math.Abs(netBalance).ToString("N2") ₺ alacak</span>
+                            }
+                            else
+                            {
+                                <span class="text-gray-300">—</span>
+                            }
+                        </td>
                         <td>
                             @if (account.Active)
                             {

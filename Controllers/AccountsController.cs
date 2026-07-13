@@ -48,7 +48,26 @@ public class AccountsController(
             .ThenBy(x => x.Name)
             .ToListAsync();
 
-        return View(accounts);
+        var unitIds = accounts
+            .SelectMany(x => x.UnitAccounts)
+            .Where(x => x.Active)
+            .Select(x => x.UnitId)
+            .Distinct()
+            .ToList();
+        var summaries = await unitLedgerService.BuildSummariesAsync(unitIds);
+        var netBalanceByAccountId = accounts.ToDictionary(
+            x => x.Id,
+            x => x.UnitAccounts
+                .Where(ua => ua.Active)
+                .Select(ua => ua.UnitId)
+                .Distinct()
+                .Sum(unitId => summaries.GetValueOrDefault(unitId)?.NetBalance ?? 0m));
+
+        return View(new AccountIndexViewModel
+        {
+            Accounts = accounts,
+            NetBalanceByAccountId = netBalanceByAccountId
+        });
     }
 
     [HttpGet]

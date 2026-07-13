@@ -175,10 +175,14 @@ public class UnitsController(
             .ThenBy(x => x.BillingGroupName)
             .ToList();
 
+        var ledgerSummaries = await unitLedgerService.BuildSummariesAsync(units.Select(x => x.Id));
+        var netBalanceByUnitId = ledgerSummaries.ToDictionary(x => x.Key, x => x.Value.NetBalance);
+
         return View(new UnitIndexViewModel
         {
             Units = units,
-            BillingGroupSummary = summary
+            BillingGroupSummary = summary,
+            NetBalanceByUnitId = netBalanceByUnitId
         });
     }
 

@@ -86,7 +86,7 @@ public class CashBankControllerTests
 
         var controller = new CashBankController(
             db,
-            new CashBankDetailService(db),
+            new CashBankDetailService(db, new DuesLedgerRowService(db)),
             new CollectionService(db),
             new ImportBatchService(db, new HttpContextAccessor { HttpContext = httpContext }))
         {

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
-public class CashBankDetailService(ApplicationDbContext db)
+public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowService ledgerService)
 {
     public async Task<CashBankDetailViewModel?> BuildAsync(string kind, int id, CashBankDetailQuery q)
     {
@@ -258,8 +258,15 @@ public class CashBankDetailService(ApplicationDbContext db)
         var currentAccountKey = kind == "bank"
             ? FinancialAccountHelper.BankKey(id)
             : FinancialAccountHelper.CashKey(id);
-        var options = await BuildDetailOptionsAsync(currentAccountKey);
+        var referencedInstallmentIds = groups
+            .SelectMany(g => g.Items)
+            .Where(x => x.DuesInstallmentId.HasValue)
+            .Select(x => x.DuesInstallmentId!.Value)
+            .ToHashSet();
+        var options = await BuildDetailOptionsAsync(currentAccountKey, referencedInstallmentIds);
         vm.DuesOptions = options.DuesOptions;
+        vm.DuesInstallmentOptions = options.DuesInstallmentOptions;
+        vm.PeriodOptions = options.PeriodOptions;
         vm.IncomeCategoryOptions = options.IncomeCategories;
         vm.ExpenseCategoryOptions = options.ExpenseCategories;
         vm.TransferAccountOptions = options.TransferAccounts;
@@ -296,16 +303,19 @@ public class CashBankDetailService(ApplicationDbContext db)
         foreach (var row in vm.Groups.SelectMany(x => x.Items))
         {
             row.DuesOptions = vm.DuesOptions;
+            row.DuesInstallmentOptions = vm.DuesInstallmentOptions;
+            row.PeriodOptions = vm.PeriodOptions;
             row.IncomeCategoryOptions = vm.IncomeCategoryOptions;
             row.ExpenseCategoryOptions = vm.ExpenseCategoryOptions;
             row.TransferAccountOptions = vm.TransferAccountOptions;
 
-            if (row.Source == "collection")
+            if (row.Source == "collection" && !vm.DuesInstallmentOptions.Any(x => x.Id == row.DuesInstallmentId))
             {
-                var selectedOption = vm.DuesOptions.FirstOrDefault(x => x.Id == row.DuesInstallmentId)
-                    ?? vm.DuesOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId && x.UnitId == row.UnitId)
-                    ?? vm.DuesOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId);
-                row.DuesInstallmentId = selectedOption?.Id;
+                // Kaydın gerçek taksiti (artık tamamen ödenmiş bile olsa) listede yoksa,
+                // aynı daire/gruptaki bir seçeneğe düş (taksit silinmiş/birleşmiş olabilir).
+                var fallback = vm.DuesInstallmentOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId && x.UnitId == row.UnitId)
+                    ?? vm.DuesInstallmentOptions.FirstOrDefault(x => x.BillingGroupId == row.BillingGroupId);
+                row.DuesInstallmentId = fallback?.Id;
             }
 
             if (row.Kind != TxKind.Transfer || row.Source != "ledger")
@@ -348,7 +358,7 @@ public class CashBankDetailService(ApplicationDbContext db)
         return tx.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir ? tx.Amount : -tx.Amount;
     }
 
-    private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey)
+    private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey, HashSet<int> alwaysIncludeInstallmentIds)
     {
         var installments = await db.DuesInstallments
             .AsNoTracking()
@@ -382,8 +392,14 @@ public class CashBankDetailService(ApplicationDbContext db)
             .Where(x => x.Value != currentAccountKey)
             .ToList();
 
+        var periods = await ledgerService.GetAvailablePeriodsAsync();
+        var periodOptions = new List<SelectListItem> { new("Tümü", "all", true) };
+        periodOptions.AddRange(periods.Select(p => new SelectListItem(p, p)));
+
         return new DetailOptions(
             await BuildDuesOptionsAsync(installments),
+            BuildDuesInstallmentOptions(installments, alwaysIncludeInstallmentIds),
+            periodOptions,
             incomeCategories,
             expenseCategories,
             transferAccounts);
@@ -449,8 +465,45 @@ public class CashBankDetailService(ApplicationDbContext db)
             .ToList();
     }
 
+    /// <summary>
+    /// CSV import eşleştirmesinin kullandığı daire-bazlı (tüm dönemler toplamı) listenin aksine,
+    /// manuel "Tahsilat ekle" penceresi için her açık taksiti ayrı bir seçenek olarak döner; dönem
+    /// filtresi bu listeyi daraltmak için kullanılır.
+    /// </summary>
+    private static List<CashBankDuesOptionViewModel> BuildDuesInstallmentOptions(List<DuesInstallment> installments, HashSet<int> alwaysIncludeIds)
+    {
+        var open = installments.Where(x => x.RemainingAmount > 0 || alwaysIncludeIds.Contains(x.Id)).ToList();
+        var effectiveRemaining = OpeningBalanceCreditHelper.BuildEffectiveRemainingMap(open);
+
+        return open
+            .Select(x =>
+            {
+                var unitText = x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup);
+                var duesType = x.BillingGroup?.DuesType?.Name ?? "Aidat";
+                var responsible = string.IsNullOrWhiteSpace(x.ResponsibleAccount?.Name) ? (x.Unit?.OwnerName ?? string.Empty) : x.ResponsibleAccount.Name;
+                var remaining = effectiveRemaining.GetValueOrDefault(x.Id, x.RemainingAmount);
+                var text = $"{x.Period} / {unitText}{(string.IsNullOrWhiteSpace(responsible) ? "" : $" / {responsible}")} / {duesType} / Kalan {remaining:N2} TL";
+                return new CashBankDuesOptionViewModel
+                {
+                    Id = x.Id,
+                    UnitId = x.UnitId,
+                    BillingGroupId = x.BillingGroupId,
+                    Period = x.Period,
+                    RemainingAmount = remaining,
+                    Text = text,
+                    SearchText = string.Join(" ", x.Period, unitText, responsible, duesType, x.BillingGroup?.Name ?? string.Empty)
+                };
+            })
+            .Where(x => x.RemainingAmount > 0 || alwaysIncludeIds.Contains(x.Id))
+            .OrderBy(x => x.Period)
+            .ThenBy(x => x.Text)
+            .ToList();
+    }
+
     private sealed record DetailOptions(
         List<CashBankDuesOptionViewModel> DuesOptions,
+        List<CashBankDuesOptionViewModel> DuesInstallmentOptions,
+        List<SelectListItem> PeriodOptions,
         List<SelectListItem> IncomeCategories,
         List<SelectListItem> ExpenseCategories,
         List<SelectListItem> TransferAccounts);

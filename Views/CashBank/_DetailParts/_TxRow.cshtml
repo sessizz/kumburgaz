@@ -151,6 +151,15 @@ else if (Model.Source == "collection")
                 </div>
                 <input type="hidden" name="BillingGroupId" value="@Model.BillingGroupId" data-dues-billing-group />
                 <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Dönem</legend>
+                    <select class="select select-bordered w-full" data-dues-period>
+                        @foreach (var option in Model.PeriodOptions)
+                        {
+                            <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+                <fieldset class="fieldset">
                     <legend class="fieldset-legend">Daire / Malik</legend>
                     <label class="input input-bordered flex items-center gap-2 mb-2">
                         <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
@@ -158,12 +167,13 @@ else if (Model.Source == "collection")
                     </label>
                     <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
                         <option value="">Daire veya malik seçin</option>
-                        @foreach (var option in Model.DuesOptions)
+                        @foreach (var option in Model.DuesInstallmentOptions)
                         {
                             <option value="@option.Id"
                                     selected="@(Model.DuesInstallmentId == option.Id)"
                                     data-billing-group-id="@option.BillingGroupId"
                                     data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-period="@option.Period"
                                     data-search="@option.SearchText">@option.Text</option>
                         }
                     </select>

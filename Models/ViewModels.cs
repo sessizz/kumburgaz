@@ -770,6 +770,7 @@ public class CashBankDuesOptionViewModel
     public string Text { get; set; } = string.Empty;
     public string SearchText { get; set; } = string.Empty;
     public decimal RemainingAmount { get; set; }
+    public string Period { get; set; } = string.Empty;
 }
 
 public class CashBankImportPreviewViewModel
@@ -899,6 +900,8 @@ public class TxRow
     public decimal RunningBalance { get; set; }
     public DateTime Date { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
     public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
@@ -946,6 +949,8 @@ public class CashBankDetailViewModel
     public int PendingCount { get; set; }
     public string? Note { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
     public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];

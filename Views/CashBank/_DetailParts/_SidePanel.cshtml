@@ -215,8 +215,14 @@
                 </fieldset>
             </div>
             <fieldset class="fieldset">
-                <legend class="fieldset-legend">Referans / Not</legend>
-                <input name="ReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
+                <label class="label cursor-pointer gap-2 px-0 w-fit">
+                    <input type="checkbox" id="createCollectionIsReceipt" name="IsReceipt" value="true" class="toggle toggle-sm toggle-primary" />
+                    <span class="label-text">Makbuz</span>
+                </label>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend id="createCollectionReferenceNoLegend" class="fieldset-legend">Referans / Not</legend>
+                <input name="ReferenceNo" id="createCollectionReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
                 <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not"></textarea>
             </fieldset>
             <div class="modal-action">
@@ -432,4 +438,21 @@ function wireDuesPicker(scope) {
 }
 
 document.querySelectorAll('.modal').forEach(wireDuesPicker);
+
+(() => {
+    const checkbox = document.getElementById("createCollectionIsReceipt");
+    const legend = document.getElementById("createCollectionReferenceNoLegend");
+    const input = document.getElementById("createCollectionReferenceNo");
+    if (!checkbox || !legend || !input) return;
+
+    const sync = () => {
+        const isReceipt = checkbox.checked;
+        legend.textContent = isReceipt ? "Makbuz No" : "Referans / Not";
+        input.placeholder = isReceipt ? "Makbuz no" : "Referans no";
+        input.required = isReceipt;
+    };
+
+    checkbox.addEventListener("change", sync);
+    sync();
+})();
 </script>

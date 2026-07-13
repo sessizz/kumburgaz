@@ -97,15 +97,15 @@
                         <td class="text-end text-sm tabular-nums whitespace-nowrap">
                             @if (netBalance > 0)
                             {
-                                <span class="text-error font-semibold">@netBalance.ToString("N2") ₺ borç</span>
+                                <span class="text-error font-semibold">@netBalance.ToString("N2") ₺</span>
                             }
                             else if (netBalance < 0)
                             {
-                                <span class="text-success font-semibold">@Math.Abs(netBalance).ToString("N2") ₺ alacak</span>
+                                <span class="text-success font-semibold">@Math.Abs(netBalance).ToString("N2") ₺</span>
                             }
                             else
                             {
-                                <span class="text-gray-300">—</span>
+                                <span class="text-gray-900 font-semibold">@netBalance.ToString("N2") ₺</span>
                             }
                         </td>
                         <td>

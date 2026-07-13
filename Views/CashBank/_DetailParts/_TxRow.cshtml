@@ -68,6 +68,10 @@
                 }
                 else
                 {
+                    @if (Model.Source == "collection" && Model.IsReceipt)
+                    {
+                        <li><a asp-controller="Collections" asp-action="PrintReceipt" asp-route-id="@Model.Id" target="_blank">Makbuzu Yazdır</a></li>
+                    }
                     <li><button type="button" onclick="document.getElementById('txEditModal-@modalSuffix').showModal()">Değiştir</button></li>
                     <li><button type="submit" form="txDeleteForm-@modalSuffix" class="text-error">Sil</button></li>
                 }
@@ -175,8 +179,14 @@ else if (Model.Source == "collection")
                     </fieldset>
                 </div>
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Referans / Not</legend>
-                    <input name="ReferenceNo" value="@Model.ReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
+                    <label class="label cursor-pointer gap-2 px-0 w-fit">
+                        <input type="checkbox" id="editCollectionIsReceipt-@modalSuffix" name="IsReceipt" value="true" class="toggle toggle-sm toggle-primary" checked="@Model.IsReceipt" />
+                        <span class="label-text">Makbuz</span>
+                    </label>
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend id="editCollectionReferenceNoLegend-@modalSuffix" class="fieldset-legend">Referans / Not</legend>
+                    <input name="ReferenceNo" id="editCollectionReferenceNo-@modalSuffix" value="@Model.ReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
                     <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not">@Model.Note</textarea>
                 </fieldset>
                 <div class="modal-action">
@@ -187,6 +197,24 @@ else if (Model.Source == "collection")
         </div>
         <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
     </dialog>
+    <script>
+    (() => {
+        const checkbox = document.getElementById("editCollectionIsReceipt-@modalSuffix");
+        const legend = document.getElementById("editCollectionReferenceNoLegend-@modalSuffix");
+        const input = document.getElementById("editCollectionReferenceNo-@modalSuffix");
+        if (!checkbox || !legend || !input) return;
+
+        const sync = () => {
+            const isReceipt = checkbox.checked;
+            legend.textContent = isReceipt ? "Makbuz No" : "Referans / Not";
+            input.placeholder = isReceipt ? "Makbuz no" : "Referans no";
+            input.required = isReceipt;
+        };
+
+        checkbox.addEventListener("change", sync);
+        sync();
+    })();
+    </script>
 }
 else if (Model.Source == "ledger" && Model.Kind == Kumburgaz.Web.Models.TxKind.Transfer)
 {

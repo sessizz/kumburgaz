@@ -743,6 +743,8 @@ public class CashBankCollectionFormViewModel
     [MaxLength(80)]
     public string? ReferenceNo { get; set; }
 
+    public bool IsReceipt { get; set; }
+
     [MaxLength(250)]
     public string? Note { get; set; }
 }
@@ -874,6 +876,7 @@ public class TxRow
     public int? DuesInstallmentId { get; set; }
     public int? IncomeExpenseCategoryId { get; set; }
     public string? ReferenceNo { get; set; }
+    public bool IsReceipt { get; set; }
     public string? Note { get; set; }
     public string? ToAccountKey { get; set; }
     public string Description { get; set; } = "";

@@ -633,7 +633,7 @@ public class CashBankController(
 
         try
         {
-            await collectionService.CreateAsync(new CollectionCreateViewModel
+            var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
             {
                 BillingGroupId = model.BillingGroupId,
                 DuesInstallmentId = model.DuesInstallmentId,
@@ -642,9 +642,16 @@ public class CashBankController(
                 PaymentChannel = paymentChannel,
                 AccountKey = accountKey,
                 ReferenceNo = model.ReferenceNo,
+                IsReceipt = model.IsReceipt,
                 Note = model.Note
             });
             TempData["ActionSuccess"] = "Tahsilat kaydedildi.";
+
+            if (model.IsReceipt)
+            {
+                var returnUrl = Url.Action(model.Kind == "bank" ? nameof(BankDetail) : nameof(CashBoxDetail), new { id = model.Id });
+                return RedirectToAction("PrintReceipt", "Collections", new { id = collectionId, returnUrl });
+            }
         }
         catch (Exception ex)
         {
@@ -690,7 +697,7 @@ public class CashBankController(
                 PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
                 AccountKey = BuildAccountKey(model.Kind, model.Id),
                 ReferenceNo = model.ReferenceNo,
-                IsReceipt = existingCollection.IsReceipt,
+                IsReceipt = model.IsReceipt,
                 Note = model.Note
             });
             TempData["ActionSuccess"] = "Tahsilat güncellendi.";

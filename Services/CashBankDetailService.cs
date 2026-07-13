@@ -77,6 +77,7 @@ public class CashBankDetailService(ApplicationDbContext db)
                     .Select(x => (int?)x.DuesInstallmentId)
                     .FirstOrDefault(),
                 ReferenceNo = c.ReferenceNo,
+                IsReceipt = c.IsReceipt,
                 Note = c.Note,
                 Description = c.BillingGroup?.Name ?? "Tahsilat",
                 Subline = $"{block} Blok · No {unitNo} · {payer}",

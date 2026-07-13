@@ -1,0 +1,81 @@
+@model Kumburgaz.Web.Models.Collection
+@using Kumburgaz.Web.Services
+@{
+    Layout = "_PrintLayout";
+    ViewData["Title"] = "Makbuz";
+    var siteName = Model.Unit?.Block?.Site?.Name ?? "Kumburgaz Sitesi";
+    var unitDisplay = UnitDisplayHelper.Display(Model.Unit);
+    var accountName = Model.CashBox is not null
+        ? $"Kasa - {Model.CashBox.Name}"
+        : Model.BankAccount is not null
+            ? $"Banka - {Model.BankAccount.Name}"
+            : EnumDisplayHelper.Display(Model.PaymentChannel);
+    var returnUrl = ViewBag.ReturnUrl as string;
+}
+
+<div class="max-w-xl mx-auto py-8 px-4">
+    <div class="no-print flex items-center justify-between mb-4">
+        <a class="btn btn-ghost btn-sm" href="@(string.IsNullOrWhiteSpace(returnUrl) ? Url.Action("Index", "Dues") : returnUrl)">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Geri
+        </a>
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
+            <span class="material-symbols-outlined ms-sm">print</span>
+            Yazdır
+        </button>
+    </div>
+
+    <div class="bg-white border-2 border-gray-800 rounded-lg p-8" style="color:#111827;">
+        <div class="text-center border-b-2 border-gray-800 pb-4 mb-4">
+            <div class="text-lg font-extrabold uppercase tracking-wide">@siteName</div>
+            <div class="text-base font-semibold mt-1">Tahsilat Makbuzu</div>
+        </div>
+
+        <div class="flex items-center justify-between text-sm mb-4">
+            <div><span class="font-semibold">Makbuz No:</span> @Model.ReferenceNo</div>
+            <div><span class="font-semibold">Tarih:</span> @Model.Date.ToString("dd.MM.yyyy")</div>
+        </div>
+
+        <table class="w-full text-sm mb-4">
+            <tbody>
+                <tr>
+                    <td class="py-1 pr-3 font-semibold align-top" style="width:35%;">Daire</td>
+                    <td class="py-1">@unitDisplay</td>
+                </tr>
+                <tr>
+                    <td class="py-1 pr-3 font-semibold align-top">Malik / Sakin</td>
+                    <td class="py-1">@(Model.Unit?.OwnerName ?? "-")</td>
+                </tr>
+                <tr>
+                    <td class="py-1 pr-3 font-semibold align-top">Aidat Grubu</td>
+                    <td class="py-1">@Model.BillingGroup?.Name</td>
+                </tr>
+                <tr>
+                    <td class="py-1 pr-3 font-semibold align-top">Ödeme Şekli</td>
+                    <td class="py-1">@accountName</td>
+                </tr>
+                @if (!string.IsNullOrWhiteSpace(Model.Note))
+                {
+                    <tr>
+                        <td class="py-1 pr-3 font-semibold align-top">Açıklama</td>
+                        <td class="py-1">@Model.Note</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="border-2 border-gray-800 rounded p-3 text-center mb-6">
+            <div class="text-xs text-gray-500">Tahsil Edilen Tutar</div>
+            <div class="text-2xl font-extrabold">@Model.Amount.ToString("N2") TL</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 text-sm text-center mt-10">
+            <div>
+                <div class="border-t border-gray-500 pt-1">Teslim Eden</div>
+            </div>
+            <div>
+                <div class="border-t border-gray-500 pt-1">Teslim Alan / Yetkili</div>
+            </div>
+        </div>
+    </div>
+</div>

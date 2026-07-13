@@ -78,7 +78,7 @@ public class CollectionsController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateForUnit(int unitId, string amount, DateTime date,
-        string? accountKey, string? note, string? returnUrl)
+        string? accountKey, string? note, bool isReceipt = false, string? referenceNo = null, string? returnUrl = null)
     {
         try
         {
@@ -89,6 +89,13 @@ public class CollectionsController(
                 TempData["ActionError"] = "Geçerli bir tutar giriniz.";
                 return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
             }
+
+            if (isReceipt && string.IsNullOrWhiteSpace(referenceNo))
+            {
+                TempData["ActionError"] = "Makbuz için makbuz no giriniz.";
+                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+            }
+
             var billingGroupId = await ResolveUnitBillingGroupIdAsync(unitId);
             if (billingGroupId is null)
             {
@@ -111,11 +118,18 @@ public class CollectionsController(
                 Amount = parsedAmount,
                 PaymentChannel = FinancialAccountHelper.TryParse(accountKey, out var ch, out _, out _) ? ch : PaymentChannel.Bank,
                 AccountKey = accountKey,
+                IsReceipt = isReceipt,
+                ReferenceNo = referenceNo,
                 Note = note
             };
 
-            await collectionService.CreateAsync(model);
+            var collectionId = await collectionService.CreateAsync(model);
             TempData["ActionSuccess"] = $"{parsedAmount:N2} TL tahsilat kaydedildi.";
+
+            if (isReceipt)
+            {
+                return RedirectToAction(nameof(PrintReceipt), new { id = collectionId, returnUrl });
+            }
         }
         catch (Exception ex)
         {
@@ -175,6 +189,7 @@ public class CollectionsController(
             PaymentChannel = entity.PaymentChannel,
             AccountKey = FinancialAccountHelper.BuildKey(entity.CashBoxId, entity.BankAccountId),
             ReferenceNo = entity.ReferenceNo,
+            IsReceipt = entity.IsReceipt,
             Note = entity.Note,
             ExistingAllocatedAmount = entity.Allocations.Sum(x => x.AppliedAmount),
             ReturnUrl = Request.Query["returnUrl"].FirstOrDefault()
@@ -205,6 +220,33 @@ public class CollectionsController(
             ViewBag.CollectionId = id;
             return View(await BuildFormAsync(model));
         }
+    }
+
+    public async Task<IActionResult> PrintReceipt(int id, string? returnUrl = null)
+    {
+        var collection = await db.Collections
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .ThenInclude(x => x!.Site)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (collection is null)
+        {
+            return NotFound();
+        }
+
+        if (!collection.IsReceipt)
+        {
+            TempData["ActionError"] = "Bu tahsilat için makbuz oluşturulmamış.";
+            return Redirect(returnUrl ?? Url.Action("Index", "Dues")!);
+        }
+
+        ViewBag.ReturnUrl = returnUrl;
+        return View(collection);
     }
 
     [HttpPost]

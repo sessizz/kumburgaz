@@ -690,6 +690,7 @@ public class CashBankController(
                 PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
                 AccountKey = BuildAccountKey(model.Kind, model.Id),
                 ReferenceNo = model.ReferenceNo,
+                IsReceipt = existingCollection.IsReceipt,
                 Note = model.Note
             });
             TempData["ActionSuccess"] = "Tahsilat güncellendi.";

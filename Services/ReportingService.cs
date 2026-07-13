@@ -9,11 +9,16 @@ using System.Text.RegularExpressions;
 
 namespace Kumburgaz.Web.Services;
 
-public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLedgerService) : IReportingService
+public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLedgerService, IDuesLedgerRowService ledgerService) : IReportingService
 {
+    public const string AllPeriodsValue = "all";
+
     public async Task<List<DuesDebtReportRow>> GetDuesDebtReportAsync(DuesDebtReportQuery query)
     {
-        query.Period = null;
+        var selectedPeriod = string.IsNullOrWhiteSpace(query.Period) || query.Period == AllPeriodsValue
+            ? AllPeriodsValue
+            : (PeriodHelper.IsValid(query.Period) ? query.Period : AllPeriodsValue);
+        query.Period = selectedPeriod;
 
         var units = await db.Units
             .AsNoTracking()
@@ -67,7 +72,11 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             .ThenBy(x => x.Id)
             .ToListAsync();
 
-        foreach (var installment in installments.Where(x => x.UnitId.HasValue))
+        var periodFilteredInstallments = selectedPeriod == AllPeriodsValue
+            ? installments
+            : installments.Where(x => x.Period == selectedPeriod).ToList();
+
+        foreach (var installment in periodFilteredInstallments.Where(x => x.UnitId.HasValue))
         {
             var key = UnitKey(installment.UnitId!.Value);
             if (!rowsByKey.TryGetValue(key, out var row))
@@ -84,7 +93,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             row.BillingGroupName = AddDistinctName(row.BillingGroupName, installment.BillingGroup?.Name);
         }
 
-        foreach (var group in installments.Where(x => x.UnitId == null).GroupBy(x => x.BillingGroupId))
+        foreach (var group in periodFilteredInstallments.Where(x => x.UnitId == null).GroupBy(x => x.BillingGroupId))
         {
             var first = group.First();
             rowsByKey[GroupKey(group.Key)] = new DuesDebtReportRow
@@ -101,7 +110,31 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
             };
         }
 
-        if (query.BillingGroupId is null && query.DuesTypeId is null)
+        if (selectedPeriod != AllPeriodsValue)
+        {
+            // Belirli bir dönem seçiliyse devir bakiyesi (borç/alacak) yine de toplam bakiyeye
+            // dahil edilir; devir borcu varsa tahsis edilmemiş kredi önce onu kapatmış sayılır.
+            var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync(units.Select(x => x.Id));
+            foreach (var unit in units)
+            {
+                if (!rowsByKey.TryGetValue(UnitKey(unit.Id), out var row))
+                {
+                    continue;
+                }
+
+                row.OpeningBalance = unit.OpeningBalance;
+                if (unit.OpeningBalance < 0m)
+                {
+                    var credit = unallocatedCredit.GetValueOrDefault(unit.Id)?.Amount ?? 0m;
+                    row.RemainingAmount += Math.Max(0m, -unit.OpeningBalance - credit);
+                }
+                else if (unit.OpeningBalance > 0m)
+                {
+                    row.RemainingAmount -= unit.OpeningBalance;
+                }
+            }
+        }
+        else if (query.BillingGroupId is null && query.DuesTypeId is null)
         {
             var summaries = await unitLedgerService.BuildSummariesAsync(units.Select(x => x.Id));
             foreach (var unit in units)
@@ -681,7 +714,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
 
     private static string DuesStatusTitle(DuesDebtReportQuery query)
     {
-        return string.IsNullOrWhiteSpace(query.Period)
+        return string.IsNullOrWhiteSpace(query.Period) || query.Period == AllPeriodsValue
             ? "AİDAT DURUM GENEL LİSTE"
             : $"{query.Period} DÖNEMİ GENEL LİSTE";
     }
@@ -735,6 +768,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
 
         var parts = new List<string>
         {
+            $"Dönem: {(string.IsNullOrWhiteSpace(query.Period) || query.Period == AllPeriodsValue ? "Tümü" : query.Period)}",
             $"BlokId: {query.BlockId?.ToString() ?? "Tüm"}",
             $"AidatTipiId: {query.DuesTypeId?.ToString() ?? "Tüm"}",
             $"AidatGrubuId: {query.BillingGroupId?.ToString() ?? "Tüm"}",

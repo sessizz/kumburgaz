@@ -148,6 +148,31 @@ public class UnitLedgerAndCollectionTests
     }
 
     [Fact]
+    public async Task Dues_debt_report_scopes_to_selected_period_but_still_includes_opening_debt()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -500m, openingDate: Utc(2025, 5, 26));
+        var older = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 5_000m, period: "2025-2026");
+        var newer = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 9, 1), 8_000m, period: "2026-2027");
+
+        // Eski dönem tam ödenir, yeni dönemin 3.000 TL'si ödenir (5.000 TL kalır).
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 5), 5_000m, older.Id);
+        await AddCollectionAsync(db, seed, Utc(2026, 8, 5), 3_000m, newer.Id);
+
+        var reportingService = new ReportingService(
+            db,
+            new UnitLedgerService(db, new DuesLedgerRowService(db)),
+            new DuesLedgerRowService(db));
+
+        var rows = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery { Period = "2026-2027" });
+
+        var row = Assert.Single(rows);
+        Assert.Equal(8_000m, row.Amount);
+        // 5.000 (bu dönemin kalanı) + 500 (devir borcu) = 5.500
+        Assert.Equal(5_500m, row.RemainingAmount);
+    }
+
+    [Fact]
     public async Task Edited_collection_reverses_old_allocation_and_recalculates_remaining_amount()
     {
         await using var db = CreateDb();

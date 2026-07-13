@@ -38,7 +38,11 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="p-6">
             <form method="get" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Dönem</legend>
+                        <select class="select select-bordered" name="Period" asp-items="(IEnumerable<SelectListItem>)ViewBag.Periods"></select>
+                    </fieldset>
                     <fieldset class="fieldset">
                         <legend class="fieldset-legend">Blok</legend>
                         <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
@@ -70,6 +74,7 @@
                         Filtrele
                     </button>
                     <a class="btn btn-outline btn-success" asp-action="DuesDebtExcel"
+                       asp-route-Period="@query.Period"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
                        asp-route-BillingGroupId="@query.BillingGroupId"
@@ -78,6 +83,7 @@
                         Excel
                     </a>
                     <a class="btn btn-outline btn-error" asp-action="DuesDebtPdf"
+                       asp-route-Period="@query.Period"
                        asp-route-BlockId="@query.BlockId"
                        asp-route-DuesTypeId="@query.DuesTypeId"
                        asp-route-BillingGroupId="@query.BillingGroupId"

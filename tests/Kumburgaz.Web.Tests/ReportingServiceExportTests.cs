@@ -9,7 +9,7 @@ public class ReportingServiceExportTests
     [Fact]
     public void DuesStatus_compact_exports_generate_files()
     {
-        var service = new ReportingService(null!, null!);
+        var service = new ReportingService(null!, null!, null!);
         var model = new DuesStatusReportViewModel
         {
             Query = new DuesDebtReportQuery(),

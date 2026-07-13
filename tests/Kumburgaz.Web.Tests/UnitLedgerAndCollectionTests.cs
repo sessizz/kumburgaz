@@ -15,7 +15,7 @@ public class UnitLedgerAndCollectionTests
         var seed = await SeedUnitAsync(db, openingBalance: 10_000m, openingDate: Utc(2025, 5, 26));
         await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
         Assert.Equal(12_000m, ledger.Summary.TotalAccrual);
@@ -32,10 +32,11 @@ public class UnitLedgerAndCollectionTests
         await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
         await AddCollectionAsync(db, seed, Utc(2025, 9, 24), 9_500m);
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
-        Assert.Equal(500m, ledger.Summary.OpeningDebt);
+        // Genel tahsilatın 500 TL'si devir borcuna ayrıldığı için devir artık kapanmış sayılır.
+        Assert.Equal(0m, ledger.Summary.OpeningDebt);
         Assert.Equal(3_000m, ledger.Summary.NetBalance);
     }
 
@@ -53,9 +54,10 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(15_000m, installmentAfter.RemainingAmount);
         Assert.Empty(await db.CollectionAllocations.ToListAsync());
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
         Assert.NotNull(ledger);
-        Assert.Equal(750m, ledger.Summary.OpeningDebt);
+        // Tahsis edilmemiş 750 TL'lik kredi devir borcunu tam kapattığı için OpeningDebt 0 olmalı.
+        Assert.Equal(0m, ledger.Summary.OpeningDebt);
         Assert.Equal(15_000m, ledger.Summary.NetBalance);
     }
 
@@ -96,7 +98,7 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(0m, installmentAfter.RemainingAmount);
         Assert.Equal(8_000m, await db.CollectionAllocations.SumAsync(x => x.AppliedAmount));
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
         Assert.Equal(-4_000m, ledger.Summary.NetBalance);

@@ -11,8 +11,11 @@ public interface IDuesLedgerRowService
     Task<List<DuesListItemViewModel>> GetInstallmentRowsAsync();
     Task<List<string>> GetAvailablePeriodsAsync();
 
-    /// <summary>Her dairenin, henüz herhangi bir aidat taksitine tahsis edilmemiş tahsilat fazlasını döner.</summary>
-    Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync();
+    /// <summary>
+    /// Her dairenin, henüz herhangi bir aidat taksitine tahsis edilmemiş tahsilat fazlasını döner.
+    /// <paramref name="unitIds"/> verilirse sorgu sadece o dairelerle sınırlanır.
+    /// </summary>
+    Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync(IEnumerable<int>? unitIds = null);
 }
 
 public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowService
@@ -94,10 +97,16 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             .ToList();
     }
 
-    public async Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync()
+    public async Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync(IEnumerable<int>? unitIds = null)
     {
-        return await db.Collections
-            .AsNoTracking()
+        var query = db.Collections.AsNoTracking().AsQueryable();
+        if (unitIds is not null)
+        {
+            var idList = unitIds as ICollection<int> ?? unitIds.ToList();
+            query = query.Where(x => idList.Contains(x.UnitId));
+        }
+
+        return await query
             .Select(x => new
             {
                 x.UnitId,

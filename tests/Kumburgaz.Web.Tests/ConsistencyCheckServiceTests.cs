@@ -97,7 +97,7 @@ public class ConsistencyCheckServiceTests
 
     private static ConsistencyCheckService CreateService(ApplicationDbContext db)
     {
-        return new ConsistencyCheckService(db, new UnitLedgerService(db));
+        return new ConsistencyCheckService(db, new UnitLedgerService(db, new DuesLedgerRowService(db)));
     }
 
     private static async Task<SeedData> SeedUnitAsync(ApplicationDbContext db)

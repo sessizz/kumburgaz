@@ -207,10 +207,10 @@
                                     <span class="text-gray-300">—</span>
                                 }
                             </td>
-                            <td class="text-sm">
+                            <td class="text-sm whitespace-nowrap">
                                 @if (activeGroup?.BillingGroup?.DuesType is not null)
                                 {
-                                    <span class="badge badge-ghost badge-sm">@activeGroup.BillingGroup.DuesType.Name</span>
+                                    <span class="badge badge-ghost badge-sm whitespace-nowrap">@activeGroup.BillingGroup.DuesType.Name</span>
                                 }
                                 else
                                 {
@@ -220,7 +220,7 @@
                             @{
                                 var netBalance = Model.NetBalanceByUnitId.GetValueOrDefault(item.Id);
                             }
-                            <td class="text-end text-sm tabular-nums">
+                            <td class="text-end text-sm tabular-nums whitespace-nowrap">
                                 @if (netBalance > 0)
                                 {
                                     <span class="text-error font-semibold">@netBalance.ToString("N2") ₺ borç</span>

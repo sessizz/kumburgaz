@@ -94,7 +94,7 @@
                         <td class="text-sm">@account.Phone</td>
                         <td class="text-sm">@account.Email</td>
                         <td class="text-sm">@(unitLinks.Count == 0 ? "—" : string.Join(", ", unitLinks))</td>
-                        <td class="text-end text-sm tabular-nums">
+                        <td class="text-end text-sm tabular-nums whitespace-nowrap">
                             @if (netBalance > 0)
                             {
                                 <span class="text-error font-semibold">@netBalance.ToString("N2") ₺ borç</span>

@@ -527,6 +527,8 @@ public class Collection : ISoftDeletable
     [MaxLength(80)]
     public string? ReferenceNo { get; set; }
 
+    public bool IsReceipt { get; set; }
+
     [MaxLength(250)]
     public string? Note { get; set; }
 

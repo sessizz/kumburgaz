@@ -93,6 +93,11 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat tutari sifirdan buyuk olmalidir.");
         }
 
+        if (model.IsReceipt && string.IsNullOrWhiteSpace(model.ReferenceNo))
+        {
+            throw new InvalidOperationException("Makbuz için makbuz no giriniz.");
+        }
+
         var targetInstallment = model.DuesInstallmentId.HasValue
             ? await db.DuesInstallments
                 .AsNoTracking()
@@ -156,6 +161,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             collection.CashBoxId = cashBoxId;
             collection.BankAccountId = bankAccountId;
             collection.ReferenceNo = model.ReferenceNo;
+            collection.IsReceipt = model.IsReceipt;
             collection.Note = model.Note;
         }
         else
@@ -170,6 +176,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
                 CashBoxId = cashBoxId,
                 BankAccountId = bankAccountId,
                 ReferenceNo = model.ReferenceNo,
+                IsReceipt = model.IsReceipt,
                 Note = model.Note
             };
 

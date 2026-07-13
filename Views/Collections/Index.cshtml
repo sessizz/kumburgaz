@@ -78,10 +78,22 @@
                         <td>@item.BillingGroup?.Name</td>
                         <td class="text-end font-bold">@item.Amount.ToString("N2")</td>
                         <td><span class="badge badge-ghost">@EnumDisplayHelper.Display(item.PaymentChannel)</span></td>
-                        <td class="text-xs">@item.ReferenceNo</td>
+                        <td class="text-xs">
+                            @item.ReferenceNo
+                            @if (item.IsReceipt)
+                            {
+                                <span class="badge badge-info badge-sm ms-1">Makbuz</span>
+                            }
+                        </td>
                         <td class="text-xs text-gray-500">@item.Note</td>
                         <td>
                             <div class="flex justify-end gap-1">
+                                @if (item.IsReceipt)
+                                {
+                                    <a class="btn btn-xs btn-ghost" asp-action="PrintReceipt" asp-route-id="@item.Id" target="_blank" title="Makbuzu Yazdır">
+                                        <span class="material-symbols-outlined ms-sm">print</span>
+                                    </a>
+                                }
                                 <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
                                     <span class="material-symbols-outlined ms-sm">edit</span>
                                 </a>

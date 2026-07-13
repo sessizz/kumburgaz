@@ -77,8 +77,22 @@
                 </div>
 
                 <fieldset class="fieldset">
-                    <legend class="fieldset-legend">Referans No</legend>
-                    <input asp-for="ReferenceNo" class="input input-bordered w-full" />
+                    <label class="label cursor-pointer gap-2 px-0 w-fit">
+                        <input asp-for="IsReceipt" id="isReceiptToggle" type="checkbox" class="toggle toggle-sm toggle-primary" />
+                        <span class="label-text">Makbuz</span>
+                    </label>
+                    @if (Model.IsReceipt)
+                    {
+                        <a class="btn btn-outline btn-sm ms-2" asp-action="PrintReceipt" asp-route-id="@ViewBag.CollectionId" asp-route-returnUrl="@Model.ReturnUrl" target="_blank">
+                            <span class="material-symbols-outlined ms-sm">print</span>
+                            Makbuzu Yazdır
+                        </a>
+                    }
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend id="referenceNoLegend" class="fieldset-legend">Referans No</legend>
+                    <input asp-for="ReferenceNo" id="referenceNoInput" class="input input-bordered w-full" />
                 </fieldset>
 
                 <fieldset class="fieldset">
@@ -122,6 +136,22 @@
 
             amountInput.addEventListener("input", updatePreview);
             updatePreview();
+        })();
+
+        (() => {
+            const isReceiptToggle = document.getElementById("isReceiptToggle");
+            const referenceNoLegend = document.getElementById("referenceNoLegend");
+            const referenceNoInput = document.getElementById("referenceNoInput");
+            if (!isReceiptToggle || !referenceNoLegend || !referenceNoInput) return;
+
+            const sync = () => {
+                const isReceipt = isReceiptToggle.checked;
+                referenceNoLegend.textContent = isReceipt ? "Makbuz No" : "Referans No";
+                referenceNoInput.required = isReceipt;
+            };
+
+            isReceiptToggle.addEventListener("change", sync);
+            sync();
         })();
     </script>
 }

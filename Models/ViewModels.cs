@@ -581,6 +581,7 @@ public class CollectionCreateViewModel
     public string? AccountKey { get; set; }
 
     public string? ReferenceNo { get; set; }
+    public bool IsReceipt { get; set; }
     public string? Note { get; set; }
     public string? ReturnUrl { get; set; }
     public decimal ExistingAllocatedAmount { get; set; }

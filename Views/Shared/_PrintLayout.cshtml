@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <style>
+        * { font-family: "Inter", system-ui, sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 22;
+            vertical-align: middle;
+            font-size: 20px;
+            line-height: 1;
+        }
+        @@media print {
+            .no-print { display: none !important; }
+            body { background: #fff !important; }
+        }
+    </style>
+</head>
+<body style="background:#f3f4f6; min-height:100vh;">
+    @RenderBody()
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

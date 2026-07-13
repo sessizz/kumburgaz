@@ -85,6 +85,29 @@ public class UnitLedgerAndCollectionTests
     }
 
     [Fact]
+    public async Task Collection_targeting_a_specific_installment_does_not_apply_to_an_older_sibling()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db);
+        var older = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 5_000m, period: "2025-2026");
+        var newer = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 9, 1), 5_000m, period: "2026-2027");
+
+        // Kullanici acikca 2026-2027 taksitini secip 3.000 TL tahsilat girer.
+        await AddCollectionAsync(db, seed, Utc(2026, 8, 8), 3_000m, newer.Id);
+
+        var olderAfter = await db.DuesInstallments.FindAsync(older.Id);
+        var newerAfter = await db.DuesInstallments.FindAsync(newer.Id);
+        Assert.NotNull(olderAfter);
+        Assert.NotNull(newerAfter);
+        Assert.Equal(5_000m, olderAfter.RemainingAmount);
+        Assert.Equal(2_000m, newerAfter.RemainingAmount);
+
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(newer.Id, allocation.DuesInstallmentId);
+        Assert.Equal(3_000m, allocation.AppliedAmount);
+    }
+
+    [Fact]
     public async Task Overpayment_remains_as_advance_in_ledger()
     {
         await using var db = CreateDb();

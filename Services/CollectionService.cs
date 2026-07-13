@@ -187,10 +187,11 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         var openInstallmentsQuery = db.DuesInstallments
             .Where(x => x.BillingGroupId == billingGroupId && x.RemainingAmount > 0);
 
-        if (targetInstallment?.UnitId is not null)
+        if (targetInstallment is not null)
         {
-            var unitId = targetInstallment.UnitId.Value;
-            openInstallmentsQuery = openInstallmentsQuery.Where(x => x.UnitId == unitId);
+            // Belirli bir taksit secildiyse odeme sadece o taksite uygulanir; tutar taksidi asarsa
+            // fazlasi avans olarak kalir, diger donemlerin borclarina sizmaz.
+            openInstallmentsQuery = openInstallmentsQuery.Where(x => x.Id == targetInstallment.Id);
         }
 
         var openInstallments = await openInstallmentsQuery

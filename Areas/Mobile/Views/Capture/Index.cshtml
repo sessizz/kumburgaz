@@ -1,0 +1,68 @@
+@model Kumburgaz.Web.Models.CaptureIndexViewModel
+@{
+    ViewData["Title"] = "Telefondan Ekle";
+    var accept = Model.Purpose == "belge"
+        ? ".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.xlsx,.xls,.csv,.txt"
+        : "image/*";
+    var purposeLabel = Model.Purpose == "belge" ? "belge" : "gider fişi";
+}
+
+@if (!Model.IsValid)
+{
+    <div class="m-card" style="text-align:center;padding:32px 16px;">
+        <div style="font-size:32px;">⌛</div>
+        <div style="font-weight:700;margin-top:8px;">Bağlantının süresi dolmuş</div>
+        <div style="font-size:13.5px;color:var(--m-muted);margin-top:6px;">
+            Masaüstünde "Telefondan ekle" düğmesine tekrar basıp yeni bir bağlantı oluşturun.
+        </div>
+    </div>
+}
+else
+{
+    @if (TempData["ActionSuccess"] is string success)
+    {
+        <div class="m-card" style="background:#ecfdf5;border-color:#a7f3d0;color:#065f46;margin-bottom:12px;">@success</div>
+    }
+    @if (TempData["ActionError"] is string error)
+    {
+        <div class="m-note">@error</div>
+    }
+
+    <form method="post" asp-area="Mobile" asp-controller="Capture" asp-action="Yukle" enctype="multipart/form-data"
+          class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="token" value="@Model.Token" />
+
+        <div>
+            <div style="font-weight:700;font-size:15px;">Masaüstündeki @purposeLabel formuna ekle</div>
+            <div style="font-size:13px;color:var(--m-muted);margin-top:4px;">
+                Fotoğraf çekin veya galeriden/dosyalardan seçin. Ekledikçe masaüstündeki forma anlık düşer.
+            </div>
+        </div>
+
+        <label style="display:block;">
+            <input type="file" name="files" accept="@accept" multiple
+                   style="width:100%;font-size:14px;" />
+        </label>
+
+        <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+            Yükle
+        </button>
+    </form>
+
+    @if (Model.Files.Count > 0)
+    {
+        <div class="m-card" style="margin-top:12px;">
+            <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Eklenenler (@Model.Files.Count)</div>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;">
+                @foreach (var file in Model.Files)
+                {
+                    <li style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                        <span style="color:#059669;">✓</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@file.FileName</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+}

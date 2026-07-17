@@ -1216,3 +1216,20 @@ public class BackupIndexViewModel
     public DateTime? LastBackupAt { get; set; }
     public List<BackupFileViewModel> Files { get; set; } = [];
 }
+
+/// <summary>Mobil "Telefondan ekle" yakalama sayfasi icin model.</summary>
+public class CaptureIndexViewModel
+{
+    public bool IsValid { get; set; }
+    public string Token { get; set; } = string.Empty;
+
+    /// <summary>"gider" veya "belge".</summary>
+    public string Purpose { get; set; } = string.Empty;
+    public List<CaptureStagedFileSummary> Files { get; set; } = [];
+}
+
+public class CaptureStagedFileSummary
+{
+    public Guid Id { get; set; }
+    public string FileName { get; set; } = string.Empty;
+}

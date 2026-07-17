@@ -14,7 +14,8 @@ namespace Kumburgaz.Web.Controllers;
 public class LedgerController(
     ApplicationDbContext db,
     ImportBatchService importBatchService,
-    ImageAttachmentService imageAttachmentService) : Controller
+    ImageAttachmentService imageAttachmentService,
+    CaptureSessionService captureSessions) : Controller
 {
     public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
@@ -120,7 +121,7 @@ public class LedgerController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar)
+    public async Task<IActionResult> Create(LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar, string? captureToken = null)
     {
         if (!ModelState.IsValid)
         {
@@ -141,6 +142,7 @@ public class LedgerController(
         await db.SaveChangesAsync();
 
         await SaveAttachmentsAsync(entity.Id, Fotograflar);
+        await SaveCapturedAttachmentsAsync(entity.Id, captureToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -171,7 +173,7 @@ public class LedgerController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar)
+    public async Task<IActionResult> Edit(int id, LedgerTransactionCreateViewModel model, List<IFormFile> Fotograflar, string? captureToken = null)
     {
         if (!ModelState.IsValid)
         {
@@ -196,6 +198,7 @@ public class LedgerController(
 
         await db.SaveChangesAsync();
         await SaveAttachmentsAsync(id, Fotograflar);
+        await SaveCapturedAttachmentsAsync(id, captureToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -518,6 +521,44 @@ public class LedgerController(
         }
 
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// "Telefondan ekle" ile yakalanan dosyalari ekleyerek kaydeder. Baytlar telefonda
+    /// yuklenirken zaten sikistirilmis (ImageAttachmentService) - burada tekrar islenmez.
+    /// </summary>
+    private async Task SaveCapturedAttachmentsAsync(int ledgerTransactionId, string? captureToken)
+    {
+        if (string.IsNullOrWhiteSpace(captureToken))
+        {
+            return;
+        }
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value;
+        var files = captureSessions.ListFiles(captureToken, userId);
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            db.Attachments.Add(new Attachment
+            {
+                EntityType = nameof(LedgerTransaction),
+                EntityId = ledgerTransactionId,
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                ByteSize = file.Content.Length,
+                Content = file.Content,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName
+            });
+        }
+
+        await db.SaveChangesAsync();
+        captureSessions.Remove(captureToken);
     }
 
     private async Task<List<LedgerAttachmentSummary>> BuildAttachmentSummariesAsync(int ledgerTransactionId)

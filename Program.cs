@@ -94,6 +94,7 @@ builder.Services.AddScoped<MahsupService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<PushSenderService>();
 builder.Services.AddSingleton<PushQueue>();
+builder.Services.AddSingleton<CaptureSessionService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
 builder.Services.AddScoped<CollectionAllocationRepairService>();

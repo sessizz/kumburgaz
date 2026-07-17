@@ -55,6 +55,9 @@
                     <legend class="fieldset-legend">Fiş / fatura fotoğrafı (opsiyonel)</legend>
                     <input type="file" name="Fotograflar" accept="image/*" multiple class="file-input file-input-bordered w-full" />
                     <p class="label text-xs">Sunucuda otomatik olarak sıkıştırılır.</p>
+                    <div class="mt-2">
+                        <partial name="_PhoneCapturePanel" model="@("gider")" />
+                    </div>
                 </fieldset>
 
                 <div class="flex gap-2 justify-end pt-2">
@@ -71,4 +74,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/phone-capture.js" asp-append-version="true"></script>
 }

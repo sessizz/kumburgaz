@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
@@ -10,7 +11,8 @@ namespace Kumburgaz.Web.Controllers;
 [ModuleAuthorize(AppModules.Belgeler)]
 public class DocumentsController(
     ApplicationDbContext db,
-    DocumentFileService documentFileService) : Controller
+    DocumentFileService documentFileService,
+    CaptureSessionService captureSessions) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -25,9 +27,15 @@ public class DocumentsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(DocumentRecord model, List<IFormFile>? files)
+    public async Task<IActionResult> Create(DocumentRecord model, List<IFormFile>? files, string? captureToken = null)
     {
-        var validatedFiles = await ValidateFilesAsync(files, requireFile: true);
+        var validatedFiles = await ValidateFilesAsync(files, requireFile: false);
+        var capturedFileCount = CapturedFiles(captureToken).Count;
+        if (validatedFiles.Count == 0 && capturedFileCount == 0)
+        {
+            ModelState.AddModelError("files", "En az bir dosya seçin.");
+        }
+
         if (!ModelState.IsValid) return View(model);
 
         model.DocumentDate = DateTime.SpecifyKind(model.DocumentDate, DateTimeKind.Utc);
@@ -36,6 +44,7 @@ public class DocumentsController(
 
         db.Attachments.AddRange(validatedFiles.Select(x => documentFileService.CreateAttachment(model.Id, x, User)));
         await db.SaveChangesAsync();
+        await SaveCapturedAttachmentsAsync(model.Id, captureToken);
         TempData["ActionSuccess"] = "Belge kaydı oluşturuldu.";
         return RedirectToAction(nameof(Details), new { id = model.Id });
     }
@@ -64,7 +73,7 @@ public class DocumentsController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(DocumentRecord model, List<IFormFile>? files)
+    public async Task<IActionResult> Edit(DocumentRecord model, List<IFormFile>? files, string? captureToken = null)
     {
         var validatedFiles = await ValidateFilesAsync(files, requireFile: false);
         if (!ModelState.IsValid) return View(model);
@@ -83,6 +92,7 @@ public class DocumentsController(
             await db.SaveChangesAsync();
         }
 
+        await SaveCapturedAttachmentsAsync(entity.Id, captureToken);
         TempData["ActionSuccess"] = "Belge güncellendi.";
         return RedirectToAction(nameof(Details), new { id = entity.Id });
     }
@@ -162,6 +172,30 @@ public class DocumentsController(
         }
 
         return validatedFiles;
+    }
+
+    private IReadOnlyList<CaptureStagedFile> CapturedFiles(string? captureToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return captureSessions.ListFiles(captureToken, userId);
+    }
+
+    /// <summary>
+    /// "Telefondan ekle" ile yakalanan dosyalari belge kaydina ekler. Baytlar telefonda
+    /// yuklenirken zaten dogrulanmis (DocumentFileService.ValidateAsync) - tekrar okunmaz.
+    /// </summary>
+    private async Task SaveCapturedAttachmentsAsync(int documentId, string? captureToken)
+    {
+        var files = CapturedFiles(captureToken);
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        db.Attachments.AddRange(files.Select(x =>
+            documentFileService.CreateAttachment(documentId, x.FileName, x.ContentType, x.Content, User)));
+        await db.SaveChangesAsync();
+        captureSessions.Remove(captureToken);
     }
 
     private async Task<List<DocumentAttachmentSummary>> BuildAttachmentSummariesAsync(int documentId)

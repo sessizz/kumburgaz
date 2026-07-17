@@ -19,9 +19,15 @@
                    accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.xlsx,.xls,.csv,.txt"
                    class="file-input file-input-bordered w-full" />
             <div class="text-xs text-gray-500 mt-2">Birden fazla dosya seçebilirsiniz. Her dosya en fazla 25 MB olabilir.</div>
+            <div class="mt-2">
+                <partial name="_PhoneCapturePanel" model="@("belge")" />
+            </div>
         </fieldset>
         <fieldset class="fieldset"><legend class="fieldset-legend">Not</legend><textarea asp-for="Note" class="textarea textarea-bordered w-full min-h-28"></textarea></fieldset>
         <div class="flex justify-end gap-2"><a class="btn btn-ghost" asp-action="Index">Vazgeç</a><button class="btn btn-primary"><span class="material-symbols-outlined ms-sm">save</span>Kaydet</button></div>
     </form>
 </div>
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/phone-capture.js" asp-append-version="true"></script>
+}

@@ -60,14 +60,23 @@ public sealed class DocumentFileService
             throw new InvalidOperationException("Geçersiz dosyadan belge eki oluşturulamaz.");
         }
 
+        return CreateAttachment(documentId, validated.FileName, validated.ContentType, validated.Content, user);
+    }
+
+    /// <summary>
+    /// Telefondan yakalama oturumunda onceden dogrulanmis baytlardan ek olusturur
+    /// (yeniden dogrulama/okuma yapmaz - CaptureSessionService.AddFile asamasinda zaten yapildi).
+    /// </summary>
+    public Attachment CreateAttachment(int documentId, string fileName, string contentType, byte[] content, ClaimsPrincipal user)
+    {
         return new Attachment
         {
             EntityType = nameof(DocumentRecord),
             EntityId = documentId,
-            FileName = validated.FileName,
-            ContentType = validated.ContentType,
-            ByteSize = validated.Content.Length,
-            Content = validated.Content,
+            FileName = fileName,
+            ContentType = contentType,
+            ByteSize = content.Length,
+            Content = content,
             CreatedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier),
             CreatedByUserName = user.Identity?.Name
         };

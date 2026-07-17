@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Xunit;
 
 namespace Kumburgaz.Web.Tests;
@@ -185,7 +186,8 @@ public class DocumentsControllerTests
     private static DocumentsController CreateController(ApplicationDbContext db)
     {
         var httpContext = new DefaultHttpContext();
-        var controller = new DocumentsController(db, new DocumentFileService())
+        var captureSessions = new CaptureSessionService(new MemoryCache(new MemoryCacheOptions()));
+        var controller = new DocumentsController(db, new DocumentFileService(), captureSessions)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
             TempData = new TempDataDictionary(httpContext, new TestTempDataProvider())

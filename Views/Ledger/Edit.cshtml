@@ -69,7 +69,7 @@
                     <input type="file" name="Fotograflar" accept="image/*" multiple class="file-input file-input-bordered w-full" />
                     <p class="label text-xs">Sunucuda otomatik olarak sıkıştırılır.</p>
                     <div class="mt-2">
-                        <partial name="_PhoneCapturePanel" model="@("gider")" />
+                        <partial name="_PhoneCapturePanel" model="@(new PhoneCapturePanelViewModel { Purpose = "gider", Token = ViewBag.CaptureToken as string })" />
                     </div>
                 </fieldset>
 

@@ -17,6 +17,7 @@
         var startBtn = document.getElementById('captureStartBtn-' + uid);
         var panel = document.getElementById('capturePanel-' + uid);
         var qrImg = document.getElementById('captureQr-' + uid);
+        var statusEl = document.getElementById('captureStatus-' + uid);
         var filesWrap = document.getElementById('captureFiles-' + uid);
         var tokenInput = document.getElementById('captureToken-' + uid);
         var form = panelRoot.closest('form');
@@ -107,7 +108,9 @@
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     tokenInput.value = data.token;
+                    qrImg.style.display = '';
                     qrImg.src = data.qrDataUri;
+                    statusEl.textContent = 'Telefonunuza bildirim gönderildi';
                     panel.classList.remove('hidden');
                     stopPolling();
                     pollTimer = setInterval(poll, 3000);
@@ -117,6 +120,17 @@
                     startBtn.disabled = false;
                 });
         });
+
+        // Dogrulama hatasi yuzunden form yeniden gosterildiginde daha once baslatilmis
+        // bir oturum (token) varsa, kullanicidan tekrar "Telefondan ekle" tiklamasini
+        // istemeden durumu ve dosya listesini geri yukle.
+        if (tokenInput.value) {
+            qrImg.style.display = 'none';
+            statusEl.textContent = 'Oturum devam ediyor';
+            panel.classList.remove('hidden');
+            poll();
+            pollTimer = setInterval(poll, 3000);
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

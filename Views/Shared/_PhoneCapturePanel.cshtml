@@ -1,21 +1,20 @@
-@model string
+@model Kumburgaz.Web.Models.PhoneCapturePanelViewModel
 @{
-    // Model: "gider" veya "belge" - CaptureController.Baslat'a purpose olarak gider,
-    // hangi ImageAttachmentService/DocumentFileService islenecegini belirler.
-    var purpose = Model;
+    // Model.Token, dogrulama hatasi yuzunden form yeniden gosterildiginde daha once
+    // baslatilmis bir oturumu korumak icindir (bkz. Controller'larin ViewBag.CaptureToken).
     var uid = Guid.NewGuid().ToString("N")[..8];
 }
-<div class="phone-capture" data-purpose="@purpose" data-uid="@uid">
-    <input type="hidden" name="captureToken" id="captureToken-@uid" value="" />
+<div class="phone-capture" data-purpose="@Model.Purpose" data-uid="@uid">
+    <input type="hidden" name="captureToken" id="captureToken-@uid" value="@Model.Token" />
     <button type="button" class="btn btn-outline btn-sm" id="captureStartBtn-@uid">
         <span class="material-symbols-outlined ms-sm">smartphone</span>
         Telefondan ekle
     </button>
-    <div id="capturePanel-@uid" class="hidden mt-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+    <div id="capturePanel-@uid" class="@(string.IsNullOrEmpty(Model.Token) ? "hidden" : "") mt-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <div class="flex items-start gap-4">
             <img id="captureQr-@uid" class="w-28 h-28 border border-gray-200 rounded bg-white shrink-0" alt="QR kod" />
             <div class="flex-1 text-sm min-w-0">
-                <div class="font-semibold text-gray-800">Telefonunuza bildirim gönderildi</div>
+                <div id="captureStatus-@uid" class="font-semibold text-gray-800">Telefonunuza bildirim gönderildi</div>
                 <div class="text-gray-500 mt-1">Bildirime dokunun ya da QR kodu okutun. Telefondan eklenen dosyalar burada belirir.</div>
                 <div id="captureFiles-@uid" class="flex flex-wrap gap-2 mt-3"></div>
             </div>

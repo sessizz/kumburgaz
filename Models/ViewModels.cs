@@ -1217,6 +1217,19 @@ public class BackupIndexViewModel
     public List<BackupFileViewModel> Files { get; set; } = [];
 }
 
+/// <summary>Masaustu "Telefondan ekle" paneli icin model (Views/Shared/_PhoneCapturePanel).</summary>
+public class PhoneCapturePanelViewModel
+{
+    /// <summary>"gider" veya "belge".</summary>
+    public string Purpose { get; set; } = "gider";
+
+    /// <summary>
+    /// Dogrulama hatasi yuzunden form yeniden gosterilirken, daha once baslatilmis
+    /// bir oturum varsa onun token'i - boylece panel/oturum durumu kaybolmaz.
+    /// </summary>
+    public string? Token { get; set; }
+}
+
 /// <summary>Mobil "Telefondan ekle" yakalama sayfasi icin model.</summary>
 public class CaptureIndexViewModel
 {

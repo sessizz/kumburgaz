@@ -61,6 +61,7 @@ public class CaptureController(
         {
             try
             {
+                CaptureAddFileResult result;
                 if (session.Purpose == "belge")
                 {
                     var validated = await documentFileService.ValidateAsync(file);
@@ -70,15 +71,29 @@ public class CaptureController(
                         continue;
                     }
 
-                    sessions.AddFile(token, userId, validated.FileName, validated.ContentType, validated.Content);
+                    result = sessions.AddFile(token, userId, validated.FileName, validated.ContentType, validated.Content);
                 }
                 else
                 {
                     var compressed = await imageAttachmentService.CompressAsync(file);
-                    sessions.AddFile(token, userId, compressed.FileName, compressed.ContentType, compressed.Content);
+                    result = sessions.AddFile(token, userId, compressed.FileName, compressed.ContentType, compressed.Content);
                 }
 
-                added++;
+                switch (result)
+                {
+                    case CaptureAddFileResult.Success:
+                        added++;
+                        break;
+                    case CaptureAddFileResult.TooManyFiles:
+                        TempData["ActionError"] = $"Bu oturumda en fazla {CaptureSessionService.MaxFilesPerSession} dosya ekleyebilirsiniz.";
+                        break;
+                    case CaptureAddFileResult.SessionTooLarge:
+                        TempData["ActionError"] = "Bu oturum için boyut sınırına ulaşıldı. Masaüstünde formu kaydedip yeni bir oturum başlatın.";
+                        break;
+                    case CaptureAddFileResult.SessionNotFound:
+                        TempData["ActionError"] = "Bağlantının süresi doldu. Masaüstünde tekrar deneyin.";
+                        break;
+                }
             }
             catch (Exception ex)
             {

@@ -125,6 +125,7 @@ public class LedgerController(
     {
         if (!ModelState.IsValid)
         {
+            ViewBag.CaptureToken = captureToken;
             return View(await BuildAsync(model));
         }
 
@@ -178,6 +179,7 @@ public class LedgerController(
         if (!ModelState.IsValid)
         {
             ViewBag.TransactionId = id;
+            ViewBag.CaptureToken = captureToken;
             model.ExistingAttachments = await BuildAttachmentSummariesAsync(id);
             return View(await BuildAsync(model));
         }
@@ -536,7 +538,7 @@ public class LedgerController(
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var userName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value;
-        var files = captureSessions.ListFiles(captureToken, userId);
+        var files = captureSessions.TakeFiles(captureToken, userId);
         if (files.Count == 0)
         {
             return;
@@ -558,7 +560,6 @@ public class LedgerController(
         }
 
         await db.SaveChangesAsync();
-        captureSessions.Remove(captureToken);
     }
 
     private async Task<List<LedgerAttachmentSummary>> BuildAttachmentSummariesAsync(int ledgerTransactionId)

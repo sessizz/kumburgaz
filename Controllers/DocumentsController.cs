@@ -36,7 +36,11 @@ public class DocumentsController(
             ModelState.AddModelError("files", "En az bir dosya seçin.");
         }
 
-        if (!ModelState.IsValid) return View(model);
+        if (!ModelState.IsValid)
+        {
+            ViewBag.CaptureToken = captureToken;
+            return View(model);
+        }
 
         model.DocumentDate = DateTime.SpecifyKind(model.DocumentDate, DateTimeKind.Utc);
         db.DocumentRecords.Add(model);
@@ -76,7 +80,11 @@ public class DocumentsController(
     public async Task<IActionResult> Edit(DocumentRecord model, List<IFormFile>? files, string? captureToken = null)
     {
         var validatedFiles = await ValidateFilesAsync(files, requireFile: false);
-        if (!ModelState.IsValid) return View(model);
+        if (!ModelState.IsValid)
+        {
+            ViewBag.CaptureToken = captureToken;
+            return View(model);
+        }
         var entity = await db.DocumentRecords.FindAsync(model.Id);
         if (entity is null) return NotFound();
 
@@ -183,10 +191,12 @@ public class DocumentsController(
     /// <summary>
     /// "Telefondan ekle" ile yakalanan dosyalari belge kaydina ekler. Baytlar telefonda
     /// yuklenirken zaten dogrulanmis (DocumentFileService.ValidateAsync) - tekrar okunmaz.
+    /// TakeFiles oturumu ayni anda muhurler/kaldirir (atomik tuketim).
     /// </summary>
     private async Task SaveCapturedAttachmentsAsync(int documentId, string? captureToken)
     {
-        var files = CapturedFiles(captureToken);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var files = captureSessions.TakeFiles(captureToken, userId);
         if (files.Count == 0)
         {
             return;
@@ -195,7 +205,6 @@ public class DocumentsController(
         db.Attachments.AddRange(files.Select(x =>
             documentFileService.CreateAttachment(documentId, x.FileName, x.ContentType, x.Content, User)));
         await db.SaveChangesAsync();
-        captureSessions.Remove(captureToken);
     }
 
     private async Task<List<DocumentAttachmentSummary>> BuildAttachmentSummariesAsync(int documentId)

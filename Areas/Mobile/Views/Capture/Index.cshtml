@@ -1,9 +1,9 @@
 @model Kumburgaz.Web.Models.CaptureIndexViewModel
 @{
     ViewData["Title"] = "Telefondan Ekle";
-    var accept = Model.Purpose == "belge"
-        ? ".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.xlsx,.xls,.csv,.txt"
-        : "image/*";
+    // Hem "gider" hem "belge" artik resim + belge turlerinin ikisini de kabul ediyor
+    // (bkz. Areas/Mobile/Controllers/CaptureController.Yukle - uzantiya gore dallanir).
+    var accept = ".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.xlsx,.xls,.csv,.txt";
     var purposeLabel = Model.Purpose == "belge" ? "belge" : "gider fişi";
 }
 

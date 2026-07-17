@@ -38,10 +38,19 @@ public sealed class DocumentFileService
         }
 
         var extension = Path.GetExtension(fileName);
+        if (string.IsNullOrWhiteSpace(fileName) || !AllowedContentTypes.TryGetValue(extension, out var contentTypes))
+        {
+            return DocumentFileValidationResult.Invalid("Bu dosya türü desteklenmiyor.");
+        }
+
+        // Uzanti tek gercek guvenlik siniri: bazi tarayici/OS kombinasyonlari docx/xlsx
+        // gibi dosyalar icin content-type'i bos ya da genel "application/octet-stream"
+        // gonderebiliyor - bu durumda uzantiya guvenilir. Content-type doluysa ve acikca
+        // farkli bir turu isaret ediyorsa (orn. .pdf ama image/png) yine reddedilir.
         var contentType = NormalizeContentType(file.ContentType);
-        if (string.IsNullOrWhiteSpace(fileName) ||
-            !AllowedContentTypes.TryGetValue(extension, out var contentTypes) ||
-            !contentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
+        var isGenericContentType = string.IsNullOrWhiteSpace(contentType) ||
+            contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase);
+        if (!isGenericContentType && !contentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
         {
             return DocumentFileValidationResult.Invalid("Bu dosya türü desteklenmiyor.");
         }
@@ -50,7 +59,8 @@ public sealed class DocumentFileService
         using var output = new MemoryStream();
         await input.CopyToAsync(output, ct);
 
-        return DocumentFileValidationResult.Valid(fileName, contentTypes[0], output.ToArray());
+        var resolvedContentType = isGenericContentType ? contentTypes[0] : contentType;
+        return DocumentFileValidationResult.Valid(fileName, resolvedContentType, output.ToArray());
     }
 
     public Attachment CreateAttachment(int documentId, DocumentFileValidationResult validated, ClaimsPrincipal user)

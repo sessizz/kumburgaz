@@ -15,6 +15,7 @@ public class LedgerController(
     ApplicationDbContext db,
     ImportBatchService importBatchService,
     ImageAttachmentService imageAttachmentService,
+    DocumentFileService documentFileService,
     CaptureSessionService captureSessions) : Controller
 {
     public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
@@ -142,8 +143,13 @@ public class LedgerController(
         db.LedgerTransactions.Add(entity);
         await db.SaveChangesAsync();
 
-        await SaveAttachmentsAsync(entity.Id, Fotograflar);
+        var attachmentErrors = await SaveAttachmentsAsync(entity.Id, Fotograflar);
         await SaveCapturedAttachmentsAsync(entity.Id, captureToken);
+        if (attachmentErrors.Count > 0)
+        {
+            TempData["ActionError"] = "Kayıt oluşturuldu ama bazı dosyalar eklenemedi: " + string.Join(" ", attachmentErrors);
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -199,8 +205,13 @@ public class LedgerController(
         entity.Description = model.Description;
 
         await db.SaveChangesAsync();
-        await SaveAttachmentsAsync(id, Fotograflar);
+        var attachmentErrors = await SaveAttachmentsAsync(id, Fotograflar);
         await SaveCapturedAttachmentsAsync(id, captureToken);
+        if (attachmentErrors.Count > 0)
+        {
+            TempData["ActionError"] = "Kayıt güncellendi ama bazı dosyalar eklenemedi: " + string.Join(" ", attachmentErrors);
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
@@ -495,12 +506,21 @@ public class LedgerController(
         return model;
     }
 
-    private async Task SaveAttachmentsAsync(int ledgerTransactionId, List<IFormFile>? files)
+    /// <summary>
+    /// Yuklenen dosyalari turune gore isler: resim uzantilariysa
+    /// ImageAttachmentService ile sikistirilir (fis fotografi davranisi degismez),
+    /// digerleri (pdf/docx/xlsx/xls/csv/txt) DocumentFileService ile Belge ile ayni
+    /// allowlist/boyut sinirinda dogrulanip ham bayt olarak eklenir. Basarisiz olan
+    /// dosyalar (desteklenmeyen tur, bozuk resim vb.) kaydi bozmadan atlanir; hata
+    /// mesajlari cagirana donulur ki kullaniciya gosterilebilsin.
+    /// </summary>
+    private async Task<List<string>> SaveAttachmentsAsync(int ledgerTransactionId, List<IFormFile>? files)
     {
+        var errors = new List<string>();
         var uploaded = (files ?? []).Where(f => f.Length > 0).ToList();
         if (uploaded.Count == 0)
         {
-            return;
+            return errors;
         }
 
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -508,21 +528,53 @@ public class LedgerController(
 
         foreach (var file in uploaded)
         {
-            var compressed = await imageAttachmentService.CompressAsync(file);
-            db.Attachments.Add(new Attachment
+            try
             {
-                EntityType = nameof(LedgerTransaction),
-                EntityId = ledgerTransactionId,
-                FileName = compressed.FileName,
-                ContentType = compressed.ContentType,
-                ByteSize = compressed.Content.Length,
-                Content = compressed.Content,
-                CreatedByUserId = userId,
-                CreatedByUserName = userName
-            });
+                var extension = Path.GetExtension(file.FileName);
+                string fileName, contentType;
+                byte[] content;
+
+                if (ImageAttachmentService.SupportedExtensions.Contains(extension))
+                {
+                    var compressed = await imageAttachmentService.CompressAsync(file);
+                    fileName = compressed.FileName;
+                    contentType = compressed.ContentType;
+                    content = compressed.Content;
+                }
+                else
+                {
+                    var validated = await documentFileService.ValidateAsync(file);
+                    if (!validated.IsValid)
+                    {
+                        errors.Add($"{file.FileName}: {validated.ErrorMessage}");
+                        continue;
+                    }
+
+                    fileName = validated.FileName;
+                    contentType = validated.ContentType;
+                    content = validated.Content;
+                }
+
+                db.Attachments.Add(new Attachment
+                {
+                    EntityType = nameof(LedgerTransaction),
+                    EntityId = ledgerTransactionId,
+                    FileName = fileName,
+                    ContentType = contentType,
+                    ByteSize = content.Length,
+                    Content = content,
+                    CreatedByUserId = userId,
+                    CreatedByUserName = userName
+                });
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{file.FileName}: {ex.Message}");
+            }
         }
 
         await db.SaveChangesAsync();
+        return errors;
     }
 
     /// <summary>

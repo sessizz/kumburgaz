@@ -61,8 +61,17 @@ public class CaptureController(
         {
             try
             {
+                // Amaca degil dosya uzantisina gore dallanir: "gider" oturumunda resimler
+                // hala sikistirilir (fis fotografi davranisi), ama artik pdf/docx/xlsx gibi
+                // belge turleri de (her iki amacta) DocumentFileService ile kabul edilir.
                 CaptureAddFileResult result;
-                if (session.Purpose == "belge")
+                var extension = Path.GetExtension(file.FileName);
+                if (session.Purpose == "gider" && ImageAttachmentService.SupportedExtensions.Contains(extension))
+                {
+                    var compressed = await imageAttachmentService.CompressAsync(file);
+                    result = sessions.AddFile(token, userId, compressed.FileName, compressed.ContentType, compressed.Content);
+                }
+                else
                 {
                     var validated = await documentFileService.ValidateAsync(file);
                     if (!validated.IsValid)
@@ -72,11 +81,6 @@ public class CaptureController(
                     }
 
                     result = sessions.AddFile(token, userId, validated.FileName, validated.ContentType, validated.Content);
-                }
-                else
-                {
-                    var compressed = await imageAttachmentService.CompressAsync(file);
-                    result = sessions.AddFile(token, userId, compressed.FileName, compressed.ContentType, compressed.Content);
                 }
 
                 switch (result)

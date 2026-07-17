@@ -71,6 +71,8 @@ public class UnitIndexViewModel
 {
     public List<Unit> Units { get; set; } = [];
     public List<UnitBillingGroupSummaryItem> BillingGroupSummary { get; set; } = [];
+    /// <summary>Dairenin borç (pozitif) veya alacak (negatif) net bakiyesi.</summary>
+    public Dictionary<int, decimal> NetBalanceByUnitId { get; set; } = [];
 }
 
 public class UnitBillingGroupSummaryItem
@@ -78,6 +80,13 @@ public class UnitBillingGroupSummaryItem
     public string BillingGroupName { get; set; } = string.Empty;
     public string DuesTypeName { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public class AccountIndexViewModel
+{
+    public List<Account> Accounts { get; set; } = [];
+    /// <summary>Hesabın (birden fazla dairesi varsa toplam) borç (pozitif) veya alacak (negatif) net bakiyesi.</summary>
+    public Dictionary<int, decimal> NetBalanceByAccountId { get; set; } = [];
 }
 
 public class AccountFormViewModel
@@ -485,6 +494,7 @@ public class UnitDetailViewModel
     public decimal Balance { get; set; }
     public StatementEntry? LastDebt { get; set; }
     public UnitLedgerSummary Summary { get; set; } = new();
+    public List<SelectListItem> CollectionPeriodOptions { get; set; } = [];
 }
 
 public class UnitStatementViewModel
@@ -493,6 +503,7 @@ public class UnitStatementViewModel
     public List<StatementEntry> Entries { get; set; } = [];
     public decimal Balance { get; set; }
     public UnitLedgerSummary Summary { get; set; } = new();
+    public List<SelectListItem> CollectionPeriodOptions { get; set; } = [];
 }
 
 public class AddCollectionModalModel
@@ -502,6 +513,7 @@ public class AddCollectionModalModel
     public decimal CurrentDebt { get; set; }
     public string ReturnUrl { get; set; } = string.Empty;
     public List<SelectListItem> AccountOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
 }
 
 public class DuesInstallmentEditViewModel
@@ -567,6 +579,12 @@ public class CollectionCreateViewModel
     [Required]
     public int BillingGroupId { get; set; }
 
+    /// <summary>
+    /// Belirli bir taksit seçilmediğinde (genel/serbest tahsilat) hangi daireye kayıt edileceğini
+    /// belirtir; verilmezse aidat grubundaki temsilci daireye düşülür.
+    /// </summary>
+    public int? PreferredUnitId { get; set; }
+
     public int? DuesInstallmentId { get; set; }
 
     [Required]
@@ -593,6 +611,8 @@ public class CollectionCreateViewModel
     public List<SelectListItem> BillingGroupOptions { get; set; } = [];
     public List<SelectListItem> DuesInstallmentOptions { get; set; } = [];
     public List<SelectListItem> AccountOptions { get; set; } = [];
+    public string SelectedPeriod { get; set; } = string.Empty;
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
 }
 
 public class LedgerTransactionCreateViewModel
@@ -759,6 +779,7 @@ public class CashBankDuesOptionViewModel
     public string Text { get; set; } = string.Empty;
     public string SearchText { get; set; } = string.Empty;
     public decimal RemainingAmount { get; set; }
+    public string Period { get; set; } = string.Empty;
 }
 
 public class CashBankImportPreviewViewModel
@@ -888,6 +909,8 @@ public class TxRow
     public decimal RunningBalance { get; set; }
     public DateTime Date { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
     public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];
@@ -935,6 +958,8 @@ public class CashBankDetailViewModel
     public int PendingCount { get; set; }
     public string? Note { get; set; }
     public List<CashBankDuesOptionViewModel> DuesOptions { get; set; } = [];
+    public List<CashBankDuesOptionViewModel> DuesInstallmentOptions { get; set; } = [];
+    public List<SelectListItem> PeriodOptions { get; set; } = [];
     public List<SelectListItem> IncomeCategoryOptions { get; set; } = [];
     public List<SelectListItem> ExpenseCategoryOptions { get; set; } = [];
     public List<SelectListItem> TransferAccountOptions { get; set; } = [];

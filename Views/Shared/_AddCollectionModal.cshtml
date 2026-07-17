@@ -15,10 +15,23 @@
             </div>
 
             <div class="p-5 space-y-3">
+                @if (Model.PeriodOptions.Count > 0)
+                {
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Dönem</label>
+                        <select name="period" class="select select-bordered w-full">
+                            @foreach (var opt in Model.PeriodOptions)
+                            {
+                                <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                            }
+                        </select>
+                    </div>
+                }
+
                 <input type="text" name="note" class="input input-bordered w-full" placeholder="Açıklama" />
 
                 <div class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-                    <div class="font-bold">En eski borçtan kapatılacak</div>
+                    <div class="font-bold">Seçilen borçtan kapatılacak</div>
                     <div class="mt-1 grid grid-cols-2 gap-2">
                         <div>
                             <div class="text-xs text-sky-700">Açık borç</div>

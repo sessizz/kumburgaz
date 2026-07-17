@@ -25,16 +25,19 @@ public class HomeController(
         var selectedPeriod = DuesController.ResolvePeriod(period, periods);
         var duesRows = await ledgerService.GetInstallmentRowsAsync();
         var openingRows = duesRows.Where(x => x.IsOpeningBalance).ToList();
+        var allDuesRows = duesRows.Where(x => !x.IsOpeningBalance).ToList();
         var periodRows = duesRows
             .Where(x => !x.IsOpeningBalance && (selectedPeriod == DuesController.AllPeriodsValue || x.Period == selectedPeriod))
             .ToList();
 
         var totalGenerated = periodRows.Sum(x => x.Amount);
         var overdueCarriedDebt = openingRows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
-        var overdueDuesDebt = periodRows.Where(x => !x.IsPaid && x.IsOverdue).Sum(x => x.RemainingAmount);
+        // Gecikmiş aidat borcu seçili dönemle sınırlı değildir: geçmiş bir dönemden kalan ödenmemiş
+        // borç, dönem değiştirilse bile hâlâ gerçek bir borçtur ve gizlenmemelidir.
+        var overdueDuesDebt = allDuesRows.Where(x => !x.IsPaid && x.IsOverdue).Sum(x => x.RemainingAmount);
         var overdueDebt = overdueCarriedDebt + overdueDuesDebt;
         var overdueUnitCount = openingRows.Where(x => x.RemainingAmount > 0)
-            .Concat(periodRows.Where(x => !x.IsPaid && x.IsOverdue))
+            .Concat(allDuesRows.Where(x => !x.IsPaid && x.IsOverdue))
             .Select(x => x.UnitId)
             .Where(x => x.HasValue)
             .Distinct()
@@ -43,14 +46,16 @@ public class HomeController(
         var collectedInPeriod = totalGenerated - periodRows.Sum(x => x.RemainingAmount);
         var collectionRate = totalGenerated > 0 ? Math.Min(100m, collectedInPeriod / totalGenerated * 100m) : 0m;
         var overdueItems = openingRows.Where(x => x.RemainingAmount > 0)
-            .Concat(periodRows.Where(x => !x.IsPaid && x.IsOverdue))
+            .Concat(allDuesRows.Where(x => !x.IsPaid && x.IsOverdue))
             .OrderByDescending(x => x.RemainingAmount)
             .ThenBy(x => x.UnitDisplay)
             .Take(5)
             .Select(x => new DashboardOverdueItem
             {
                 UnitDisplay = x.UnitDisplay,
-                OwnerName = x.ResponsibleAccountName,
+                // Devir (açılış bakiyesi) satırlarında sorumlu hesap adı hiç atanmaz; bu durumda
+                // dairenin malik adını göster.
+                OwnerName = string.IsNullOrWhiteSpace(x.ResponsibleAccountName) ? x.OwnerName : x.ResponsibleAccountName,
                 Amount = x.RemainingAmount
             })
             .ToList();

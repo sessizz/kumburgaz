@@ -43,12 +43,35 @@ public class AccountsController(
         ViewBag.Query = term ?? string.Empty;
         ViewBag.Type = type;
 
-        var accounts = await query
+        // Sıralama veritabanı harmanlamasıyla (collation) değil, Türkçe alfabeye göre yapılsın diye
+        // önce çekilip C# tarafında sıralanıyor (Ç, Ğ, İ, Ö, Ş, Ü harfleri veritabanı harmanlamasında
+        // sona düşebiliyor).
+        var turkishComparer = StringComparer.Create(new System.Globalization.CultureInfo("tr-TR"), ignoreCase: false);
+        var accounts = (await query.ToListAsync())
             .OrderBy(x => x.AccountType)
-            .ThenBy(x => x.Name)
-            .ToListAsync();
+            .ThenBy(x => x.Name, turkishComparer)
+            .ToList();
 
-        return View(accounts);
+        var unitIds = accounts
+            .SelectMany(x => x.UnitAccounts)
+            .Where(x => x.Active)
+            .Select(x => x.UnitId)
+            .Distinct()
+            .ToList();
+        var summaries = await unitLedgerService.BuildSummariesAsync(unitIds);
+        var netBalanceByAccountId = accounts.ToDictionary(
+            x => x.Id,
+            x => x.UnitAccounts
+                .Where(ua => ua.Active)
+                .Select(ua => ua.UnitId)
+                .Distinct()
+                .Sum(unitId => summaries.GetValueOrDefault(unitId)?.NetBalance ?? 0m));
+
+        return View(new AccountIndexViewModel
+        {
+            Accounts = accounts,
+            NetBalanceByAccountId = netBalanceByAccountId
+        });
     }
 
     [HttpGet]

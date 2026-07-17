@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
-public class UnitLedgerService(ApplicationDbContext db)
+public class UnitLedgerService(ApplicationDbContext db, IDuesLedgerRowService ledgerService)
 {
     public async Task<UnitLedgerResult?> BuildAsync(int unitId)
     {
@@ -95,6 +95,15 @@ public class UnitLedgerService(ApplicationDbContext db)
             entry.RunningBalance = running;
         }
 
+        var openingDebt = 0m;
+        if (unit.OpeningBalance < 0m)
+        {
+            // Tahsis edilmemiş tahsilat fazlası varsa önce devreden borcu kapatmış sayılır.
+            var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync([unitId]);
+            var credit = unallocatedCredit.GetValueOrDefault(unitId)?.Amount ?? 0m;
+            openingDebt = Math.Max(0m, Math.Abs(unit.OpeningBalance) - credit);
+        }
+
         return new UnitLedgerResult
         {
             Unit = unit,
@@ -104,7 +113,7 @@ public class UnitLedgerService(ApplicationDbContext db)
                 TotalAccrual = installments.Sum(x => x.Amount),
                 TotalCollections = collections.Sum(x => x.Amount),
                 OpeningCredit = unit.OpeningBalance > 0m ? unit.OpeningBalance : 0m,
-                OpeningDebt = unit.OpeningBalance < 0m ? Math.Abs(unit.OpeningBalance) : 0m,
+                OpeningDebt = openingDebt,
                 NetBalance = running
             }
         };

@@ -188,6 +188,15 @@
             </div>
             <input type="hidden" name="BillingGroupId" data-dues-billing-group />
             <fieldset class="fieldset">
+                <legend class="fieldset-legend">Dönem</legend>
+                <select class="select select-bordered w-full" data-dues-period>
+                    @foreach (var option in Model.PeriodOptions)
+                    {
+                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
                 <legend class="fieldset-legend">Daire / Malik</legend>
                 <label class="input input-bordered flex items-center gap-2 mb-2">
                     <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
@@ -195,11 +204,12 @@
                 </label>
                 <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
                     <option value="">Daire veya malik seçin</option>
-                    @foreach (var option in Model.DuesOptions)
+                    @foreach (var option in Model.DuesInstallmentOptions)
                     {
                         <option value="@option.Id"
                                 data-billing-group-id="@option.BillingGroupId"
                                 data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                data-period="@option.Period"
                                 data-search="@option.SearchText">@option.Text</option>
                     }
                 </select>
@@ -408,6 +418,7 @@ function normalizeDuesSearch(value) {
 function wireDuesPicker(scope) {
     var select = scope.querySelector('[data-dues-select]');
     var search = scope.querySelector('[data-dues-search]');
+    var period = scope.querySelector('[data-dues-period]');
     var amount = scope.querySelector('[data-dues-amount]');
     var billingGroup = scope.querySelector('[data-dues-billing-group]');
     if (!select || select.dataset.wired === 'true') return;
@@ -423,18 +434,23 @@ function wireDuesPicker(scope) {
     }
 
     function filterOptions() {
-        var query = normalizeDuesSearch(search.value);
+        var query = normalizeDuesSearch(search ? search.value : '');
+        var selectedPeriod = period ? period.value : 'all';
         Array.from(select.options).forEach(function(option) {
             if (!option.value) return;
             var haystack = normalizeDuesSearch((option.dataset.search || '') + ' ' + option.textContent);
-            option.hidden = query.length > 0 && !haystack.includes(query);
+            var matchesSearch = query.length === 0 || haystack.includes(query);
+            var matchesPeriod = selectedPeriod === 'all' || option.dataset.period === selectedPeriod;
+            option.hidden = !matchesSearch || !matchesPeriod;
         });
     }
 
     select.addEventListener('change', syncSelected);
     if (search) search.addEventListener('input', filterOptions);
+    if (period) period.addEventListener('change', filterOptions);
     select.dataset.wired = 'true';
     syncSelected();
+    filterOptions();
 }
 
 document.querySelectorAll('.modal').forEach(wireDuesPicker);

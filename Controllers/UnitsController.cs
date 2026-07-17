@@ -37,7 +37,8 @@ public class UnitsController(
             RecentEntries = entries.Take(10).ToList(),
             Balance = balance,
             LastDebt = lastDebt,
-            Summary = ledger?.Summary ?? new UnitLedgerSummary()
+            Summary = ledger?.Summary ?? new UnitLedgerSummary(),
+            CollectionPeriodOptions = await BuildCollectionPeriodOptionsAsync(id, ledger?.Summary.OpeningDebt ?? 0m)
         });
     }
 
@@ -59,8 +60,40 @@ public class UnitsController(
             Unit = unit,
             Entries = entries,
             Balance = balance,
-            Summary = ledger?.Summary ?? new UnitLedgerSummary()
+            Summary = ledger?.Summary ?? new UnitLedgerSummary(),
+            CollectionPeriodOptions = await BuildCollectionPeriodOptionsAsync(id, ledger?.Summary.OpeningDebt ?? 0m)
         });
+    }
+
+    /// <summary>
+    /// Hızlı "Tahsilat ekle" penceresi için dönem seçeneklerini oluşturur: devir borcu varsa
+    /// listenin başına eklenir, ardından dairenin açık taksitlerinin dönemleri en eskiden
+    /// yeniye sıralanır. Varsayılan seçili olan hep listenin ilk (en eski) elemanıdır.
+    /// </summary>
+    private async Task<List<SelectListItem>> BuildCollectionPeriodOptionsAsync(int unitId, decimal openingDebt)
+    {
+        var periods = await db.DuesInstallments
+            .AsNoTracking()
+            .Where(x => (x.UnitId == unitId || (x.UnitId == null && x.BillingGroup!.Units.Any(u => u.UnitId == unitId)))
+                        && x.RemainingAmount > 0)
+            .Select(x => x.Period)
+            .Distinct()
+            .ToListAsync();
+
+        var options = new List<SelectListItem>();
+        if (openingDebt > 0)
+        {
+            options.Add(new SelectListItem("Devir Borcu", "devir"));
+        }
+
+        options.AddRange(periods.OrderBy(PeriodHelper.ToKey).Select(p => new SelectListItem(p, p)));
+
+        if (options.Count > 0)
+        {
+            options[0].Selected = true;
+        }
+
+        return options;
     }
 
     [HttpGet]
@@ -142,10 +175,14 @@ public class UnitsController(
             .ThenBy(x => x.BillingGroupName)
             .ToList();
 
+        var ledgerSummaries = await unitLedgerService.BuildSummariesAsync(units.Select(x => x.Id));
+        var netBalanceByUnitId = ledgerSummaries.ToDictionary(x => x.Key, x => x.Value.NetBalance);
+
         return View(new UnitIndexViewModel
         {
             Units = units,
-            BillingGroupSummary = summary
+            BillingGroupSummary = summary,
+            NetBalanceByUnitId = netBalanceByUnitId
         });
     }
 

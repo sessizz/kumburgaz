@@ -15,7 +15,8 @@ public class ReportsController(
     IReportingService reportingService,
     BalanceDetailedReportService balanceDetailedReportService,
     UnitLedgerService unitLedgerService,
-    ResidentAccountService residentAccountService) : Controller
+    ResidentAccountService residentAccountService,
+    IDuesLedgerRowService ledgerService) : Controller
 {
     public IActionResult Index()
     {
@@ -1104,6 +1105,17 @@ public class ReportsController(
             new("Alacaklılar", "credit", string.Equals(duesQuery.BalanceStatus, "credit", StringComparison.OrdinalIgnoreCase)),
             new("Bakiyesizler", "clear", string.Equals(duesQuery.BalanceStatus, "clear", StringComparison.OrdinalIgnoreCase))
         };
+
+        var periods = await ledgerService.GetAvailablePeriodsAsync();
+        var selectedPeriod = string.IsNullOrWhiteSpace(duesQuery.Period) || duesQuery.Period == ReportingService.AllPeriodsValue
+            ? ReportingService.AllPeriodsValue
+            : (periods.Contains(duesQuery.Period) ? duesQuery.Period : ReportingService.AllPeriodsValue);
+        var periodOptions = new List<SelectListItem>
+        {
+            new("Tümü", ReportingService.AllPeriodsValue, selectedPeriod == ReportingService.AllPeriodsValue)
+        };
+        periodOptions.AddRange(periods.Select(p => new SelectListItem(p, p, p == selectedPeriod)));
+        ViewBag.Periods = periodOptions;
     }
 
     private async Task PopulateAttendanceFiltersAsync(AttendanceReportQuery query)

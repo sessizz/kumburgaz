@@ -14,7 +14,8 @@ namespace Kumburgaz.Web.Controllers;
 public class CollectionsController(
     ApplicationDbContext db,
     ICollectionService collectionService,
-    ImportBatchService importBatchService) : Controller
+    ImportBatchService importBatchService,
+    IDuesLedgerRowService ledgerService) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -44,7 +45,7 @@ public class CollectionsController(
         return File(bytes, "text/csv; charset=utf-8", "tahsilatlar.csv");
     }
 
-    public async Task<IActionResult> Create(int? duesInstallmentId = null, int? unitId = null, string? returnUrl = null)
+    public async Task<IActionResult> Create(int? duesInstallmentId = null, int? unitId = null, string? returnUrl = null, string? period = null)
     {
         var model = new CollectionCreateViewModel
         {
@@ -68,7 +69,7 @@ public class CollectionsController(
             }
         }
 
-        return View(await BuildFormAsync(model));
+        return View(await BuildFormAsync(model, period));
     }
 
     /// <summary>
@@ -78,7 +79,7 @@ public class CollectionsController(
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateForUnit(int unitId, string amount, DateTime date,
-        string? accountKey, string? note, bool isReceipt = false, string? referenceNo = null, string? returnUrl = null)
+        string? accountKey, string? note, bool isReceipt = false, string? referenceNo = null, string? returnUrl = null, string? period = null)
     {
         try
         {
@@ -103,17 +104,36 @@ public class CollectionsController(
                 return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
             }
 
-            // Dairenin en eski açık taksitine yönlendir (varsa)
-            var targetInstallment = await db.DuesInstallments.AsNoTracking()
-                .Where(x => x.UnitId == unitId && x.RemainingAmount > 0)
-                .OrderBy(x => x.AccrualDate)
-                .ThenBy(x => x.DueDate)
-                .FirstOrDefaultAsync();
+            int? targetInstallmentId;
+            if (string.Equals(period, "devir", StringComparison.OrdinalIgnoreCase))
+            {
+                // Genel/serbest tahsilat: devir borcu varsa CollectionService önce onu kapatır.
+                targetInstallmentId = null;
+            }
+            else if (!string.IsNullOrWhiteSpace(period))
+            {
+                var periodInstallment = await db.DuesInstallments.AsNoTracking()
+                    .Where(x => x.UnitId == unitId && x.RemainingAmount > 0 && x.Period == period)
+                    .OrderBy(x => x.DueDate)
+                    .FirstOrDefaultAsync();
+                targetInstallmentId = periodInstallment?.Id;
+            }
+            else
+            {
+                // Dönem belirtilmediyse (geriye dönük uyumluluk): dairenin en eski açık taksiti.
+                var oldestInstallment = await db.DuesInstallments.AsNoTracking()
+                    .Where(x => x.UnitId == unitId && x.RemainingAmount > 0)
+                    .OrderBy(x => x.AccrualDate)
+                    .ThenBy(x => x.DueDate)
+                    .FirstOrDefaultAsync();
+                targetInstallmentId = oldestInstallment?.Id;
+            }
 
             var model = new CollectionCreateViewModel
             {
                 BillingGroupId = billingGroupId.Value,
-                DuesInstallmentId = targetInstallment?.Id,
+                PreferredUnitId = unitId,
+                DuesInstallmentId = targetInstallmentId,
                 Date = date,
                 Amount = parsedAmount,
                 PaymentChannel = FinancialAccountHelper.TryParse(accountKey, out var ch, out _, out _) ? ch : PaymentChannel.Bank,
@@ -441,8 +461,15 @@ public class CollectionsController(
         ImportRowStatus Status,
         string? ErrorMessage);
 
-    private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model)
+    private async Task<CollectionCreateViewModel> BuildFormAsync(CollectionCreateViewModel model, string? period = null)
     {
+        var periods = await ledgerService.GetAvailablePeriodsAsync();
+        var selectedPeriod = !string.IsNullOrWhiteSpace(period) && (period == DuesController.AllPeriodsValue || periods.Contains(period))
+            ? period
+            : DuesController.AllPeriodsValue;
+        model.SelectedPeriod = selectedPeriod;
+        model.PeriodOptions = DuesController.BuildPeriodOptions(periods, selectedPeriod);
+
         var installments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
@@ -456,6 +483,9 @@ public class CollectionsController(
             .Include(x => x.ResponsibleAccount)
             .Where(x => x.Unit == null || x.Unit.Active)
             .Where(x => x.RemainingAmount > 0 || (model.DuesInstallmentId.HasValue && x.Id == model.DuesInstallmentId.Value))
+            .Where(x => selectedPeriod == DuesController.AllPeriodsValue
+                        || x.Period == selectedPeriod
+                        || (model.DuesInstallmentId.HasValue && x.Id == model.DuesInstallmentId.Value))
             .OrderBy(x => x.Period)
             .ThenBy(x => x.DueDate)
             .ThenBy(x => x.Unit!.Block!.Name)

@@ -15,7 +15,7 @@ public class UnitLedgerAndCollectionTests
         var seed = await SeedUnitAsync(db, openingBalance: 10_000m, openingDate: Utc(2025, 5, 26));
         await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
         Assert.Equal(12_000m, ledger.Summary.TotalAccrual);
@@ -32,10 +32,11 @@ public class UnitLedgerAndCollectionTests
         await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
         await AddCollectionAsync(db, seed, Utc(2025, 9, 24), 9_500m);
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
-        Assert.Equal(500m, ledger.Summary.OpeningDebt);
+        // Genel tahsilatın 500 TL'si devir borcuna ayrıldığı için devir artık kapanmış sayılır.
+        Assert.Equal(0m, ledger.Summary.OpeningDebt);
         Assert.Equal(3_000m, ledger.Summary.NetBalance);
     }
 
@@ -53,9 +54,10 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(15_000m, installmentAfter.RemainingAmount);
         Assert.Empty(await db.CollectionAllocations.ToListAsync());
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
         Assert.NotNull(ledger);
-        Assert.Equal(750m, ledger.Summary.OpeningDebt);
+        // Tahsis edilmemiş 750 TL'lik kredi devir borcunu tam kapattığı için OpeningDebt 0 olmalı.
+        Assert.Equal(0m, ledger.Summary.OpeningDebt);
         Assert.Equal(15_000m, ledger.Summary.NetBalance);
     }
 
@@ -83,6 +85,29 @@ public class UnitLedgerAndCollectionTests
     }
 
     [Fact]
+    public async Task Collection_targeting_a_specific_installment_does_not_apply_to_an_older_sibling()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db);
+        var older = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 5_000m, period: "2025-2026");
+        var newer = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 9, 1), 5_000m, period: "2026-2027");
+
+        // Kullanici acikca 2026-2027 taksitini secip 3.000 TL tahsilat girer.
+        await AddCollectionAsync(db, seed, Utc(2026, 8, 8), 3_000m, newer.Id);
+
+        var olderAfter = await db.DuesInstallments.FindAsync(older.Id);
+        var newerAfter = await db.DuesInstallments.FindAsync(newer.Id);
+        Assert.NotNull(olderAfter);
+        Assert.NotNull(newerAfter);
+        Assert.Equal(5_000m, olderAfter.RemainingAmount);
+        Assert.Equal(2_000m, newerAfter.RemainingAmount);
+
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(newer.Id, allocation.DuesInstallmentId);
+        Assert.Equal(3_000m, allocation.AppliedAmount);
+    }
+
+    [Fact]
     public async Task Overpayment_remains_as_advance_in_ledger()
     {
         await using var db = CreateDb();
@@ -96,7 +121,7 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(0m, installmentAfter.RemainingAmount);
         Assert.Equal(8_000m, await db.CollectionAllocations.SumAsync(x => x.AppliedAmount));
 
-        var ledger = await new UnitLedgerService(db).BuildAsync(seed.UnitId);
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
 
         Assert.NotNull(ledger);
         Assert.Equal(-4_000m, ledger.Summary.NetBalance);
@@ -120,6 +145,31 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(8_000m, installmentAfter.RemainingAmount);
         Assert.True(hiddenCollection.IsDeleted);
         Assert.Empty(await db.Collections.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Dues_debt_report_scopes_to_selected_period_but_still_includes_opening_debt()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -500m, openingDate: Utc(2025, 5, 26));
+        var older = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2025, 8, 1), 5_000m, period: "2025-2026");
+        var newer = await AddInstallmentAsync(db, seed, Utc(2026, 7, 20), Utc(2026, 9, 1), 8_000m, period: "2026-2027");
+
+        // Eski dönem tam ödenir, yeni dönemin 3.000 TL'si ödenir (5.000 TL kalır).
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 5), 5_000m, older.Id);
+        await AddCollectionAsync(db, seed, Utc(2026, 8, 5), 3_000m, newer.Id);
+
+        var reportingService = new ReportingService(
+            db,
+            new UnitLedgerService(db, new DuesLedgerRowService(db)),
+            new DuesLedgerRowService(db));
+
+        var rows = await reportingService.GetDuesDebtReportAsync(new DuesDebtReportQuery { Period = "2026-2027" });
+
+        var row = Assert.Single(rows);
+        Assert.Equal(8_000m, row.Amount);
+        // 5.000 (bu dönemin kalanı) + 500 (devir borcu) = 5.500
+        Assert.Equal(5_500m, row.RemainingAmount);
     }
 
     [Fact]

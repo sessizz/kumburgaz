@@ -113,8 +113,8 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
         if (selectedPeriod != AllPeriodsValue)
         {
             // Belirli bir dönem seçiliyse devir bakiyesi (borç/alacak) yine de toplam bakiyeye
-            // dahil edilir; devir borcu varsa tahsis edilmemiş kredi önce onu kapatmış sayılır.
-            var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync(units.Select(x => x.Id));
+            // dahil edilir; devir borcuna fiilen tahsis edilmiş (kalıcı) tutar düşülür.
+            var openingDebtRemaining = await ledgerService.GetOpeningDebtRemainingByUnitAsync(units.Select(x => x.Id));
             foreach (var unit in units)
             {
                 if (!rowsByKey.TryGetValue(UnitKey(unit.Id), out var row))
@@ -125,8 +125,7 @@ public class ReportingService(ApplicationDbContext db, UnitLedgerService unitLed
                 row.OpeningBalance = unit.OpeningBalance;
                 if (unit.OpeningBalance < 0m)
                 {
-                    var credit = unallocatedCredit.GetValueOrDefault(unit.Id)?.Amount ?? 0m;
-                    row.RemainingAmount += Math.Max(0m, -unit.OpeningBalance - credit);
+                    row.RemainingAmount += openingDebtRemaining.GetValueOrDefault(unit.Id, -unit.OpeningBalance);
                 }
                 else if (unit.OpeningBalance > 0m)
                 {

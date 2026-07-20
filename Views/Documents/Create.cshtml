@@ -1,3 +1,7 @@
 @model Kumburgaz.Web.Models.DocumentRecord
 @{ ViewData["Title"] = "Yeni Belge"; }
 <partial name="_DocumentForm" model="Model" />
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/phone-capture.js" asp-append-version="true"></script>
+}

@@ -16,6 +16,15 @@ public interface IDuesLedgerRowService
     /// <paramref name="unitIds"/> verilirse sorgu sadece o dairelerle sınırlanır.
     /// </summary>
     Task<Dictionary<int, UnitCollectionCredit>> GetUnallocatedCollectionCreditByUnitAsync(IEnumerable<int>? unitIds = null);
+
+    /// <summary>
+    /// Devreden borcu (Unit.OpeningBalance &lt; 0) olan her dairenin, o borca fiilen tahsis
+    /// edilmiş (CollectionAllocation.UnitId dolu, DuesInstallmentId boş) tutar düşüldükten
+    /// sonra kalan devir borcunu döner. Devir borcunun kapanıp kapanmadığının TEK doğru
+    /// kaynağı budur - "tahsis edilmemiş kredi" tahminine dayanmaz, kalıcı kayıtlara dayanır.
+    /// <paramref name="unitIds"/> verilirse sorgu sadece o dairelerle sınırlanır.
+    /// </summary>
+    Task<Dictionary<int, decimal>> GetOpeningDebtRemainingByUnitAsync(IEnumerable<int>? unitIds = null);
 }
 
 public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowService
@@ -122,6 +131,34 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             .ToDictionaryAsync(x => x.UnitId);
     }
 
+    public async Task<Dictionary<int, decimal>> GetOpeningDebtRemainingByUnitAsync(IEnumerable<int>? unitIds = null)
+    {
+        var unitsQuery = db.Units.AsNoTracking().Where(x => x.OpeningBalance < 0m);
+        if (unitIds is not null)
+        {
+            var idList = unitIds as ICollection<int> ?? unitIds.ToList();
+            unitsQuery = unitsQuery.Where(x => idList.Contains(x.Id));
+        }
+
+        var units = await unitsQuery.Select(x => new { x.Id, x.OpeningBalance }).ToListAsync();
+        if (units.Count == 0)
+        {
+            return new Dictionary<int, decimal>();
+        }
+
+        var unitIdSet = units.Select(x => x.Id).ToList();
+        var appliedToDevir = await db.CollectionAllocations
+            .AsNoTracking()
+            .Where(x => x.UnitId != null && x.DuesInstallmentId == null && unitIdSet.Contains(x.UnitId!.Value))
+            .GroupBy(x => x.UnitId!.Value)
+            .Select(g => new { UnitId = g.Key, Applied = g.Sum(x => x.AppliedAmount) })
+            .ToDictionaryAsync(x => x.UnitId, x => x.Applied);
+
+        return units.ToDictionary(
+            x => x.Id,
+            x => Math.Max(0m, -x.OpeningBalance - appliedToDevir.GetValueOrDefault(x.Id)));
+    }
+
     /// <summary>
     /// Her dairenin devir/avans bakiyesini aidat satırlarına yansıtır:
     /// pozitif devir veya tahsis edilmemiş tahsilat → en eski taksitlerin RemainingAmount'unu azaltır,
@@ -130,6 +167,7 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
     private async Task ApplyOpeningBalancesAsync(List<DuesListItemViewModel> rows)
     {
         var collectionCredits = await GetUnallocatedCollectionCreditByUnitAsync();
+        var openingDebtRemaining = await GetOpeningDebtRemainingByUnitAsync();
 
         var creditUnitIds = collectionCredits.Keys.ToHashSet();
         var units = await db.Units.AsNoTracking()
@@ -150,11 +188,11 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             }
             else if (unit.OpeningBalance < 0)
             {
-                // Borç: tahsis edilmemiş tahsilat fazlası varsa önce devreden borcu kapatır.
-                var debt = -unit.OpeningBalance;
-                var appliedCredit = Math.Min(debt, credit);
-                debt -= appliedCredit;
-                credit -= appliedCredit;
+                // Devir borcuna fiilen tahsis edilmiş (kalıcı) tutar düşülür. "credit" (tahsis
+                // edilmemiş kredi) buradan ayrıca düşülmez - devire ayrılan tutar artık gerçek
+                // bir CollectionAllocation olduğu için zaten "tahsis edilmemiş" sayılmıyor
+                // (çifte düşüm/çifte sayım olmaz).
+                var debt = openingDebtRemaining.GetValueOrDefault(unit.Id, -unit.OpeningBalance);
 
                 if (debt > 0 && unit.OpeningBalanceDate.HasValue)
                     rows.Add(BuildOpeningBalanceRow(unit, debt));

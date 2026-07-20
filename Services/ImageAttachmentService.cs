@@ -15,6 +15,14 @@ public sealed class ImageAttachmentService
     private const int MaxDimension = 1600;
     private const int TargetMaxBytes = 500 * 1024;
 
+    /// <summary>
+    /// Bu servisin sikistirabilecegi resim uzantilari. Gider ekinin resim mi belge
+    /// mi oldugunu ayirt etmek icin LedgerController ve mobil CaptureController
+    /// tarafindan da kullanilir (tek kaynak).
+    /// </summary>
+    public static readonly IReadOnlySet<string> SupportedExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+
     public sealed record CompressedImage(byte[] Content, string ContentType, string FileName);
 
     public async Task<CompressedImage> CompressAsync(IFormFile file, CancellationToken ct = default)

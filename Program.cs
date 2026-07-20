@@ -94,6 +94,7 @@ builder.Services.AddScoped<MahsupService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<PushSenderService>();
 builder.Services.AddSingleton<PushQueue>();
+builder.Services.AddSingleton<CaptureSessionService>();
 builder.Services.AddScoped<BackupService>();
 builder.Services.AddScoped<ConsistencyCheckService>();
 builder.Services.AddScoped<CollectionAllocationRepairService>();
@@ -145,6 +146,11 @@ using (var scope = app.Services.CreateScope())
     await SeedRolePermissionsAsync(db);
     var residentAccountService = scope.ServiceProvider.GetRequiredService<ResidentAccountService>();
     await SeedResidentAccountsAsync(db, residentAccountService);
+
+    // Devir borcuna daha once tahsis edilmis ama hic kalici kayda donusturulmemis tahsilat
+    // fazlasini gercek CollectionAllocation satirlarina cevirir (bkz. AddDevirOpeningBalanceAllocation
+    // migration'i). Idempotent - zaten uzlasmis veride hicbir etkisi olmaz.
+    await CollectionAdvanceAllocator.ApplyAsync(db);
 }
 
 app.UseHttpsRedirection();

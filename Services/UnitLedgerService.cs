@@ -58,7 +58,7 @@ public class UnitLedgerService(ApplicationDbContext db, IDuesLedgerRowService le
         var installmentIds = installments.Select(x => x.Id).ToHashSet();
         var collectionIdsFromAllocations = await db.CollectionAllocations
             .AsNoTracking()
-            .Where(x => installmentIds.Contains(x.DuesInstallmentId))
+            .Where(x => x.DuesInstallmentId.HasValue && installmentIds.Contains(x.DuesInstallmentId.Value))
             .Select(x => x.CollectionId)
             .Distinct()
             .ToListAsync();
@@ -98,10 +98,9 @@ public class UnitLedgerService(ApplicationDbContext db, IDuesLedgerRowService le
         var openingDebt = 0m;
         if (unit.OpeningBalance < 0m)
         {
-            // Tahsis edilmemiş tahsilat fazlası varsa önce devreden borcu kapatmış sayılır.
-            var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync([unitId]);
-            var credit = unallocatedCredit.GetValueOrDefault(unitId)?.Amount ?? 0m;
-            openingDebt = Math.Max(0m, Math.Abs(unit.OpeningBalance) - credit);
+            // Devir borcuna fiilen tahsis edilmiş (kalıcı) tutar düşülür - artık tahmine dayanmaz.
+            var openingDebtRemaining = await ledgerService.GetOpeningDebtRemainingByUnitAsync([unitId]);
+            openingDebt = openingDebtRemaining.GetValueOrDefault(unitId, Math.Abs(unit.OpeningBalance));
         }
 
         return new UnitLedgerResult

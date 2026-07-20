@@ -52,13 +52,132 @@ public class UnitLedgerAndCollectionTests
         var installmentAfter = await db.DuesInstallments.FindAsync(installment.Id);
         Assert.NotNull(installmentAfter);
         Assert.Equal(15_000m, installmentAfter.RemainingAmount);
-        Assert.Empty(await db.CollectionAllocations.ToListAsync());
+
+        // Devir borcuna uygulanan 750 TL artik kalici bir CollectionAllocation satiri
+        // (UnitId dolu, DuesInstallmentId bos) - tahminden ibaret degil.
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(seed.UnitId, allocation.UnitId);
+        Assert.Null(allocation.DuesInstallmentId);
+        Assert.Equal(750m, allocation.AppliedAmount);
 
         var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
         Assert.NotNull(ledger);
-        // Tahsis edilmemiş 750 TL'lik kredi devir borcunu tam kapattığı için OpeningDebt 0 olmalı.
+        // Tahsis edilmiş 750 TL'lik ödeme devir borcunu tam kapattığı için OpeningDebt 0 olmalı.
         Assert.Equal(0m, ledger.Summary.OpeningDebt);
         Assert.Equal(15_000m, ledger.Summary.NetBalance);
+    }
+
+    [Fact]
+    public async Task Collection_targeting_a_specific_installment_does_not_pay_opening_debt()
+    {
+        await using var db = CreateDb();
+        // Devir borcu 750 TL; kullanici parayi devir yerine acikca 2025-2026 donemine uygular.
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+        var installment = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
+
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 8), 750m, installment.Id);
+
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(installment.Id, allocation.DuesInstallmentId);
+        Assert.Null(allocation.UnitId);
+        Assert.Equal(750m, allocation.AppliedAmount);
+
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
+        Assert.NotNull(ledger);
+        // Belirli bir doneme hedeflenen odeme devir borcuna sizmaz - devir hala acik kalir.
+        Assert.Equal(750m, ledger.Summary.OpeningDebt);
+    }
+
+    [Fact]
+    public async Task Editing_a_collection_reverses_its_opening_debt_allocation()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+        var collectionId = await AddCollectionAsync(db, seed, Utc(2025, 8, 8), 750m);
+
+        var ledgerBefore = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
+        Assert.Equal(0m, ledgerBefore!.Summary.OpeningDebt);
+
+        // Tutari devir borcunun altina dusurecek sekilde duzenle.
+        await new CollectionService(db).UpdateAsync(collectionId, new CollectionCreateViewModel
+        {
+            BillingGroupId = seed.BillingGroupId,
+            Date = Utc(2025, 8, 8),
+            Amount = 300m,
+            PaymentChannel = PaymentChannel.Bank,
+            ReferenceNo = "TEST-EDIT"
+        });
+
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(seed.UnitId, allocation.UnitId);
+        Assert.Equal(300m, allocation.AppliedAmount);
+
+        var ledgerAfter = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
+        Assert.Equal(450m, ledgerAfter!.Summary.OpeningDebt);
+    }
+
+    [Fact]
+    public async Task Dues_list_opening_balance_row_matches_ledger_after_partial_devir_payment()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+
+        // 300 TL devir borcunun bir kismini kapatir, kalan 450 TL acik kalmali.
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 8), 300m);
+
+        var rows = await new DuesLedgerRowService(db).GetInstallmentRowsAsync();
+        var openingRow = Assert.Single(rows, x => x.IsOpeningBalance);
+        Assert.Equal(450m, openingRow.RemainingAmount);
+
+        var ledger = await new UnitLedgerService(db, new DuesLedgerRowService(db)).BuildAsync(seed.UnitId);
+        Assert.Equal(450m, ledger!.Summary.OpeningDebt);
+    }
+
+    [Fact]
+    public async Task Dues_list_hides_opening_balance_row_once_devir_is_fully_paid()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+
+        await AddCollectionAsync(db, seed, Utc(2025, 8, 8), 750m);
+
+        var rows = await new DuesLedgerRowService(db).GetInstallmentRowsAsync();
+        Assert.DoesNotContain(rows, x => x.IsOpeningBalance);
+    }
+
+    [Fact]
+    public async Task CollectionAdvanceAllocator_backfills_opening_debt_allocation_and_is_idempotent()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+        var installment = await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
+
+        // Tahsilat dogrudan eklenir (CollectionAdvanceAllocator devreye girmeden), tipki eski
+        // (devir tahsisatinin hic kalici hale gelmedigi) davranisi simule eder gibi.
+        db.Collections.Add(new Collection
+        {
+            BillingGroupId = seed.BillingGroupId,
+            UnitId = seed.UnitId,
+            Date = Utc(2025, 8, 8),
+            Amount = 750m,
+            PaymentChannel = PaymentChannel.Bank,
+            ReferenceNo = "TEST-BACKFILL"
+        });
+        await db.SaveChangesAsync();
+
+        await CollectionAdvanceAllocator.ApplyAsync(db);
+
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(seed.UnitId, allocation.UnitId);
+        Assert.Null(allocation.DuesInstallmentId);
+        Assert.Equal(750m, allocation.AppliedAmount);
+
+        var installmentAfter = await db.DuesInstallments.FindAsync(installment.Id);
+        Assert.Equal(12_000m, installmentAfter!.RemainingAmount);
+
+        // Ikinci calistirma ayni parayi tekrar devire ayirmamali (idempotent).
+        await CollectionAdvanceAllocator.ApplyAsync(db);
+        Assert.Equal(750m, await db.CollectionAllocations.SumAsync(x => x.AppliedAmount));
     }
 
     [Fact]

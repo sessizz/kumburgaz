@@ -185,7 +185,7 @@ public class DocumentsControllerTests
     private static DocumentsController CreateController(ApplicationDbContext db)
     {
         var httpContext = new DefaultHttpContext();
-        var controller = new DocumentsController(db, new DocumentFileService())
+        var controller = new DocumentsController(db, new DocumentFileService(), new CaptureSessionService())
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
             TempData = new TempDataDictionary(httpContext, new TestTempDataProvider())

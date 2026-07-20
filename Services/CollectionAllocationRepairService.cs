@@ -51,10 +51,16 @@ public class CollectionAllocationRepairService(ApplicationDbContext db)
             .ThenBy(x => x.Id)
             .ToListAsync();
 
+        // Yukarida TUM tahsisatlar silindigi icin devir borcu tam OpeningBalance'tan baslar;
+        // asagida daire bazinda azaltilarak takip edilir (CollectionAdvanceAllocator ile ayni kural).
+        var devirRemaining = await db.Units
+            .Where(x => x.OpeningBalance < 0m)
+            .ToDictionaryAsync(x => x.Id, x => -x.OpeningBalance);
+
         var repaired = new List<CollectionAllocationRepairResult>();
         foreach (var collection in collections)
         {
-            repaired.Add(await RepairLoadedCollectionAsync(collection, rollbackExistingAllocations: false));
+            repaired.Add(await RepairLoadedCollectionAsync(collection, rollbackExistingAllocations: false, devirRemaining));
         }
 
         await db.SaveChangesAsync();
@@ -74,20 +80,24 @@ public class CollectionAllocationRepairService(ApplicationDbContext db)
 
     private async Task<CollectionAllocationRepairResult> RepairLoadedCollectionAsync(
         Collection collection,
-        bool rollbackExistingAllocations = true)
+        bool rollbackExistingAllocations = true,
+        Dictionary<int, decimal>? devirRemaining = null)
     {
         var oldAllocated = collection.Allocations.Sum(x => x.AppliedAmount);
 
         if (rollbackExistingAllocations && collection.Allocations.Count > 0)
         {
-            var allocationIds = collection.Allocations.Select(x => x.DuesInstallmentId).ToList();
+            var allocationIds = collection.Allocations
+                .Where(x => x.DuesInstallmentId.HasValue)
+                .Select(x => x.DuesInstallmentId!.Value)
+                .ToList();
             var installmentsToRollback = await db.DuesInstallments
                 .Where(x => allocationIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id);
 
-            foreach (var allocation in collection.Allocations)
+            foreach (var allocation in collection.Allocations.Where(x => x.DuesInstallmentId.HasValue))
             {
-                if (!installmentsToRollback.TryGetValue(allocation.DuesInstallmentId, out var installment))
+                if (!installmentsToRollback.TryGetValue(allocation.DuesInstallmentId!.Value, out var installment))
                 {
                     continue;
                 }
@@ -96,6 +106,8 @@ public class CollectionAllocationRepairService(ApplicationDbContext db)
                 installment.Status = ResolveInstallmentStatus(installment.Amount, installment.RemainingAmount);
             }
 
+            // Devir bakiyesine uygulanmis tahsisatlarin geri alinacak bir "kalan tutar" alani
+            // yok (Unit.OpeningBalance sabit kalir); satirin silinmesi devir borcunu acar.
             db.CollectionAllocations.RemoveRange(collection.Allocations);
             collection.Allocations.Clear();
             await db.SaveChangesAsync();
@@ -104,6 +116,43 @@ public class CollectionAllocationRepairService(ApplicationDbContext db)
         var remaining = collection.Amount;
         var newAllocated = 0m;
         var affectedInstallmentIds = new List<int>();
+
+        // Devreden borcu once kapatir (CollectionService/CollectionAdvanceAllocator ile ayni kural):
+        // belirli bir taksite degil, once daireye ait devir borcuna ayrilir.
+        var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(x => x.Id == collection.UnitId);
+        if (unit is not null && unit.OpeningBalance < 0m)
+        {
+            decimal devirLeft;
+            if (devirRemaining is not null)
+            {
+                devirLeft = devirRemaining.GetValueOrDefault(collection.UnitId);
+            }
+            else
+            {
+                var alreadyAppliedToDevir = await db.CollectionAllocations
+                    .Where(x => x.UnitId == collection.UnitId && x.DuesInstallmentId == null)
+                    .SumAsync(x => (decimal?)x.AppliedAmount) ?? 0m;
+                devirLeft = Math.Max(0m, -unit.OpeningBalance - alreadyAppliedToDevir);
+            }
+
+            var appliedToDevir = Math.Min(remaining, devirLeft);
+            if (appliedToDevir > 0)
+            {
+                db.CollectionAllocations.Add(new CollectionAllocation
+                {
+                    CollectionId = collection.Id,
+                    UnitId = collection.UnitId,
+                    AppliedAmount = appliedToDevir
+                });
+
+                remaining -= appliedToDevir;
+                newAllocated += appliedToDevir;
+                if (devirRemaining is not null)
+                {
+                    devirRemaining[collection.UnitId] = devirLeft - appliedToDevir;
+                }
+            }
+        }
 
         var openInstallments = await db.DuesInstallments
             .Where(x => x.BillingGroupId == collection.BillingGroupId

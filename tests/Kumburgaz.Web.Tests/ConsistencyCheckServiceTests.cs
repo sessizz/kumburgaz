@@ -64,6 +64,23 @@ public class ConsistencyCheckServiceTests
     }
 
     [Fact]
+    public async Task Closed_opening_debt_via_devir_allocation_has_no_consistency_issue()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 7, 1));
+        var bank = await AddBankAsync(db);
+        await AddInstallmentAsync(db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
+
+        // Devir borcunu tam kapatan genel/serbest bir tahsilat (belirli bir doneme hedeflenmemis).
+        await AddCollectionAsync(db, seed, bank.Id, Utc(2025, 8, 8), 750m);
+
+        var count = await CreateService(db).RunAsync();
+
+        Assert.Equal(0, count);
+        Assert.Empty(await db.ConsistencyCheckResults.Where(x => !x.Resolved).ToListAsync());
+    }
+
+    [Fact]
     public async Task Transfer_without_counterpart_is_reported()
     {
         await using var db = CreateDb();
@@ -97,10 +114,13 @@ public class ConsistencyCheckServiceTests
 
     private static ConsistencyCheckService CreateService(ApplicationDbContext db)
     {
-        return new ConsistencyCheckService(db, new UnitLedgerService(db, new DuesLedgerRowService(db)));
+        return new ConsistencyCheckService(db, new UnitLedgerService(db, new DuesLedgerRowService(db)), new DuesLedgerRowService(db));
     }
 
-    private static async Task<SeedData> SeedUnitAsync(ApplicationDbContext db)
+    private static async Task<SeedData> SeedUnitAsync(
+        ApplicationDbContext db,
+        decimal openingBalance = 0m,
+        DateTime? openingDate = null)
     {
         var site = new Site { Name = "Test Site" };
         var block = new Block { Site = site, Name = "A Blok" };
@@ -109,7 +129,9 @@ public class ConsistencyCheckServiceTests
             Block = block,
             UnitNo = Guid.NewGuid().ToString("N")[..8],
             OwnerName = "Test Malik",
-            Active = true
+            Active = true,
+            OpeningBalance = openingBalance,
+            OpeningBalanceDate = openingDate
         };
         var duesType = new DuesType
         {

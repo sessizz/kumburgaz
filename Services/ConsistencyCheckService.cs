@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
-public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService unitLedgerService)
+public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService unitLedgerService, IDuesLedgerRowService ledgerService)
 {
     private const decimal Tolerance = 0.01m;
 
@@ -165,6 +165,8 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
             .ThenBy(x => x.UnitNo)
             .ToListAsync(cancellationToken);
 
+        var openingDebtRemaining = await ledgerService.GetOpeningDebtRemainingByUnitAsync(units.Select(x => x.Id));
+
         foreach (var unit in units)
         {
             var ledger = await unitLedgerService.BuildAsync(unit.Id);
@@ -215,7 +217,14 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
                 .SumAsync(x => (decimal?)x, cancellationToken) ?? 0m;
 
             var openingCredit = unit.OpeningBalance > 0m ? unit.OpeningBalance : 0m;
-            var openingDebt = unit.OpeningBalance < 0m ? Math.Abs(unit.OpeningBalance) : 0m;
+            // Devire fiilen tahsis edilmiş (kalıcı) tutar düşülür - statik OpeningBalance değil.
+            // Aksi halde devir kapandıkça (CollectionAllocation.UnitId ile) bu kontrol "fazla" bulur:
+            // o tutar artık "tahsis edilmemiş" (unappliedCollectionCredit) sayılmadığı için aşağıdaki
+            // formülden düşülmez, ama openingDebt hâlâ eski/statik tutarı sayarsa net iki kez sayılmaz
+            // ama gerçek net bakiyeden fazla çıkar - fark tam olarak devire uygulanan tutara eşit olur.
+            var openingDebt = unit.OpeningBalance < 0m
+                ? openingDebtRemaining.GetValueOrDefault(unit.Id, Math.Abs(unit.OpeningBalance))
+                : 0m;
             var expectedNet = openingDebt - openingCredit + duesRemaining - unappliedCollectionCredit;
             var diff = ledger.Summary.NetBalance - expectedNet;
 

@@ -62,20 +62,25 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             return;
         }
 
-        var installmentIds = collection.Allocations.Select(x => x.DuesInstallmentId).ToList();
+        var installmentIds = collection.Allocations
+            .Where(x => x.DuesInstallmentId.HasValue)
+            .Select(x => x.DuesInstallmentId!.Value)
+            .ToList();
         var installments = await db.DuesInstallments
             .Where(x => installmentIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id);
 
-        foreach (var allocation in collection.Allocations)
+        foreach (var allocation in collection.Allocations.Where(x => x.DuesInstallmentId.HasValue))
         {
-            var installment = installments[allocation.DuesInstallmentId];
+            var installment = installments[allocation.DuesInstallmentId!.Value];
             installment.RemainingAmount += allocation.AppliedAmount;
             installment.Status = installment.RemainingAmount >= installment.Amount
                 ? InstallmentStatus.Open
                 : InstallmentStatus.PartiallyPaid;
         }
 
+        // Devir bakiyesine uygulanmis tahsisatlarin geri alinacak bir "kalan tutar" alani yok
+        // (Unit.OpeningBalance sabit kalir); satirin silinmesi devir borcunu otomatik acar.
         db.CollectionAllocations.RemoveRange(collection.Allocations);
         db.Collections.Remove(collection);
         await db.SaveChangesAsync();
@@ -136,15 +141,19 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
                 .FirstOrDefaultAsync(x => x.Id == collectionId.Value)
                 ?? throw new InvalidOperationException("Tahsilat kaydi bulunamadi.");
 
-            // Eski mahsuplari geri al.
-            var installmentIds = collection.Allocations.Select(x => x.DuesInstallmentId).ToList();
+            // Eski mahsuplari geri al. Devir bakiyesine uygulanmis tahsisatlarin (DuesInstallmentId
+            // null) geri alinacak bir "kalan tutar" alani yok - satirin silinmesi yeterli.
+            var installmentIds = collection.Allocations
+                .Where(x => x.DuesInstallmentId.HasValue)
+                .Select(x => x.DuesInstallmentId!.Value)
+                .ToList();
             var installmentsToRollback = await db.DuesInstallments
                 .Where(x => installmentIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id);
 
-            foreach (var allocation in collection.Allocations)
+            foreach (var allocation in collection.Allocations.Where(x => x.DuesInstallmentId.HasValue))
             {
-                var installment = installmentsToRollback[allocation.DuesInstallmentId];
+                var installment = installmentsToRollback[allocation.DuesInstallmentId!.Value];
                 installment.RemainingAmount += allocation.AppliedAmount;
                 installment.Status = installment.RemainingAmount >= installment.Amount
                     ? InstallmentStatus.Open
@@ -163,6 +172,10 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             collection.ReferenceNo = model.ReferenceNo;
             collection.IsReceipt = model.IsReceipt;
             collection.Note = model.Note;
+
+            // Geri alinan tahsisatlari ve silinen satirlari veritabanina yazmadan asagidaki
+            // yeniden dagitim sorgulari calisirsa hala eski (mahsuplu) durumu gorur.
+            await db.SaveChangesAsync();
         }
         else
         {
@@ -203,19 +216,30 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         var remaining = model.Amount;
 
         // Belirli bir taksit secilmediyse (genel/serbest tahsilat), daireye ait devreden borcu
-        // once kapatir; kalan varsa aidat taksitlerine dagitilir.
+        // once kapatir; kalan varsa aidat taksitlerine dagitilir. Bu tahsisat kalici bir
+        // CollectionAllocation olarak yazilir (UnitId dolu, DuesInstallmentId bos) - "devir
+        // kapandi" bilgisi artik tahmine degil, gercek bir kayda dayanir (bkz. DuesLedgerRowService
+        // .GetOpeningDebtRemainingByUnitAsync, tum devir-kalan hesaplarinin tek kaynagi).
         if (targetInstallment is null)
         {
             var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(x => x.Id == representativeUnitId);
             if (unit is not null && unit.OpeningBalance < 0m)
             {
-                var totalUnallocatedForUnit = await db.Collections
-                    .Where(x => x.UnitId == representativeUnitId)
-                    .Select(x => x.Amount - x.Allocations.Sum(a => (decimal?)a.AppliedAmount).GetValueOrDefault())
-                    .SumAsync();
-                var otherUnallocated = Math.Max(0m, totalUnallocatedForUnit - remaining);
-                var devirLeft = Math.Max(0m, -unit.OpeningBalance - otherUnallocated);
-                remaining -= Math.Min(remaining, devirLeft);
+                var alreadyAppliedToDevir = await db.CollectionAllocations
+                    .Where(x => x.UnitId == representativeUnitId && x.DuesInstallmentId == null)
+                    .SumAsync(x => (decimal?)x.AppliedAmount) ?? 0m;
+                var devirLeft = Math.Max(0m, -unit.OpeningBalance - alreadyAppliedToDevir);
+                var appliedToDevir = Math.Min(remaining, devirLeft);
+                if (appliedToDevir > 0)
+                {
+                    db.CollectionAllocations.Add(new CollectionAllocation
+                    {
+                        CollectionId = collection.Id,
+                        UnitId = representativeUnitId,
+                        AppliedAmount = appliedToDevir
+                    });
+                    remaining -= appliedToDevir;
+                }
             }
         }
 

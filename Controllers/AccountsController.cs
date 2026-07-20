@@ -191,7 +191,7 @@ public class AccountsController(
             .ThenBy(x => x.UnitDisplay)
             .ToList();
 
-        var unallocatedCredit = await ledgerService.GetUnallocatedCollectionCreditByUnitAsync();
+        var openingDebtRemaining = await ledgerService.GetOpeningDebtRemainingByUnitAsync();
         var openingDebtRows = account.UnitAccounts
             .Where(x => x.Active && x.Unit is { Active: true, OpeningBalance: < 0m })
             .Select(x => new AccountOpenInstallmentViewModel
@@ -201,8 +201,8 @@ public class AccountsController(
                 UnitDisplay = UnitDisplayHelper.Display(x.Unit!),
                 DuesTypeName = "Devir Bakiyesi",
                 DueDate = x.Unit!.OpeningBalanceDate ?? DateTime.Today,
-                // Tahsis edilmemis tahsilat fazlasi varsa once devir borcunu kapatir.
-                RemainingAmount = Math.Max(0m, -x.Unit.OpeningBalance - (unallocatedCredit.GetValueOrDefault(x.UnitId)?.Amount ?? 0m)),
+                // Devir borcuna fiilen tahsis edilmis (kalici) tutar dusulur.
+                RemainingAmount = openingDebtRemaining.GetValueOrDefault(x.UnitId, -x.Unit.OpeningBalance),
                 IsOpeningBalance = true
             })
             .Where(x => x.RemainingAmount > 0);

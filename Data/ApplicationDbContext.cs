@@ -253,6 +253,18 @@ public class ApplicationDbContext(
             .Property(x => x.AppliedAmount)
             .HasPrecision(18, 2);
 
+        builder.Entity<CollectionAllocation>()
+            .HasOne(x => x.DuesInstallment)
+            .WithMany(x => x.Allocations)
+            .HasForeignKey(x => x.DuesInstallmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CollectionAllocation>()
+            .HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Entity<LedgerTransaction>()
             .Property(x => x.Amount)
             .HasPrecision(18, 2);

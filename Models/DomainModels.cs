@@ -545,8 +545,18 @@ public class CollectionAllocation : ISoftDeletable
     public int Id { get; set; }
     public int CollectionId { get; set; }
     public Collection? Collection { get; set; }
-    public int DuesInstallmentId { get; set; }
+
+    /// <summary>Bir aidat taksitine uygulandiysa dolu; devir bakiyesine uygulandiysa null.</summary>
+    public int? DuesInstallmentId { get; set; }
     public DuesInstallment? DuesInstallment { get; set; }
+
+    /// <summary>
+    /// Bu tahsisat dairenin devreden borcuna (Unit.OpeningBalance) uygulandiysa dolu;
+    /// bir aidat taksitine uygulandiysa null. Tam olarak DuesInstallmentId/UnitId'den
+    /// biri set olmalidir - ikisi asla ayni anda dolu/bos olmaz.
+    /// </summary>
+    public int? UnitId { get; set; }
+    public Unit? Unit { get; set; }
     public decimal AppliedAmount { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAt { get; set; }

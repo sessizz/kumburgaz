@@ -235,7 +235,7 @@ public class DuesGenerationService : IDuesGenerationService
         }
 
         var hasAllocation = await db.CollectionAllocations
-            .AnyAsync(x => installmentIds.Contains(x.DuesInstallmentId));
+            .AnyAsync(x => x.DuesInstallmentId.HasValue && installmentIds.Contains(x.DuesInstallmentId.Value));
 
         if (hasAllocation)
         {

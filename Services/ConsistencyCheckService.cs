@@ -203,7 +203,7 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
 
             var collectionIdsFromAllocations = await db.CollectionAllocations
                 .AsNoTracking()
-                .Where(x => installmentIds.Contains(x.DuesInstallmentId))
+                .Where(x => x.DuesInstallmentId.HasValue && installmentIds.Contains(x.DuesInstallmentId.Value))
                 .Select(x => x.CollectionId)
                 .Distinct()
                 .ToListAsync(cancellationToken);

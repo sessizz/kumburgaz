@@ -146,6 +146,11 @@ using (var scope = app.Services.CreateScope())
     await SeedRolePermissionsAsync(db);
     var residentAccountService = scope.ServiceProvider.GetRequiredService<ResidentAccountService>();
     await SeedResidentAccountsAsync(db, residentAccountService);
+
+    // Devir borcuna daha once tahsis edilmis ama hic kalici kayda donusturulmemis tahsilat
+    // fazlasini gercek CollectionAllocation satirlarina cevirir (bkz. AddDevirOpeningBalanceAllocation
+    // migration'i). Idempotent - zaten uzlasmis veride hicbir etkisi olmaz.
+    await CollectionAdvanceAllocator.ApplyAsync(db);
 }
 
 app.UseHttpsRedirection();

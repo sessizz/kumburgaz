@@ -158,6 +158,12 @@ public class AccountsController(
             return NotFound();
         }
 
+        var unitIds = account.UnitAccounts
+            .Where(x => x.Active && x.Unit is { Active: true })
+            .Select(x => x.UnitId)
+            .Distinct()
+            .ToList();
+
         var openInstallments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
@@ -214,17 +220,19 @@ public class AccountsController(
             .ThenBy(x => x.UnitDisplay)
             .ToList();
 
-        var recentAllocations = await db.CollectionAllocations
+        var recentCollections = await db.Collections
             .AsNoTracking()
-            .Include(x => x.Collection)
-            .ThenInclude(x => x!.CashBox)
-            .Include(x => x.Collection)
-            .ThenInclude(x => x!.BankAccount)
-            .Include(x => x.DuesInstallment)
-            .ThenInclude(x => x!.BillingGroup)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
+            .Include(x => x.BillingGroup)
             .ThenInclude(x => x!.DuesType)
-            .Where(x => x.DuesInstallment != null && x.DuesInstallment.ResponsibleAccountId == id)
-            .OrderByDescending(x => x.Collection!.Date)
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Where(x => unitIds.Contains(x.UnitId)
+                        || x.Allocations.Any(a =>
+                            a.DuesInstallment != null
+                            && a.DuesInstallment.ResponsibleAccountId == id))
+            .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .Take(20)
             .ToListAsync();
@@ -240,20 +248,15 @@ public class AccountsController(
                 IsOpeningBalance = true
             });
 
-        var collectionRows = recentAllocations
+        var collectionRows = recentCollections
             .Select(x => new AccountCollectionRowViewModel
             {
-                Date = x.Collection?.Date ?? DateTime.MinValue,
-                Description = $"{x.DuesInstallment?.Period} - {x.DuesInstallment?.BillingGroup?.DuesType?.Name ?? "Aidat"}",
-                AccountName = x.Collection?.CashBox?.Name ?? x.Collection?.BankAccount?.Name ?? "—",
-                Amount = x.AppliedAmount
+                Date = x.Date,
+                Description = $"{(x.Unit is not null ? UnitDisplayHelper.Display(x.Unit) : "Daire")} - {x.BillingGroup?.DuesType?.Name ?? "Aidat"}",
+                AccountName = x.CashBox?.Name ?? x.BankAccount?.Name ?? "—",
+                Amount = x.Amount
             });
 
-        var unitIds = account.UnitAccounts
-            .Where(x => x.Active && x.Unit is { Active: true })
-            .Select(x => x.UnitId)
-            .Distinct()
-            .ToList();
         var summaries = await unitLedgerService.BuildSummariesAsync(unitIds);
         var summary = new UnitLedgerSummary
         {

@@ -198,7 +198,9 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         }
 
         var openInstallmentsQuery = db.DuesInstallments
-            .Where(x => x.BillingGroupId == billingGroupId && x.RemainingAmount > 0);
+            .Where(x => x.BillingGroupId == billingGroupId
+                        && x.RemainingAmount > 0
+                        && (x.UnitId == representativeUnitId || x.UnitId == null));
 
         if (targetInstallment is not null)
         {

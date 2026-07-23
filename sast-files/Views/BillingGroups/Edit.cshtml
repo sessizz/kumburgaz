@@ -1,0 +1,33 @@
+@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+@{
+    ViewData["Title"] = "Aidatlandırma Grubu Düzenle";
+}
+
+<div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Aidatlandırma Grubu Düzenle</h2>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="Edit" method="post" class="space-y-4">
+                <input asp-for="Id" type="hidden" />
+                <partial name="_Form" model="Model" />
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Güncelle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

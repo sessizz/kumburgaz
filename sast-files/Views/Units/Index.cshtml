@@ -1,0 +1,315 @@
+@model Kumburgaz.Web.Models.UnitIndexViewModel
+@using Kumburgaz.Web.Services
+@{
+    ViewData["Title"] = "Daireler";
+    var activeUnitTotal = Model.BillingGroupSummary.Sum(x => x.Count);
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Daireler</h2>
+            <p class="text-sm text-gray-400">Site daireleri ve birleşik daireler</p>
+        </div>
+        <div class="flex gap-2">
+            <a class="btn btn-outline btn-sm" asp-action="ExportCsv">
+                <span class="material-symbols-outlined ms-sm">download</span>
+                CSV Dışa Aktar
+            </a>
+            <a class="btn btn-primary btn-sm" asp-action="Create">
+                <span class="material-symbols-outlined ms-sm">add</span>
+                Yeni Daire
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["ImportSuccess"] is string successMessage)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
+    }
+    @if (TempData["ImportError"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Aktif Daire İcmali</h3>
+                <p class="text-xs text-gray-400">Aidat gruplarına göre sayım. Birleşik aktif daireler tek daire olarak sayılır.</p>
+            </div>
+            <span class="badge badge-primary badge-soft">@activeUnitTotal aktif daire</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 p-5">
+            @foreach (var item in Model.BillingGroupSummary)
+            {
+                <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">@item.BillingGroupName</div>
+                    <div class="mt-2 flex items-end justify-between gap-3">
+                        <div class="text-3xl font-extrabold tabular-nums text-gray-900">@item.Count</div>
+                        @if (!string.IsNullOrWhiteSpace(item.DuesTypeName))
+                        {
+                            <span class="badge badge-ghost badge-sm">@item.DuesTypeName</span>
+                        }
+                    </div>
+                </div>
+            }
+            @if (Model.BillingGroupSummary.Count == 0)
+            {
+                <div class="text-sm text-gray-500">Aktif daire bulunamadı.</div>
+            }
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">CSV ile Toplu Yükle</h3>
+            <form asp-action="ImportCsv" method="post" enctype="multipart/form-data" class="space-y-2">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Daire CSV dosyası</legend>
+                    <div class="flex items-center gap-3">
+                        <input type="file" name="file" accept=".csv,text/csv" class="file-input file-input-bordered flex-1" />
+                        <button type="submit" class="btn btn-outline btn-primary shrink-0">
+                            <span class="material-symbols-outlined ms-sm">upload</span>
+                            CSV ile Ekle
+                        </button>
+                    </div>
+                </fieldset>
+                <p class="text-xs text-gray-400">Kolonlar: BlokId veya Blok, DaireNo, MalikAdi, Aktif. Opsiyonel: Birlesik, DevirBakiyesi, DevirTarihi. Aidat grubu için: AidatGrubu, AidatTipiId veya AidatTipi, BaslangicDonemi, BitisDonemi.</p>
+            </form>
+        </div>
+    </div>
+
+    <form asp-action="DeleteSelected" method="post" id="bulkDeleteUnitsForm" onsubmit="return confirmUnitsFormSubmit(event);">
+        @Html.AntiForgeryToken()
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <label class="label cursor-pointer gap-2">
+                    <input class="checkbox checkbox-sm checkbox-primary" type="checkbox" id="selectAllUnits" />
+                    <span class="label-text font-medium">Tümünü seç</span>
+                </label>
+                <div class="flex gap-2">
+                    <button class="btn btn-sm btn-outline btn-primary" type="submit"
+                            formaction="@Url.Action("CombineSelected", "Units")"
+                            data-bulk-action="combine">
+                        <span class="material-symbols-outlined ms-sm">merge</span>
+                        Birleştir
+                    </button>
+                    <button class="btn btn-sm btn-outline btn-error" type="submit" data-bulk-action="delete">
+                        <span class="material-symbols-outlined ms-sm">delete</span>
+                        Seçilenleri Sil
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th class="w-10"></th>
+                            <th>Blok</th>
+                            <th>Daire No</th>
+                            <th>Malik</th>
+                            <th>Kiracı</th>
+                            <th>Tip</th>
+                            <th>Bileşenler</th>
+                            <th>Aidat Grubu</th>
+                            <th>Aidat Tipi</th>
+                            <th class="text-end">Borç / Alacak</th>
+                            <th>Durum</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.Units)
+                    {
+                        var owner = AccountAssignmentService.ActiveOwner(item);
+                        var tenant = AccountAssignmentService.ActiveTenant(item);
+                        <tr>
+                            <td>
+                                <input class="checkbox checkbox-sm unit-select" type="checkbox" name="selectedUnitIds" value="@item.Id" />
+                            </td>
+                            <td class="font-semibold">@item.Block?.Name</td>
+                            <td>
+                                <a class="link link-primary" asp-action="Detail" asp-route-id="@item.Id">@item.UnitNo</a>
+                            </td>
+                            <td>
+                                <a class="hover:underline" asp-action="Detail" asp-route-id="@item.Id">@(owner?.Name ?? item.OwnerName ?? "—")</a>
+                            </td>
+                            <td>
+                                @if (tenant is not null)
+                                {
+                                    <span>@tenant.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (item.IsCombined)
+                                {
+                                    <span class="badge badge-info badge-soft">Birleşik</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-ghost">Fiziksel</span>
+                                }
+                            </td>
+                            <td>
+                                @if (item.IsCombined)
+                                {
+                                    <span class="text-sm">
+                                    @string.Join(" + ", item.CombinedUnitMembers
+                                        .Where(x => x.ComponentUnit?.Block is not null)
+                                        .Select(x => $"{x.ComponentUnit!.Block!.Name}-{x.ComponentUnit.UnitNo}")
+                                        .OrderBy(x => x))
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            @{
+                                var activeGroup = item.BillingGroupUnits
+                                    .OrderByDescending(g => g.StartPeriod)
+                                    .FirstOrDefault();
+                            }
+                            <td class="text-sm">
+                                @if (activeGroup?.BillingGroup is not null)
+                                {
+                                    <span>@activeGroup.BillingGroup.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            <td class="text-sm whitespace-nowrap">
+                                @if (activeGroup?.BillingGroup?.DuesType is not null)
+                                {
+                                    <span class="badge badge-ghost badge-sm whitespace-nowrap">@activeGroup.BillingGroup.DuesType.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-300">—</span>
+                                }
+                            </td>
+                            @{
+                                var netBalance = Model.NetBalanceByUnitId.GetValueOrDefault(item.Id);
+                            }
+                            <td class="text-end text-sm tabular-nums whitespace-nowrap">
+                                @if (netBalance > 0)
+                                {
+                                    <span class="text-error font-semibold">@netBalance.ToString("N2") ₺</span>
+                                }
+                                else if (netBalance < 0)
+                                {
+                                    <span class="text-success font-semibold">@Math.Abs(netBalance).ToString("N2") ₺</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-900 font-semibold">@netBalance.ToString("N2") ₺</span>
+                                }
+                            </td>
+                            <td>
+                                @if (item.Active)
+                                {
+                                    <span class="badge badge-success badge-soft">Aktif</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-ghost">Pasif</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="flex justify-end gap-1">
+                                    <a class="btn btn-xs btn-ghost" asp-action="Detail" asp-route-id="@item.Id">
+                                        <span class="material-symbols-outlined ms-sm">visibility</span>
+                                        Detay
+                                    </a>
+                                    <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                        <span class="material-symbols-outlined ms-sm">edit</span>
+                                        Düzenle
+                                    </a>
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit"
+                                            formmethod="post"
+                                            formaction="@Url.Action("Delete", "Units", new { id = item.Id })"
+                                            data-bulk-action="single-delete">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        const selectAllUnits = document.getElementById("selectAllUnits");
+        const unitCheckboxes = Array.from(document.querySelectorAll(".unit-select"));
+
+        selectAllUnits?.addEventListener("change", () => {
+            unitCheckboxes.forEach((checkbox) => { checkbox.checked = selectAllUnits.checked; });
+        });
+
+        unitCheckboxes.forEach((checkbox) => {
+            checkbox.addEventListener("change", () => {
+                if (!selectAllUnits) return;
+                selectAllUnits.checked = unitCheckboxes.length > 0 && unitCheckboxes.every((item) => item.checked);
+                selectAllUnits.indeterminate = unitCheckboxes.some((item) => item.checked) && !selectAllUnits.checked;
+            });
+        });
+
+        function selectedUnitCount() {
+            return unitCheckboxes.filter((checkbox) => checkbox.checked).length;
+        }
+
+        function confirmUnitsFormSubmit(event) {
+            const action = event.submitter?.dataset?.bulkAction;
+            if (action === "single-delete") return confirm("Bu daire silinsin mi?");
+            if (action === "combine") return confirmSelectedUnitsCombine();
+            return confirmSelectedUnitsDelete();
+        }
+
+        function confirmSelectedUnitsDelete() {
+            const c = selectedUnitCount();
+            if (c === 0) { alert("Silmek için en az bir daire seçin."); return false; }
+            return confirm(`${c} daire silinsin mi? Bağlı kayıt içeren daireler atlanır.`);
+        }
+
+        function confirmSelectedUnitsCombine() {
+            const c = selectedUnitCount();
+            if (c !== 2) { alert("Birleştirmek için tam 2 daire seçin."); return false; }
+            return confirm("Seçilen 2 daire birleşik daireye dönüştürülsün mü?");
+        }
+    </script>
+}

@@ -1,0 +1,169 @@
+@model Kumburgaz.Web.Models.UnitDetailViewModel
+@{
+    ViewData["Title"] = "Daire Detayı";
+    var u = Model.Unit;
+    var initials = string.IsNullOrWhiteSpace(u.OwnerName)
+        ? "?"
+        : string.Join("", u.OwnerName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0]));
+    var balance = Model.Balance;
+    var accountOptions = ViewBag.AccountOptions as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var suggested = balance > 0 ? balance : 0m;
+}
+
+<div class="space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Daire Detayı</h2>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string okMsg)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@okMsg</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string errMsg)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errMsg</span>
+        </div>
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <!-- Sol: özet + son hareket -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-start gap-4">
+                    <div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600">
+                        @initials
+                    </div>
+                    <div class="flex-1 grid grid-cols-1 md:grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm">
+                        <span class="text-gray-500">Hesap</span>
+                        <span class="font-bold text-lg">@(string.IsNullOrWhiteSpace(u.OwnerName) ? "—" : u.OwnerName)</span>
+
+                        <span class="text-gray-500">Daire</span>
+                        <span><span class="text-blue-600 font-medium">@u.Block?.Name Blok - No @u.UnitNo</span></span>
+
+                        <span class="text-gray-500">Telefon</span>
+                        <span>@(string.IsNullOrWhiteSpace(u.Phone) ? "-" : u.Phone)</span>
+
+                        <span class="text-gray-500">Giriş Tarihi</span>
+                        <span>@(u.MoveInDate.HasValue ? u.MoveInDate.Value.ToString("dd MMMM yyyy") : "—")</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th>Son Ödeme Tarihi</th>
+                            <th>Açıklama</th>
+                            <th class="text-end">Tutar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (Model.LastDebt is not null)
+                    {
+                        <tr>
+                            <td>
+                                <span class="material-symbols-outlined text-gray-400 align-middle text-base">description</span>
+                                @Model.LastDebt.Date.ToString("dd MMMM yyyy")
+                            </td>
+                            <td>
+                                @Model.LastDebt.Description
+                                @if (Model.LastDebt.Kind == StatementEntryKind.Debt)
+                                {
+                                    <span class="badge badge-info badge-soft ml-1">Aidat</span>
+                                }
+                                else if (Model.LastDebt.Kind == StatementEntryKind.OpeningBalance)
+                                {
+                                    <span class="badge badge-warning badge-soft ml-1">Devir</span>
+                                }
+                            </td>
+                            <td class="text-end font-bold">@Model.LastDebt.Amount.ToString("N2") ₺</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr><td colspan="3" class="text-center text-gray-400 py-6">Henüz hareket yok.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="border-t border-gray-200 px-6 py-3">
+                <a class="text-blue-600 hover:underline text-sm flex items-center gap-1"
+                   asp-action="Statement" asp-route-id="@u.Id">
+                    <span class="material-symbols-outlined text-base">history</span>
+                    Hesap geçmişini göster
+                </a>
+            </div>
+        </div>
+
+        <!-- Sağ: bakiye + tahsilat -->
+        <div class="space-y-4">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <a class="btn btn-sm" asp-controller="Units" asp-action="Edit" asp-route-id="@u.Id">
+                        <span class="material-symbols-outlined ms-sm">edit</span>
+                        Düzenle
+                    </a>
+                    <button type="button" class="btn btn-sm btn-info @(balance <= 0 ? "btn-disabled" : "")"
+                            onclick="document.getElementById('addCollectionModal').showModal()">
+                        Tahsilat ekle
+                    </button>
+                </div>
+
+                <div class="flex justify-between text-sm">
+                    <span class="text-gray-600">Yapılacak Tahsilat</span>
+                    <span class="font-semibold">@Math.Max(0, balance).ToString("N2") ₺</span>
+                </div>
+                <hr class="my-3 border-gray-100" />
+                <div class="flex justify-between items-baseline">
+                    <span class="text-amber-700 font-bold tracking-wider">BAKİYE</span>
+                    <div class="text-end">
+                        <div class="text-2xl font-extrabold @(balance > 0 ? "text-amber-700" : (balance < 0 ? "text-success" : "text-gray-700"))">
+                            @balance.ToString("N2") ₺
+                        </div>
+                        <div class="text-xs text-amber-600">@(balance > 0 ? "Tahsil edilecek" : (balance < 0 ? "Alacaklı" : "Bakiyesiz"))</div>
+                    </div>
+                </div>
+                <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                    <div class="col-span-2 rounded-lg bg-gray-50 border border-gray-100 p-3">
+                        <div class="text-gray-400">Net Bakiye</div>
+                        <div class="font-extrabold @(Model.Summary.NetBalance > 0 ? "text-error" : Model.Summary.NetBalance < 0 ? "text-success" : "text-gray-700")">
+                            @Model.Summary.NetBalance.ToString("N2") ₺
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Tahakkuk</div>
+                        <div class="font-bold">@Model.Summary.TotalAccrual.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Tahsilat</div>
+                        <div class="font-bold text-success">@Model.Summary.TotalCollections.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Devir Borcu</div>
+                        <div class="font-bold text-error">@Model.Summary.OpeningDebt.ToString("N2") ₺</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Devir Alacağı</div>
+                        <div class="font-bold text-info">@Model.Summary.OpeningCredit.ToString("N2") ₺</div>
+                    </div>
+                    <div class="col-span-2">
+                        <div class="text-gray-400">Avans / Alacak</div>
+                        <div class="font-bold text-success">@Model.Summary.Advance.ToString("N2") ₺</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_AddCollectionModal" model="@(new Kumburgaz.Web.Models.AddCollectionModalModel { UnitId = u.Id, SuggestedAmount = suggested, CurrentDebt = Math.Max(0, balance), AccountOptions = accountOptions, PeriodOptions = Model.CollectionPeriodOptions, ReturnUrl = Url.Action("Detail", "Units", new { id = u.Id }) ?? string.Empty })" />

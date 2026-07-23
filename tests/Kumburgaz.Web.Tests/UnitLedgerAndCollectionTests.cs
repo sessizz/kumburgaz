@@ -85,6 +85,63 @@ public class UnitLedgerAndCollectionTests
     }
 
     [Fact]
+    public async Task General_collection_is_allocated_only_to_the_selected_unit_in_a_shared_billing_group()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db);
+        var otherUnit = new Unit
+        {
+            BlockId = (await db.Units.FindAsync(seed.UnitId))!.BlockId,
+            UnitNo = "C-OTHER",
+            OwnerName = "Diger Malik",
+            Active = true
+        };
+        db.Units.Add(otherUnit);
+        db.BillingGroupUnits.Add(new BillingGroupUnit
+        {
+            BillingGroupId = seed.BillingGroupId,
+            Unit = otherUnit,
+            StartPeriod = "2025-2026"
+        });
+        await db.SaveChangesAsync();
+
+        var otherInstallment = new DuesInstallment
+        {
+            UnitId = otherUnit.Id,
+            BillingGroupId = seed.BillingGroupId,
+            Period = "2025-2026",
+            AccrualDate = Utc(2025, 7, 20),
+            DueDate = Utc(2025, 9, 30),
+            Amount = 12_000m,
+            RemainingAmount = 12_000m,
+            Status = InstallmentStatus.Open
+        };
+        db.DuesInstallments.Add(otherInstallment);
+        await db.SaveChangesAsync();
+
+        var oldTarget = await AddInstallmentAsync(
+            db, seed, Utc(2025, 7, 20), Utc(2025, 9, 30), 12_000m, period: "2025-2026");
+        oldTarget.RemainingAmount = 1_322m;
+        oldTarget.Status = InstallmentStatus.PartiallyPaid;
+        var newTarget = await AddInstallmentAsync(
+            db, seed, Utc(2026, 7, 12), Utc(2026, 9, 30), 15_000m, period: "2026-2027");
+        await db.SaveChangesAsync();
+
+        var collectionId = await AddCollectionAsync(db, seed, Utc(2026, 7, 17), 5_025.77m);
+
+        Assert.Equal(12_000m, (await db.DuesInstallments.FindAsync(otherInstallment.Id))!.RemainingAmount);
+        Assert.Equal(0m, (await db.DuesInstallments.FindAsync(oldTarget.Id))!.RemainingAmount);
+        Assert.Equal(11_296.23m, (await db.DuesInstallments.FindAsync(newTarget.Id))!.RemainingAmount);
+        Assert.Equal(
+            [1_322m, 3_703.77m],
+            await db.CollectionAllocations
+                .Where(x => x.CollectionId == collectionId)
+                .OrderBy(x => x.DuesInstallment!.Period)
+                .Select(x => x.AppliedAmount)
+                .ToArrayAsync());
+    }
+
+    [Fact]
     public async Task Collection_targeting_a_specific_installment_does_not_apply_to_an_older_sibling()
     {
         await using var db = CreateDb();

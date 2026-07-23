@@ -1,0 +1,361 @@
+@model Kumburgaz.Web.Models.DashboardViewModel
+@{
+    ViewData["Title"] = "Genel Bakış";
+
+    string Money(decimal value) => value.ToString("N2") + " TL";
+    string ShortMoney(decimal value) => value.ToString("N0") + " TL";
+    string SvgNum(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    string AlertBorder(string severity) => severity switch
+    {
+        "error" => "border-red-200 bg-red-50 text-red-900",
+        "warning" => "border-amber-200 bg-amber-50 text-amber-900",
+        "success" => "border-emerald-200 bg-emerald-50 text-emerald-900",
+        _ => "border-sky-200 bg-sky-50 text-sky-900"
+    };
+    string AlertIcon(string severity) => severity switch
+    {
+        "error" => "text-red-600",
+        "warning" => "text-amber-600",
+        "success" => "text-emerald-600",
+        _ => "text-sky-600"
+    };
+    var maxCash = Math.Max(1m, Model.Cashflow.SelectMany(x => new[] { x.Income, x.Expense }).DefaultIfEmpty(1m).Max());
+    var points = string.Join(" ", Model.Cashflow.Select((x, i) =>
+    {
+        var xPos = 85 + i * 98;
+        var net = Math.Max(0, x.Net);
+        var yPos = 220 - (double)(net / maxCash * 150m);
+        return $"{xPos},{Math.Clamp(yPos, 45, 220):F0}";
+    }));
+}
+
+<div class="space-y-5">
+    <div class="flex items-center justify-between gap-3">
+        <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Genel Bakış</h1>
+        <div class="flex items-center gap-2">
+            <form method="get" class="flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300">
+                <span class="material-symbols-outlined text-gray-500">event_repeat</span>
+                <select name="period" class="select select-sm select-ghost -mx-2" onchange="this.form.submit()" asp-items="Model.PeriodOptions"></select>
+            </form>
+            <div class="h-10 px-3 rounded-lg border border-gray-200 bg-white inline-flex items-center gap-2 text-sm text-gray-700">
+                <span class="material-symbols-outlined text-gray-500">calendar_today</span>
+                @DateTime.Today.ToString("dd MMMM yyyy, dddd")
+            </div>
+            <button class="h-10 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2 text-sm text-gray-700">
+                <span class="material-symbols-outlined text-gray-500">filter_list</span>
+                Filtrele
+            </button>
+        </div>
+    </div>
+
+    @if (Model.Alerts.Count > 0 || Model.LastBackupAt.HasValue)
+    {
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3">
+            @if (Model.Alerts.Count > 0)
+            {
+                <div class="bg-white border border-gray-200 rounded-xl p-4">
+                    <div class="font-bold text-gray-900 flex items-center gap-2">
+                        <span class="material-symbols-outlined">notifications_active</span>
+                        Uyarılar
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                        @foreach (var alert in Model.Alerts)
+                        {
+                            var boxClass = AlertBorder(alert.Severity);
+                            var iconClass = AlertIcon(alert.Severity);
+                            if (!string.IsNullOrWhiteSpace(alert.Url))
+                            {
+                                <a class="block rounded-lg border p-3 hover:shadow-sm transition @boxClass" href="@alert.Url">
+                                    <div class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined @iconClass" style="font-size:20px;">@alert.Icon</span>
+                                        <div class="min-w-0">
+                                            <div class="font-bold text-sm">@alert.Title</div>
+                                            <div class="text-sm opacity-90">@alert.Message</div>
+                                            <div class="text-xs font-semibold mt-1 underline">@alert.LinkText</div>
+                                        </div>
+                                    </div>
+                                </a>
+                            }
+                            else
+                            {
+                                <div class="rounded-lg border p-3 @boxClass">
+                                    <div class="flex items-start gap-2">
+                                        <span class="material-symbols-outlined @iconClass" style="font-size:20px;">@alert.Icon</span>
+                                        <div class="min-w-0">
+                                            <div class="font-bold text-sm">@alert.Title</div>
+                                            <div class="text-sm opacity-90">@alert.Message</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+                <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold">Son Yedek</div>
+                <div class="mt-1 font-bold">@(Model.LastBackupAt.HasValue ? Model.LastBackupAt.Value.ToString("dd.MM.yyyy HH:mm") : "Yok")</div>
+            </div>
+        </div>
+    }
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#ecfdf5;"><span class="material-symbols-outlined" style="color:#10b981;">monitoring</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Tahsilat Oranı</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">%@Model.CollectionRate.ToString("N1")</div>
+                <div class="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined" style="font-size:14px;">trending_up</span>
+                    <span class="text-gray-400 font-normal">Tahsil edilen / toplam tahakkuk</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#eff6ff;"><span class="material-symbols-outlined" style="color:#3b82f6;">event_note</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Toplam Aidat</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.TotalGenerated)</div>
+                <div class="text-xs text-gray-400 mt-1">
+                    @(Model.SelectedPeriod == Kumburgaz.Web.Controllers.DuesController.AllPeriodsValue ? "Tüm dönemler tahakkuku" : $"{Model.SelectedPeriod} dönemi tahakkuku")
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#fef2f2;"><span class="material-symbols-outlined" style="color:#ef4444;">error</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Borçlu Bakiye</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.OverdueDebt)</div>
+                <div class="text-xs mt-1"><span class="text-red-600 font-semibold">@Model.OverdueUnitCount</span> <span class="text-gray-400">borçlu</span></div>
+                <div class="text-xs text-gray-500 mt-1.5 space-y-0.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-gray-400">Eski devirden</span>
+                        <span class="tabular-nums font-semibold text-gray-700">@Money(Model.OverdueCarriedDebt)</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-gray-400">Aidattan</span>
+                        <span class="tabular-nums font-semibold text-gray-700">@Money(Model.OverdueDuesDebt)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#fffbeb;"><span class="material-symbols-outlined" style="color:#f59e0b;">query_stats</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Bu Ay Tahmini Giderler</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.ForecastExpense)</div>
+                <div class="text-xs text-gray-400 mt-1">Maaş, elektrik, bakım ve ortak gider tahmini</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#ecfdf5;"><span class="material-symbols-outlined" style="color:#10b981;">savings</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Bu Ay Gelen Aidatlar</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.MonthCollections)</div>
+                <div class="text-xs text-gray-400 mt-1">@Model.MonthCollectionCount ödeme</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#eff6ff;"><span class="material-symbols-outlined" style="color:#3b82f6;">account_balance</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Kasa + Banka</div>
+                <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">@Money(Model.CashBankBalance)</div>
+                <div class="text-xs text-gray-400 mt-1">aktif hesap bakiyesi</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
+            <div class="ico" style="background:#eef2ff;"><span class="material-symbols-outlined" style="color:#6366f1;">swap_vert</span></div>
+            <div class="min-w-0 flex-1">
+                <div class="text-xs text-gray-500 font-medium">Bu Ay Net Durum</div>
+                <div class="mt-0.5 text-2xl font-extrabold @(Model.NetPosition >= 0 ? "text-emerald-600" : "text-red-600") tabular-nums">@Money(Model.NetPosition)</div>
+                <div class="text-xs text-gray-400 mt-1">Aidat - tahmini gider</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 flex items-center gap-2">
+        <button class="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"><span class="material-symbols-outlined">chevron_left</span></button>
+        <div class="text-sm font-semibold text-gray-700 px-2 w-28">@DateTime.Today.ToString("MMMM yyyy")</div>
+        <div class="flex-1 grid gap-1" style="grid-template-columns: repeat(14, minmax(0, 1fr));">
+            @foreach (var day in Model.CalendarDays)
+            {
+                <div class="day @(day.IsToday ? "is-today" : "has-event")">
+                    <div class="lbl">@day.Weekday</div>
+                    <div class="num">@day.Day</div>
+                    <div class="marker @day.Marker"></div>
+                </div>
+            }
+        </div>
+        <button class="w-9 h-9 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500"><span class="material-symbols-outlined">chevron_right</span></button>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">Gider Tahmin Dağılımı</h3>
+                    <div class="text-xs text-gray-400 mt-0.5">@Model.ForecastMonthLabel tahmini</div>
+                </div>
+                <span class="pill pill-info" title="Kategori bazlı tahmin yöntemlerinin tutar ağırlıklı güven ortalaması">Tahmin güveni %@Model.ForecastConfidence</span>
+            </div>
+
+            <div class="space-y-4">
+                @foreach (var item in Model.ExpenseForecast)
+                {
+                    <div class="grid grid-cols-[minmax(0,150px)_1fr_110px_50px] items-center gap-3 text-sm" title="@item.Basis">
+                        <span class="text-gray-700 font-medium truncate">@item.Name</span>
+                        <div class="hbar-track"><div class="hbar-fill" style="width:@item.Percent.ToString("N1", System.Globalization.CultureInfo.InvariantCulture)%; background:@item.Color;"></div></div>
+                        <span class="text-right text-gray-900 font-semibold tabular-nums">@ShortMoney(item.Amount)</span>
+                        <span class="text-right text-gray-400 tabular-nums">%@item.Percent.ToString("N1")</span>
+                    </div>
+                }
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between">
+                <span class="text-sm text-gray-500">Toplam Tahmini Gider</span>
+                <span class="text-base font-extrabold text-gray-900 tabular-nums">@Money(Model.ForecastExpense)</span>
+            </div>
+            <div class="mt-2 text-[11px] leading-relaxed text-gray-400">
+                Maaş 6 aylık dönemlerde sabit kabul edilir, yeni dönemde son zam oranı uygulanır; SGK maaşa endekslidir; ikramiye yalnızca Ramazan ve Kurban bayramı aylarında öngörülür; diğer kalemler geçmiş aylara ve mevsimselliğe göre tahmin edilir. Satırların üzerine gelerek yöntemi görebilirsiniz.
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-bold text-gray-900">Aylık Nakit Akışı</h3>
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="flex items-center gap-1.5 text-gray-600"><span class="w-3 h-3 rounded-sm bg-emerald-500"></span>Gelir</span>
+                    <span class="flex items-center gap-1.5 text-gray-600"><span class="w-3 h-3 rounded-sm bg-red-500"></span>Gider</span>
+                    <span class="flex items-center gap-1.5 text-gray-600"><span class="w-3 h-3 rounded-sm bg-blue-600"></span>Net</span>
+                </div>
+            </div>
+
+            <svg viewBox="0 0 640 260" class="w-full h-[260px]">
+                <g font-family="Inter, sans-serif" font-size="10" fill="#9ca3af">
+                    <line x1="40" y1="35" x2="630" y2="35" stroke="#f1f5f9" /><text x="36" y="39" text-anchor="end">1M</text>
+                    <line x1="40" y1="95" x2="630" y2="95" stroke="#f1f5f9" /><text x="36" y="99" text-anchor="end">750B</text>
+                    <line x1="40" y1="155" x2="630" y2="155" stroke="#f1f5f9" /><text x="36" y="159" text-anchor="end">500B</text>
+                    <line x1="40" y1="220" x2="630" y2="220" stroke="#e5e7eb" /><text x="36" y="224" text-anchor="end">0</text>
+                </g>
+                @for (var i = 0; i < Model.Cashflow.Count; i++)
+                {
+                    var row = Model.Cashflow[i];
+                    var groupX = 62 + i * 98;
+                    var incomeHeight = (double)(row.Income / maxCash * 170m);
+                    var expenseHeight = (double)(row.Expense / maxCash * 170m);
+                    var groupTop = 220 - Math.Max(incomeHeight, expenseHeight);
+                    <g class="cf-group">
+                        <rect x="@(groupX - 12)" y="20" width="70" height="220" fill="transparent" />
+                        <rect x="@groupX" y="@SvgNum(220 - incomeHeight)" width="22" height="@SvgNum(incomeHeight)" rx="3" fill="#10b981" />
+                        <rect x="@(groupX + 24)" y="@SvgNum(220 - expenseHeight)" width="22" height="@SvgNum(expenseHeight)" rx="3" fill="#ef4444" />
+                        <text x="@(groupX + 23)" y="250" text-anchor="middle" font-family="Inter" font-size="11" fill="#9ca3af">@row.Month</text>
+                        <g class="cf-val" font-family="Inter, sans-serif" font-size="10" font-weight="700" text-anchor="middle">
+                            <text x="@(groupX + 23)" y="@SvgNum(groupTop - 18)" fill="#059669">@row.Income.ToString("N0")</text>
+                            <text x="@(groupX + 23)" y="@SvgNum(groupTop - 6)" fill="#dc2626">@row.Expense.ToString("N0")</text>
+                        </g>
+                    </g>
+                }
+                <polyline fill="none" stroke="#0e7c86" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="@points" />
+            </svg>
+
+            <div class="text-center text-sm text-gray-500 mt-1">
+                Bu ay net: <span class="font-bold text-blue-600 tabular-nums">@Money(Model.NetPosition)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-gray-900">Borçlu Hesaplar</h3>
+                <a class="text-xs text-blue-600 hover:underline font-medium" asp-controller="Reports" asp-action="DuesDebt">Tümünü Gör</a>
+            </div>
+            <div class="tbl-row tbl-h" style="grid-template-columns: 1fr 100px;"><span>Daire</span><span class="text-right">Bakiye</span></div>
+            @foreach (var row in Model.OverdueItems)
+            {
+                <div class="tbl-row text-sm" style="grid-template-columns: 1fr 100px;">
+                    <span class="min-w-0">
+                        <span class="block font-medium text-gray-900 truncate">@row.UnitDisplay</span>
+                        @if (!string.IsNullOrWhiteSpace(row.OwnerName))
+                        {
+                            <span class="block text-xs text-gray-400 truncate" title="@row.OwnerName">@row.OwnerName</span>
+                        }
+                    </span>
+                    <span class="text-right tabular-nums font-semibold text-gray-900">@ShortMoney(row.Amount)</span>
+                </div>
+            }
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-gray-900">Gider Takvimi</h3>
+                <a class="text-xs text-blue-600 hover:underline font-medium" asp-controller="Ledger" asp-action="Index">Tümünü Gör</a>
+            </div>
+            <div class="tbl-row tbl-h" style="grid-template-columns: 1fr 68px 92px;"><span>Ödeme</span><span>Tarih</span><span class="text-right">Tutar</span></div>
+            @foreach (var item in Model.UpcomingExpenses)
+            {
+                <div class="tbl-row text-sm" style="grid-template-columns: 1fr 68px 92px;">
+                    <span class="font-medium text-gray-900 truncate">@item.Name</span>
+                    <span class="text-gray-500 text-xs">@item.Date.ToString("dd MMM")</span>
+                    <span class="text-right tabular-nums font-semibold">@ShortMoney(item.Amount)</span>
+                </div>
+            }
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-gray-900">Talep Kuyruğu</h3>
+                <a class="text-xs text-blue-600 hover:underline font-medium" asp-controller="Requests" asp-action="Index">Tümünü Gör</a>
+            </div>
+            <ul class="space-y-3">
+                @foreach (var item in Model.RecentRequests)
+                {
+                    var tone = item.Priority == ServiceRequestPriority.Urgent ? "bg-red-50 text-red-500" : item.Priority == ServiceRequestPriority.High ? "bg-amber-50 text-amber-500" : "bg-blue-50 text-blue-500";
+                    <li class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-full @tone flex items-center justify-center shrink-0"><span class="material-symbols-outlined" style="font-size:18px;">support_agent</span></div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-gray-900 truncate">@item.Title</div>
+                            <div class="text-xs text-gray-400 mt-0.5">Talep #@item.Id · @EnumDisplayHelper.Display(item.Status)</div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold text-gray-900">Son Duyurular</h3>
+                <a class="text-xs text-blue-600 hover:underline font-medium" asp-controller="Announcements" asp-action="Index">Tümünü Gör</a>
+            </div>
+            <ul class="space-y-3">
+                @foreach (var item in Model.RecentAnnouncements)
+                {
+                    <li class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                            <span class="material-symbols-outlined" style="font-size:20px;">campaign</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-semibold text-gray-900 truncate">@item.Title</span>
+                                @if (item.Priority != "Normal")
+                                {
+                                    <span class="pill pill-warn">@item.Priority</span>
+                                }
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5 line-clamp-2">@item.Body</div>
+                            <div class="text-xs text-gray-400 mt-1">@item.PublishDate.ToString("dd MMM yyyy · HH:mm")</div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>

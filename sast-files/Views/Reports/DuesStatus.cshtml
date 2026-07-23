@@ -1,0 +1,151 @@
+@model Kumburgaz.Web.Models.DuesStatusReportViewModel
+@using Kumburgaz.Web.Models
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Aidat Durum Cetveli";
+}
+
+<div class="space-y-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Aidat Durum Cetveli</h2>
+            <p class="text-sm text-gray-400">Dairelerin aidat tahakkuk ve net bakiye durumunu blok blok görüntüleyebilirsiniz.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" asp-action="Index">
+            <span class="material-symbols-outlined ms-sm">arrow_back</span>
+            Raporlar
+        </a>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form method="get" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Blok</legend>
+                        <select class="select select-bordered" name="BlockId" asp-items="(IEnumerable<SelectListItem>)ViewBag.Blocks">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Aidat Tipi</legend>
+                        <select class="select select-bordered" name="DuesTypeId" asp-items="(IEnumerable<SelectListItem>)ViewBag.DuesTypes">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Aidatlandırma Grubu</legend>
+                        <select class="select select-bordered" name="BillingGroupId" asp-items="(IEnumerable<SelectListItem>)ViewBag.BillingGroups">
+                            <option value="">Tüm</option>
+                        </select>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Borç Durumu</legend>
+                        <select class="select select-bordered" name="BalanceStatus" asp-items="(IEnumerable<SelectListItem>)ViewBag.BalanceStatuses">
+                            <option value="">Tümü</option>
+                        </select>
+                    </fieldset>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                        Filtrele
+                    </button>
+                    <a class="btn btn-outline btn-success" asp-action="DuesStatusExcel"
+                       asp-route-BlockId="@Model.Query.BlockId"
+                       asp-route-DuesTypeId="@Model.Query.DuesTypeId"
+                       asp-route-BillingGroupId="@Model.Query.BillingGroupId"
+                       asp-route-BalanceStatus="@Model.Query.BalanceStatus">
+                        <span class="material-symbols-outlined ms-sm">table_chart</span>
+                        Excel
+                    </a>
+                    <a class="btn btn-outline btn-error" asp-action="DuesStatusPdf"
+                       asp-route-BlockId="@Model.Query.BlockId"
+                       asp-route-DuesTypeId="@Model.Query.DuesTypeId"
+                       asp-route-BillingGroupId="@Model.Query.BillingGroupId"
+                       asp-route-BalanceStatus="@Model.Query.BalanceStatus">
+                        <span class="material-symbols-outlined ms-sm">picture_as_pdf</span>
+                        PDF
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Tahakkuk</div>
+            <div class="mt-2 text-2xl font-extrabold tabular-nums">@Model.TotalAccrual.ToString("N2") TL</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Borç</div>
+            <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Model.TotalDebt.ToString("N2") TL</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Alacak</div>
+            <div class="mt-2 text-2xl font-extrabold text-info tabular-nums">@Model.TotalCredit.ToString("N2") TL</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        @foreach (var block in Model.Blocks)
+        {
+            <div class="border-b border-gray-200 last:border-b-0">
+                <div class="px-5 py-3 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+                    <div class="font-extrabold">@block.BlockName Blok</div>
+                    <div class="text-sm text-gray-500 tabular-nums">
+                        Tahakkuk @block.TotalAccrual.ToString("N2") TL · Borç @block.TotalDebt.ToString("N2") TL · Alacak @block.TotalCredit.ToString("N2") TL
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th>Daire/Birleşik</th>
+                                <th>Sorumlu Hesap</th>
+                                <th>Aidat Tipi</th>
+                                <th>Aidat Grubu</th>
+                                <th class="text-end">Tahakkuk</th>
+                                <th class="text-end">Bakiye</th>
+                                <th>Durum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in block.Rows)
+                        {
+                            <tr>
+                                <td class="font-medium">
+                                    @if (row.UnitId.HasValue)
+                                    {
+                                        <a class="text-blue-600 hover:underline" asp-controller="Units" asp-action="Detail" asp-route-id="@row.UnitId.Value">@row.UnitDisplay</a>
+                                    }
+                                    else
+                                    {
+                                        @row.UnitDisplay
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(row.ResponsibleAccountName) ? "-" : row.ResponsibleAccountName)</td>
+                                <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
+                                <td>@row.BillingGroupName</td>
+                                <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
+                                <td class="text-end font-bold @(row.RemainingAmount > 0 ? "text-error" : row.RemainingAmount < 0 ? "text-info" : "text-success")">
+                                    @Math.Abs(row.RemainingAmount).ToString("N2")
+                                </td>
+                                <td>
+                                    <span class="badge @(row.RemainingAmount > 0 ? "badge-error badge-soft" : row.RemainingAmount < 0 ? "badge-info badge-soft" : "badge-success badge-soft")">
+                                        @(row.RemainingAmount > 0 ? "Borç" : row.RemainingAmount < 0 ? "Alacak" : "Yok")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        @if (Model.Blocks.Count == 0)
+        {
+            <div class="py-10 text-center text-sm text-gray-500">Filtreye uygun aidat durum kaydı bulunamadı.</div>
+        }
+    </div>
+</div>

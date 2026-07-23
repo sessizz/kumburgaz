@@ -1,0 +1,39 @@
+@model Kumburgaz.Web.Models.BillingGroupFormViewModel
+
+<div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Grup Adı</legend>
+    <input asp-for="Name" class="input input-bordered w-full" />
+    <span asp-validation-for="Name" class="text-error text-xs"></span>
+</fieldset>
+
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Aidat Tipi</legend>
+    <select asp-for="DuesTypeId" asp-items="Model.DuesTypeOptions" class="select select-bordered w-full"></select>
+    <span asp-validation-for="DuesTypeId" class="text-error text-xs"></span>
+</fieldset>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <fieldset class="fieldset">
+        <legend class="fieldset-legend">Başlangıç Dönemi (YYYY-YYYY)</legend>
+        <input asp-for="EffectiveStartPeriod" class="input input-bordered w-full" />
+        <span asp-validation-for="EffectiveStartPeriod" class="text-error text-xs"></span>
+    </fieldset>
+    <fieldset class="fieldset">
+        <legend class="fieldset-legend">Bitiş Dönemi (YYYY-YYYY, opsiyonel)</legend>
+        <input asp-for="EffectiveEndPeriod" class="input input-bordered w-full" />
+        <span asp-validation-for="EffectiveEndPeriod" class="text-error text-xs"></span>
+    </fieldset>
+</div>
+
+<fieldset class="fieldset">
+    <legend class="fieldset-legend">Daire / Birleşik Daire</legend>
+    <select asp-for="SelectedUnitIds" asp-items="Model.UnitOptions" class="select select-bordered w-full" multiple size="8"></select>
+    <p class="label text-xs">İki fiziksel daire tek çift oda aidatı ödeyecekse önce Daireler ekranında birleşik daire oluşturun, burada o birleşik daireyi seçin.</p>
+</fieldset>
+
+<label class="label cursor-pointer justify-start gap-3">
+    <input asp-for="Active" class="toggle toggle-primary" />
+    <span class="label-text">Aktif</span>
+</label>

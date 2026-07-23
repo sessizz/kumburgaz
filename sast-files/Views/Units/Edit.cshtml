@@ -1,0 +1,113 @@
+@model Kumburgaz.Web.Models.UnitFormViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Daire Düzenle";
+}
+
+<div class="max-w-2xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Daire Düzenle</h2>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="Edit" method="post" class="space-y-4">
+                <input asp-for="Id" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Blok</legend>
+                    <select asp-for="BlockId" asp-items="Model.BlockOptions" class="select select-bordered w-full"></select>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Daire No</legend>
+                    <input asp-for="UnitNo" class="input input-bordered w-full" />
+                    <span asp-validation-for="UnitNo" class="text-error text-xs"></span>
+                </fieldset>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Malik Hesabı</legend>
+                        <select asp-for="OwnerAccountId" asp-items="Model.OwnerAccountOptions" class="select select-bordered w-full">
+                            <option value="">Malik seçiniz</option>
+                        </select>
+                        <span asp-validation-for="OwnerAccountId" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Kiracı Hesabı</legend>
+                        <select asp-for="TenantAccountId" asp-items="Model.TenantAccountOptions" class="select select-bordered w-full">
+                            <option value="">Kiracı yok</option>
+                        </select>
+                        <span asp-validation-for="TenantAccountId" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Malik ve kiracı kayıtları Hesaplar menüsünden oluşturulur.</p>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Aidatı Kim Ödeyecek?</legend>
+                    <select asp-for="DuesPayerType" asp-items="Model.DuesPayerTypeOptions" class="select select-bordered w-full"></select>
+                    <span asp-validation-for="DuesPayerType" class="text-error text-xs"></span>
+                    <p class="text-xs text-gray-400 mt-1">Güncellenince bu dairenin açık tahakkuklarında sorumlu hesap da bu seçime göre yenilenir.</p>
+                </fieldset>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Telefon</legend>
+                        <input asp-for="Phone" class="input input-bordered w-full" placeholder="0 5xx xxx xx xx" />
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Giriş Tarihi</legend>
+                        <input asp-for="MoveInDate" type="date" class="input input-bordered w-full" />
+                    </fieldset>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Devir Bakiyesi (TL)</legend>
+                        <input asp-for="OpeningBalance" class="input input-bordered w-full" placeholder="0,00" />
+                        <span asp-validation-for="OpeningBalance" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Devir Tarihi</legend>
+                        <input asp-for="OpeningBalanceDate" type="date" class="input input-bordered w-full" />
+                        <span asp-validation-for="OpeningBalanceDate" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Pozitif = alacak (gelecek aidatlardan düşülür) · Negatif = devreden borç. Tarih, ekstrede satırın yer aldığı noktayı belirler.</p>
+
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input asp-for="Active" class="toggle toggle-primary" />
+                    <span class="label-text">Aktif</span>
+                </label>
+
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input asp-for="IsCombined" class="toggle toggle-primary" />
+                    <span class="label-text">Birleşik daire</span>
+                </label>
+                <p class="text-xs text-gray-400 -mt-2">Örn. A1 + A2 birleşip A1+2 adıyla tek çift oda aidatı ödeyecekse işaretleyin.</p>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Birleşen fiziksel daireler</legend>
+                    <select asp-for="ComponentUnitIds" asp-items="Model.ComponentUnitOptions" class="select select-bordered w-full" multiple size="8"></select>
+                    <span asp-validation-for="ComponentUnitIds" class="text-error text-xs"></span>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Güncelle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

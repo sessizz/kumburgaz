@@ -1,0 +1,41 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Hata";
+}
+
+<div class="max-w-2xl mx-auto">
+    <div class="alert alert-error">
+        <span class="material-symbols-outlined ms-lg">error</span>
+        <div>
+            <h3 class="font-bold">Bir hata oluştu</h3>
+            <div class="text-sm">İsteğiniz işlenirken bir sorun yaşandı.</div>
+        </div>
+    </div>
+
+    @if (Model.ShowRequestId)
+    {
+        <div class="mt-4 card bg-base-100 border border-gray-200">
+            <div class="p-6">
+                <p class="text-sm">
+                    <span class="font-semibold">İstek ID:</span>
+                    <code class="text-xs bg-gray-100 px-2 py-1 rounded">@Model.RequestId</code>
+                </p>
+            </div>
+        </div>
+    }
+
+    <div class="mt-4 card bg-base-100 border border-gray-200">
+        <div class="p-6">
+            <h3 class="font-semibold text-gray-800">Geliştirme Modu</h3>
+            <p class="text-sm text-gray-500">
+                <strong>Development</strong> ortamına geçerek hata hakkında daha ayrıntılı bilgi görüntüleyebilirsiniz.
+            </p>
+            <p class="text-sm text-gray-500">
+                <strong>Geliştirme ortamı yayınlanmış uygulamalarda etkinleştirilmemelidir.</strong>
+                Hassas bilgileri son kullanıcılara ifşa edebilir. Yerel hata ayıklama için
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">ASPNETCORE_ENVIRONMENT=Development</code>
+                ortam değişkenini ayarlayıp uygulamayı yeniden başlatın.
+            </p>
+        </div>
+    </div>
+</div>

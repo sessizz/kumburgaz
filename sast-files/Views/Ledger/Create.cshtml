@@ -1,0 +1,74 @@
+@model Kumburgaz.Web.Models.LedgerTransactionCreateViewModel
+@{
+    ViewData["Title"] = "Yeni Gider";
+}
+
+<div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div>
+            <h2 class="text-2xl font-extrabold">Yeni Gider</h2>
+            <a class="text-sm text-primary hover:underline" asp-controller="IncomeExpenseCategories" asp-action="Index">Kategori ayarlarını yönet →</a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="Create" method="post" enctype="multipart/form-data" class="space-y-4">
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tarih</legend>
+                        <input asp-for="Date" class="input input-bordered w-full" type="date" />
+                        <span asp-validation-for="Date" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Kategori</legend>
+                        <select asp-for="IncomeExpenseCategoryId" asp-items="Model.CategoryOptions" class="select select-bordered w-full"></select>
+                        <span asp-validation-for="IncomeExpenseCategoryId" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tutar</legend>
+                        <input asp-for="Amount" class="input input-bordered w-full" />
+                        <span asp-validation-for="Amount" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Kasa / Banka</legend>
+                        <select asp-for="AccountKey" asp-items="Model.AccountOptions" class="select select-bordered w-full">
+                            <option value="">Seçiniz</option>
+                        </select>
+                        <span asp-validation-for="AccountKey" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset md:col-span-2">
+                        <legend class="fieldset-legend">Açıklama</legend>
+                        <input asp-for="Description" class="input input-bordered w-full" />
+                    </fieldset>
+                </div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Fiş / fatura fotoğrafı (opsiyonel)</legend>
+                    <input type="file" name="Fotograflar" accept="image/*" multiple class="file-input file-input-bordered w-full" />
+                    <p class="label text-xs">Sunucuda otomatik olarak sıkıştırılır.</p>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

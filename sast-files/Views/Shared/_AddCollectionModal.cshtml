@@ -1,0 +1,111 @@
+@model Kumburgaz.Web.Models.AddCollectionModalModel
+
+<dialog id="addCollectionModal" class="modal">
+    <div class="modal-box max-w-md p-0 overflow-hidden">
+        <form asp-controller="Collections" asp-action="CreateForUnit" method="post" class="flex flex-col">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="unitId" value="@Model.UnitId" />
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+
+            <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-bold">Tahsilat ekle</h3>
+                <button type="button" class="btn btn-ghost btn-sm btn-square" onclick="document.getElementById('addCollectionModal').close()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-3">
+                @if (Model.PeriodOptions.Count > 0)
+                {
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 block mb-1">Dönem</label>
+                        <select name="period" class="select select-bordered w-full">
+                            @foreach (var opt in Model.PeriodOptions)
+                            {
+                                <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <input type="text" name="note" class="input input-bordered w-full" placeholder="Açıklama" />
+
+                <div class="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                    <div class="font-bold">Seçilen borçtan kapatılacak</div>
+                    <div class="mt-1 grid grid-cols-2 gap-2">
+                        <div>
+                            <div class="text-xs text-sky-700">Açık borç</div>
+                            <div class="font-semibold">@Model.CurrentDebt.ToString("N2") TL</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-sky-700">Önerilen tahsilat</div>
+                            <div class="font-semibold">@Model.SuggestedAmount.ToString("N2") TL</div>
+                        </div>
+                    </div>
+                    <div class="mt-1 text-xs text-sky-700">Girilen tutar borcu aşarsa kalan tutar avans/alacak olarak görünür.</div>
+                </div>
+
+                <div class="relative">
+                    <input type="text" name="amount" required inputmode="decimal"
+                           value="@(Model.SuggestedAmount > 0 ? Model.SuggestedAmount.ToString("0.00", System.Globalization.CultureInfo.GetCultureInfo("tr-TR")) : "")"
+                           class="input input-bordered w-full text-2xl font-semibold pr-10"
+                           placeholder="0,00" />
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">₺</span>
+                </div>
+            </div>
+
+            <div class="px-5 pt-4 pb-5 space-y-3 bg-gray-50 border-t border-gray-200">
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 block mb-1">Tarih</label>
+                    <input type="date" name="date" required value="@DateTime.Today.ToString("yyyy-MM-dd")"
+                           class="input input-bordered w-full" />
+                </div>
+                <div>
+                    <label class="text-sm font-semibold text-gray-700 block mb-1">Kasa / Banka</label>
+                    <select name="accountKey" required class="select select-bordered w-full">
+                        @foreach (var opt in Model.AccountOptions)
+                        {
+                            <option value="@opt.Value" selected="@opt.Selected">@opt.Text</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="px-5 pt-3 pb-4 border-t border-gray-200 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label class="label cursor-pointer gap-2 px-0">
+                        <input type="checkbox" id="addCollectionIsReceipt" name="isReceipt" value="true" class="toggle toggle-sm toggle-primary" />
+                        <span class="label-text">Makbuz</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <button type="button" class="btn btn-sm" onclick="document.getElementById('addCollectionModal').close()">Vazgeç</button>
+                        <button type="submit" class="btn btn-sm btn-success">
+                            <span class="material-symbols-outlined ms-sm">save</span>
+                            Kaydet
+                        </button>
+                    </div>
+                </div>
+                <div id="addCollectionReceiptNoWrap" class="hidden">
+                    <input type="text" id="addCollectionReceiptNo" name="referenceNo" class="input input-bordered input-sm w-full" placeholder="Makbuz No" />
+                </div>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+<script>
+(() => {
+    const checkbox = document.getElementById("addCollectionIsReceipt");
+    const wrap = document.getElementById("addCollectionReceiptNoWrap");
+    const input = document.getElementById("addCollectionReceiptNo");
+    if (!checkbox || !wrap || !input) return;
+
+    const sync = () => {
+        wrap.classList.toggle("hidden", !checkbox.checked);
+        input.required = checkbox.checked;
+    };
+
+    checkbox.addEventListener("change", sync);
+    sync();
+})();
+</script>

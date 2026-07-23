@@ -1,0 +1,44 @@
+@using Microsoft.AspNetCore.Identity
+@using Kumburgaz.Web.Models
+@using Kumburgaz.Web.Services
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@{
+    var displayName = User.FindFirst(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+        ?? User.Identity?.Name
+        ?? "?";
+}
+
+@if (SignInManager.IsSignedIn(User))
+{
+    <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="flex items-center gap-2 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors">
+            <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                @(displayName.Substring(0, 1).ToUpper())
+            </div>
+            <span class="hidden sm:block text-sm font-medium text-gray-700">@displayName</span>
+            <span class="material-symbols-outlined text-gray-400" style="font-size:16px">expand_more</span>
+        </div>
+        <ul tabindex="0" class="dropdown-content menu bg-white rounded-xl z-50 w-48 p-1.5 shadow-lg border border-gray-200 mt-1 text-sm">
+            <li>
+                <a class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700" asp-area="Identity" asp-page="/Account/Manage/Index">
+                    <span class="material-symbols-outlined" style="font-size:18px">person</span>
+                    Hesabım
+                </a>
+            </li>
+            <li class="divider my-0.5"></li>
+            <li>
+                <form asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })" method="post">
+                    <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-50 text-red-600">
+                        <span class="material-symbols-outlined" style="font-size:18px">logout</span>
+                        Çıkış
+                    </button>
+                </form>
+            </li>
+        </ul>
+    </div>
+}
+else
+{
+    <a class="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium" asp-area="Identity" asp-page="/Account/Login">Giriş</a>
+}

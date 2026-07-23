@@ -1,0 +1,94 @@
+@model Kumburgaz.Web.Models.DuesInstallmentEditViewModel
+@{
+    ViewData["Title"] = "Borç Düzenle";
+    var cancelUrl = string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Url.Action("DuesDebt", "Reports") : Model.ReturnUrl;
+}
+
+<div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" href="@cancelUrl" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Borç Düzenle</h2>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <div class="stats stats-vertical lg:stats-horizontal bg-gray-50 shadow-none border border-gray-200">
+                <div class="stat">
+                    <div class="stat-title">Daire</div>
+                    <div class="stat-value text-base">@Model.UnitDisplay</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">Grup</div>
+                    <div class="stat-value text-base">@Model.BillingGroupName</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">Sorumlu Hesap</div>
+                    <div class="stat-value text-base">@Model.ResponsibleAccountName</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">Ödenmiş</div>
+                    <div class="stat-value text-base text-success">@Model.PaidAmount.ToString("N2")</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">Kalan</div>
+                    <div class="stat-value text-base @(Model.RemainingAmount > 0 ? "text-error" : "text-success")">@Model.RemainingAmount.ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="EditInstallment" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="PaidAmount" type="hidden" />
+                <input asp-for="UnitDisplay" type="hidden" />
+                <input asp-for="BillingGroupName" type="hidden" />
+                <input asp-for="ResponsibleAccountName" type="hidden" />
+                <input asp-for="RemainingAmount" type="hidden" />
+
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Dönem</legend>
+                        <input asp-for="Period" class="input input-bordered w-full" />
+                        <span asp-validation-for="Period" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tahakkuk Tarihi</legend>
+                        <input asp-for="AccrualDate" class="input input-bordered w-full" type="date" />
+                        <span asp-validation-for="AccrualDate" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Vade Tarihi</legend>
+                        <input asp-for="DueDate" class="input input-bordered w-full" type="date" />
+                        <span asp-validation-for="DueDate" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Borç Tutarı</legend>
+                    <input asp-for="Amount" class="input input-bordered w-full md:w-64" />
+                    <span asp-validation-for="Amount" class="text-error text-xs"></span>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" href="@cancelUrl">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Güncelle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

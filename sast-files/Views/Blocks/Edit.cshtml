@@ -1,0 +1,40 @@
+@model Kumburgaz.Web.Models.Block
+@{
+    ViewData["Title"] = "Blok Düzenle";
+}
+
+<div class="max-w-xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Blok Düzenle</h2>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="Edit" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="SiteId" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Blok Adı</legend>
+                    <input asp-for="Name" class="input input-bordered w-full" placeholder="Örn: A, B, C Blok..." />
+                    <span asp-validation-for="Name" class="text-error text-xs"></span>
+                </fieldset>
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Güncelle
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

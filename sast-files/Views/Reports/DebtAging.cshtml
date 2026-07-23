@@ -1,0 +1,116 @@
+@model Kumburgaz.Web.Models.DebtAgingViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Borç/Alacak Yaşlandırma";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Borç/Alacak Yaşlandırma</h2>
+            <p class="text-sm text-gray-400">Net borçlar vade yaşına göre, alacaklar ayrı gösterilir.</p>
+        </div>
+        <a class="btn btn-sm btn-ghost" asp-action="Index">Raporlar</a>
+    </div>
+
+    <form method="get" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Blok</legend>
+                <select class="select select-bordered w-full" name="BlockId" asp-items="ViewBag.Blocks">
+                    <option value="">Tüm</option>
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Aidat Tipi</legend>
+                <select class="select select-bordered w-full" name="DuesTypeId" asp-items="ViewBag.DuesTypes">
+                    <option value="">Tüm</option>
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Aidatlandırma Grubu</legend>
+                <select class="select select-bordered w-full" name="BillingGroupId" asp-items="ViewBag.BillingGroups">
+                    <option value="">Tüm</option>
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bakiye</legend>
+                <select class="select select-bordered w-full" name="BalanceStatus" asp-items="ViewBag.BalanceStatuses">
+                    <option value="">Tüm</option>
+                </select>
+            </fieldset>
+            <div class="flex gap-2">
+                <button class="btn btn-primary flex-1" type="submit">
+                    <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                    Filtrele
+                </button>
+                <a class="btn btn-ghost" asp-action="DebtAging">Temizle</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Toplam Borç</div>
+            <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Money(Model.DebtTotal) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Toplam Alacak</div>
+            <div class="mt-2 text-2xl font-extrabold text-success tabular-nums">@Money(Model.CreditTotal) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">90+ Gün</div>
+            <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Money(Model.Over90Total) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Net</div>
+            <div class="mt-2 text-2xl font-extrabold tabular-nums">@Money(Model.DebtTotal - Model.CreditTotal) TL</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Daire</th>
+                        <th>Sorumlu Hesap</th>
+                        <th class="text-end">Vadesi Gelmemiş</th>
+                        <th class="text-end">1-30</th>
+                        <th class="text-end">31-60</th>
+                        <th class="text-end">61-90</th>
+                        <th class="text-end">90+</th>
+                        <th class="text-end">Alacak</th>
+                        <th class="text-end">Net</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>
+                            <a class="link link-primary font-semibold" asp-controller="Units" asp-action="Detail" asp-route-id="@row.UnitId">@row.UnitDisplay</a>
+                        </td>
+                        <td>@row.ResponsibleAccountName</td>
+                        <td class="text-end tabular-nums">@Money(row.Current)</td>
+                        <td class="text-end tabular-nums">@Money(row.Days1To30)</td>
+                        <td class="text-end tabular-nums">@Money(row.Days31To60)</td>
+                        <td class="text-end tabular-nums">@Money(row.Days61To90)</td>
+                        <td class="text-end text-error font-semibold tabular-nums">@Money(row.Over90)</td>
+                        <td class="text-end text-success font-semibold tabular-nums">@Money(row.Credit)</td>
+                        <td class="text-end font-bold tabular-nums @(row.NetBalance > 0 ? "text-error" : row.NetBalance < 0 ? "text-success" : "")">@Money(row.NetBalance)</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-gray-400 py-8">Filtreye uygun kayıt yok.</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

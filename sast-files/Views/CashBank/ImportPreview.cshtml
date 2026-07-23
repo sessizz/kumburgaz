@@ -1,0 +1,236 @@
+@model Kumburgaz.Web.Models.CashBankImportPreviewViewModel
+@{
+    ViewData["Title"] = "CSV Import Önizleme";
+    var backAction = Model.Kind == "bank" ? "BankDetail" : "CashBoxDetail";
+}
+
+<div class="max-w-[calc(100vw-4rem)] mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square"
+           asp-action="@backAction"
+           asp-route-id="@Model.Id"
+           title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div>
+            <h2 class="text-2xl font-extrabold">CSV Import Önizleme</h2>
+            <p class="text-sm text-gray-500">@Model.AccountName hesabına kaydedilecek satırları kontrol edin.</p>
+        </div>
+    </div>
+
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <form asp-action="CommitImport" method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Kind" />
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="AccountName" />
+
+        <div>
+            <table class="table table-zebra table-sm align-middle table-fixed w-full import-preview-table">
+                <colgroup>
+                    <col class="w-[6%]" />
+                    <col class="w-[10%]" />
+                    <col class="w-[11%]" />
+                    <col class="w-[8%]" />
+                    <col class="w-[34%]" />
+                    <col class="w-[18%]" />
+                    <col class="w-[8%]" />
+                    <col class="w-[5%]" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Satır</th>
+                        <th>Tip</th>
+                        <th>Tarih</th>
+                        <th class="text-end">Tutar</th>
+                        <th>Eşleşme / Kategori</th>
+                        <th>Açıklama</th>
+                        <th>Makbuz No</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @for (var i = 0; i < Model.Rows.Count; i++)
+                {
+                    var row = Model.Rows[i];
+                    <tr class="import-row">
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" name="Rows[@i].Include" value="true" class="checkbox checkbox-sm" checked="@row.Include" />
+                                <span class="text-sm text-gray-500">@row.LineNo</span>
+                            </div>
+                            <input type="hidden" name="Rows[@i].Include" value="false" />
+                            <input type="hidden" name="Rows[@i].LineNo" value="@row.LineNo" />
+                        </td>
+                        <td>
+                            <select name="Rows[@i].Type" class="select select-bordered select-sm w-full import-type">
+                                <option value="collection" selected="@(row.Type == "collection")">Tahsilat</option>
+                                <option value="income" selected="@(row.Type == "income")">Gelir</option>
+                                <option value="expense" selected="@(row.Type == "expense")">Gider</option>
+                                <option value="transfer" selected="@(row.Type == "transfer")">Transfer</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Date" value="@row.Date" type="date" class="input input-bordered input-sm w-full" />
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Amount" value="@row.Amount" inputmode="decimal" class="input input-bordered input-sm w-full text-end" />
+                        </td>
+                        <td>
+                            <div class="collection-pick space-y-1 min-w-0">
+                                <input type="search" class="input input-bordered input-sm w-full import-dues-search" placeholder="Eşleşme ara" />
+                                <select name="Rows[@i].DuesInstallmentId" class="select select-bordered select-sm w-full import-dues-select">
+                                    <option value="">Aidat borcu seçin</option>
+                                    @foreach (var option in Model.DuesOptions)
+                                    {
+                                        <option value="@option.Id"
+                                                selected="@(row.DuesInstallmentId == option.Id)"
+                                                data-search="@option.SearchText @option.Text">
+                                            @option.Text
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="expense-pick hidden min-w-0">
+                                <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
+                                    <option value="">Gider kategorisi seçin</option>
+                                    @foreach (var option in Model.ExpenseCategoryOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="income-pick hidden min-w-0">
+                                <select name="Rows[@i].ExpenseCategoryId" class="select select-bordered select-sm w-full">
+                                    <option value="">Gelir kategorisi seçin</option>
+                                    @foreach (var option in Model.IncomeCategoryOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ExpenseCategoryId?.ToString() == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="transfer-pick hidden min-w-0">
+                                <select name="Rows[@i].ToAccountKey" class="select select-bordered select-sm w-full">
+                                    <option value="">Transfer hesabi secin</option>
+                                    @foreach (var option in Model.TransferAccountOptions)
+                                    {
+                                        <option value="@option.Value" selected="@(row.ToAccountKey == option.Value)">@option.Text</option>
+                                    }
+                                </select>
+                                <input type="hidden" name="Rows[@i].TransferToCurrentAccount" value="@row.TransferToCurrentAccount.ToString().ToLowerInvariant()" />
+                            </div>
+                        </td>
+                        <td>
+                            <input name="Rows[@i].Description" value="@row.Description" class="input input-bordered input-sm w-full" />
+                        </td>
+                        <td>
+                            <input name="Rows[@i].ReferenceNo" value="@row.ReferenceNo" class="input input-bordered input-sm w-full" placeholder="Fiş no" />
+                            <input type="hidden" name="Rows[@i].Note" value="@row.Note" />
+                        </td>
+                        <td class="text-xs @(string.IsNullOrWhiteSpace(row.Status) ? "text-success" : "text-warning")">
+                            @(string.IsNullOrWhiteSpace(row.Status) ? "Hazır" : row.Status)
+                            <input type="hidden" name="Rows[@i].Status" value="@row.Status" />
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-5 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div class="text-sm text-gray-500">@Model.Rows.Count satır okundu.</div>
+            <div class="flex gap-2">
+                <a class="btn btn-ghost" asp-action="@backAction" asp-route-id="@Model.Id">Vazgeç</a>
+                <button class="btn btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">upload_file</span>
+                    Import et
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.import-preview-table :is(th, td) {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+.import-preview-table :is(input, select) {
+    min-width: 0;
+}
+
+.import-dues-search.is-collapsed {
+    display: none;
+}
+
+.import-dues-select {
+    text-overflow: ellipsis;
+}
+</style>
+
+<script>
+function normalizeImportSearch(value) {
+    return (value || '').toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function updateImportSearch(search, select) {
+    if (!search || !select) return;
+    search.classList.toggle('is-collapsed', !!select.value && !search.value);
+}
+
+function updateImportRow(row) {
+    var type = row.querySelector('.import-type')?.value || 'collection';
+    row.querySelector('.collection-pick')?.classList.toggle('hidden', type !== 'collection');
+    row.querySelector('.income-pick')?.classList.toggle('hidden', type !== 'income');
+    row.querySelector('.expense-pick')?.classList.toggle('hidden', type !== 'expense');
+    row.querySelector('.transfer-pick')?.classList.toggle('hidden', type !== 'transfer');
+    row.querySelectorAll('.collection-pick select, .collection-pick input').forEach(function(input) {
+        input.disabled = type !== 'collection';
+    });
+    row.querySelectorAll('.income-pick select, .income-pick input').forEach(function(input) {
+        input.disabled = type !== 'income';
+    });
+    row.querySelectorAll('.expense-pick select, .expense-pick input').forEach(function(input) {
+        input.disabled = type !== 'expense';
+    });
+    row.querySelectorAll('.transfer-pick select, .transfer-pick input').forEach(function(input) {
+        input.disabled = type !== 'transfer';
+    });
+    updateImportSearch(row.querySelector('.import-dues-search'), row.querySelector('.import-dues-select'));
+}
+
+document.querySelectorAll('.import-row').forEach(function(row) {
+    updateImportRow(row);
+    row.querySelector('.import-type')?.addEventListener('change', function() {
+        updateImportRow(row);
+    });
+    var search = row.querySelector('.import-dues-search');
+    var select = row.querySelector('.import-dues-select');
+    search?.addEventListener('input', function() {
+        var query = normalizeImportSearch(search.value);
+        Array.from(select.options).forEach(function(option) {
+            if (!option.value) return;
+            var haystack = normalizeImportSearch(option.dataset.search || option.textContent);
+            option.hidden = query.length > 0 && !haystack.includes(query);
+        });
+        updateImportSearch(search, select);
+    });
+    select?.addEventListener('change', function() {
+        if (select.value) {
+            search.value = '';
+            Array.from(select.options).forEach(function(option) {
+                option.hidden = false;
+            });
+        }
+        updateImportSearch(search, select);
+    });
+});
+</script>

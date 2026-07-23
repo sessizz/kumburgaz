@@ -1,0 +1,114 @@
+@model List<Kumburgaz.Web.Models.DuesGenerationPreviewItem>
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Dönem Borç Üretimi";
+}
+
+<div class="space-y-4">
+    <div>
+        <h2 class="text-2xl font-extrabold">Dönem Borç Üretimi</h2>
+        <p class="text-sm text-gray-400">Mali dönem (YYYY-YYYY) için tüm aidat gruplarına toplu taksit oluştur.</p>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@success</span>
+        </div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@error</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">1. Önizleme</h3>
+            <form method="get" class="flex flex-wrap gap-3 items-end">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Dönem (YYYY-YYYY)</legend>
+                    <input class="input input-bordered" name="period" value="@ViewBag.Period" />
+                </fieldset>
+                <button class="btn btn-outline btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">visibility</span>
+                    Önizleme
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700">2. Borçları Oluştur</h3>
+            <form asp-action="Generate" method="post" class="flex flex-wrap gap-3 items-end">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="period" value="@ViewBag.Period" />
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Tahakkuk Tarihi</legend>
+                    <input class="input input-bordered" type="date" name="accrualDate" value="@(((DateTime)ViewBag.AccrualDate).ToString("yyyy-MM-dd"))" />
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Vade Tarihi</legend>
+                    <input class="input input-bordered" type="date" name="dueDate" value="@(((DateTime)ViewBag.DueDate).ToString("yyyy-MM-dd"))" />
+                </fieldset>
+                <fieldset class="fieldset min-w-[260px]">
+                    <legend class="fieldset-legend">Aidatı Kim Ödeyecek?</legend>
+                    <select class="select select-bordered w-full" name="payerType" asp-items="(IEnumerable<SelectListItem>)ViewBag.PayerTypeOptions"></select>
+                </fieldset>
+                <button class="btn btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">playlist_add</span>
+                    Borçları Oluştur
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <h3 class="text-sm font-semibold text-gray-700 text-error">3. Tehlikeli Bölge</h3>
+            <p class="text-sm text-gray-400">Bu dönem için oluşturulmuş tüm borç kayıtları silinir.</p>
+            <form asp-action="Delete" method="post" class="mt-2"
+                  onsubmit="return confirm('Bu dönemin oluşturulmuş borçları silinsin mi?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="period" value="@ViewBag.Period" />
+                <button class="btn btn-outline btn-error" type="submit">
+                    <span class="material-symbols-outlined ms-sm">delete_forever</span>
+                    Dönem Borçlarını Sil
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-sm font-bold">Önizleme · @ViewBag.Period</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Grup</th>
+                        <th>Aidat Tipi</th>
+                        <th>Daireler</th>
+                        <th class="text-end">Tutar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model)
+                {
+                    <tr>
+                        <td class="font-semibold">@row.BillingGroupName</td>
+                        <td><span class="badge badge-info badge-soft">@row.DuesTypeName</span></td>
+                        <td class="text-sm">@row.UnitsText</td>
+                        <td class="text-end font-bold">@row.Amount.ToString("N2") TL</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

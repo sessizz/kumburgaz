@@ -1,0 +1,199 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+  color: var(--bs-secondary-color);
+  text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+  text-align: start;
+}
+
+/* === CashBank Detail Page === */
+.pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.pill-ok    { background:#e3f2ea; color:#1e7a4f; border:1px solid #bfe3cf; }
+.pill-warn  { background:#faf3d9; color:#8a6d1a; border:1px solid #efdfa0; }
+.pill-info  { background:#e2f1f2; color:#0a5c64; border:1px solid #bfe0e2; }
+.pill-muted { background:#eef2f3; color:#557079; border:1px solid #dde8ea; }
+.pill-neg   { background:#fbeae9; color:#c94040; border:1px solid #f2cfcd; }
+.ttype { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500; color:#374151; }
+.ttype .dot { width:6px; height:6px; border-radius:999px; flex:none; }
+.ttype-tahsilat .dot { background:#10b981; }
+.ttype-cikis    .dot { background:#ef4444; }
+.ttype-transfer .dot { background:#6366f1; }
+.ttype-girdi    .dot { background:#0ea5e9; }
+.ttype-acilis   .dot { background:#f59e0b; }
+.amount-pos { color:#047857; }
+.amount-neg { color:#b91c1c; }
+.spark { display:flex; align-items:flex-end; gap:3px; height:36px; }
+.spark span { width:6px; background:#dbeef0; border-radius:2px; }
+.spark span.hi { background:#0e7c86; }
+.tl-item { position:relative; padding-left:28px; padding-bottom:14px; }
+.tl-item::before { content:""; position:absolute; left:9px; top:6px; bottom:-6px; width:1px; background:#e5e7eb; }
+.tl-item:last-child::before { display:none; }
+.tl-dot { position:absolute; left:4px; top:2px; width:12px; height:12px; border-radius:999px; background:#fff; border:2px solid #94cbcf; }
+.tl-item.created .tl-dot { border-color:#10b981; }
+.tl-item.edited  .tl-dot { border-color:#0e7c86; }
+.seg-tab { padding:6px 12px; font-size:13px; font-weight:500; color:#4b5563; border-radius:6px; cursor:pointer; text-decoration:none; display:inline-block; }
+.seg-tab:hover { background:#eef6f7; color:#111827; }
+.seg-tab.active { background:#e2f1f2; color:#0a5c64; font-weight:600; }
+.tx-row:hover { background:#f4f9f9; }
+.acct-tab { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px; color:#4b5563; font-size:14px; font-weight:500; text-decoration:none; cursor:pointer; border:1px solid transparent; transition:background .12s,color .12s,border-color .12s; }
+.acct-tab:hover { background:#f9fafb; color:#111827; }
+.acct-tab.active { background:#e2f1f2; color:#0a5c64; font-weight:600; border-color:#bfe0e2; }
+.acct-tab .acct-icon { font-size:20px; color:#9ca3af; }
+.acct-tab.active .acct-icon { color:#0e7c86; }
+.acct-tab .chev { margin-left:auto; color:#d1d5db; font-size:18px; }
+.acct-tab.active .chev { color:#0e7c86; }
+
+/* App-wide badges: Marin identity, soft pastel fills with saturated text. */
+.badge {
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#3d5a64 !important;
+  font-weight:700;
+}
+.badge-success {
+  background-color:#e3f2ea !important;
+  border-color:#e3f2ea !important;
+  color:#1e7a4f !important;
+}
+.badge-info {
+  background-color:#e2f1f2 !important;
+  border-color:#e2f1f2 !important;
+  color:#0a5c64 !important;
+}
+.badge-warning {
+  background-color:#faf3d9 !important;
+  border-color:#faf3d9 !important;
+  color:#8a6d1a !important;
+}
+.badge-error {
+  background-color:#fbeae9 !important;
+  border-color:#fbeae9 !important;
+  color:#c94040 !important;
+}
+.badge-primary {
+  background-color:#0e7c86 !important;
+  border-color:#0e7c86 !important;
+  color:#eef6f7 !important;
+}
+.badge-ghost {
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#557079 !important;
+}
+
+html[data-theme="light"] body .badge.ledger-category-badge {
+  font-weight:700;
+}
+html[data-theme="light"] body .badge.ledger-category-0 {
+  background-color:#e2eef8 !important;
+  border-color:#e2eef8 !important;
+  color:#2b6a9e !important;
+}
+html[data-theme="light"] body .badge.ledger-category-1 {
+  background-color:#faf3d9 !important;
+  border-color:#faf3d9 !important;
+  color:#8a6d1a !important;
+}
+html[data-theme="light"] body .badge.ledger-category-2 {
+  background-color:#e3f2ea !important;
+  border-color:#e3f2ea !important;
+  color:#1e7a4f !important;
+}
+html[data-theme="light"] body .badge.ledger-category-3 {
+  background-color:#e9e6f8 !important;
+  border-color:#e9e6f8 !important;
+  color:#5b4bab !important;
+}
+html[data-theme="light"] body .badge.ledger-category-4 {
+  background-color:#fbe7ea !important;
+  border-color:#fbe7ea !important;
+  color:#b23a55 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-5 {
+  background-color:#dbeef0 !important;
+  border-color:#dbeef0 !important;
+  color:#0a5c64 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-6 {
+  background-color:#e6e6f7 !important;
+  border-color:#e6e6f7 !important;
+  color:#4a4aa0 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-7 {
+  background-color:#eef5d9 !important;
+  border-color:#eef5d9 !important;
+  color:#5c7a1a !important;
+}
+html[data-theme="light"] body .badge.ledger-category-8 {
+  background-color:#f8e6f6 !important;
+  border-color:#f8e6f6 !important;
+  color:#9a3f96 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-9 {
+  background-color:#fbeadd !important;
+  border-color:#fbeadd !important;
+  color:#b0622a !important;
+}
+html[data-theme="light"] body .badge.ledger-category-10 {
+  background-color:#dff5f7 !important;
+  border-color:#dff5f7 !important;
+  color:#217680 !important;
+}
+html[data-theme="light"] body .badge.ledger-category-11 {
+  background-color:#eef2f3 !important;
+  border-color:#eef2f3 !important;
+  color:#557079 !important;
+}
+
+/* Marin identity: force daisyui's primary tokens (which win over the
+   Tailwind CDN's @theme override due to script injection order) to teal.
+   cache-bust: v2 */
+.btn.btn-primary {
+  background-color: #0e7c86 !important;
+  border-color: #0a5c64 !important;
+  color: #ffffff !important;
+}
+.btn.btn-primary:hover {
+  background-color: #0a5c64 !important;
+  border-color: #0a5c64 !important;
+}
+.btn.btn-outline.btn-primary {
+  background-color: transparent !important;
+  color: #0e7c86 !important;
+  border-color: #0e7c86 !important;
+}
+.btn.btn-outline.btn-primary:hover {
+  background-color: #0e7c86 !important;
+  color: #ffffff !important;
+}
+.link-primary, .text-primary {
+  color: #0e7c86 !important;
+}
+.checkbox:checked, .radio:checked, .toggle:checked {
+  background-color: #0e7c86 !important;
+  border-color: #0e7c86 !important;
+}

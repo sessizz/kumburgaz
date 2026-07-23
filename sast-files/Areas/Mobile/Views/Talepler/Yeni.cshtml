@@ -1,0 +1,55 @@
+@model MobileTalepFormViewModel
+@{
+    ViewData["Title"] = "Yeni Talep";
+    ViewData["MobileBack"] = Url.Action("Index", "Talepler", new { area = "Mobile" });
+}
+
+<form method="post" asp-area="Mobile" asp-controller="Talepler" asp-action="Yeni" class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+    @Html.AntiForgeryToken()
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="m-note">
+            @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@err.ErrorMessage</div>
+            }
+        </div>
+    }
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Başlık</span>
+        <input asp-for="Title" type="text"
+               style="width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;" />
+    </label>
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Açıklama</span>
+        <textarea asp-for="Description" rows="4"
+                  style="width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;resize:vertical;"></textarea>
+    </label>
+
+    <label style="display:block;">
+        <span style="font-size:13px;font-weight:600;color:var(--m-muted);">Daire</span>
+        <select asp-for="UnitId"
+                style="width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;background:#fff;">
+            <option value="">Ortak alan / genel</option>
+            @foreach (var opt in Model.UnitOptions)
+            {
+                <option value="@opt.Value">@opt.Text</option>
+            }
+        </select>
+    </label>
+
+    @if (!Model.IsResident)
+    {
+        <label style="display:flex;align-items:center;gap:10px;">
+            <input asp-for="IsVisibleToResidents" type="checkbox" style="width:20px;height:20px;" />
+            <span style="font-size:14px;">Sakinlere görünür</span>
+        </label>
+    }
+
+    <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+        Talebi Oluştur
+    </button>
+</form>

@@ -1,0 +1,86 @@
+@model Kumburgaz.Web.Models.MonthlyCashFlowViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Aylık Nakit Akışı";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Aylık Nakit Akışı</h2>
+            <p class="text-sm text-gray-400">Aidat tahsilatı, diğer gelirler, giderler ve net akış.</p>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Başlangıç</legend>
+                <input class="input input-bordered input-sm" type="date" name="StartDate" value="@(Model.Query.StartDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Bitiş</legend>
+                <input class="input input-bordered input-sm" type="date" name="EndDate" value="@(Model.Query.EndDate?.ToString("yyyy-MM-dd"))" />
+            </fieldset>
+            <button class="btn btn-sm btn-primary" type="submit">
+                <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                Filtrele
+            </button>
+            <a class="btn btn-sm btn-ghost" asp-action="Index">Raporlar</a>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Aidat Tahsilatı</div>
+            <div class="mt-2 text-2xl font-extrabold tabular-nums">@Money(Model.CollectionTotal) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Diğer Gelir</div>
+            <div class="mt-2 text-2xl font-extrabold text-success tabular-nums">@Money(Model.OtherIncomeTotal) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Gider</div>
+            <div class="mt-2 text-2xl font-extrabold text-error tabular-nums">@Money(Model.ExpenseTotal) TL</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">Net Akış</div>
+            <div class="mt-2 text-2xl font-extrabold @(Model.NetTotal >= 0 ? "text-success" : "text-error") tabular-nums">@Money(Model.NetTotal) TL</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Ay</th>
+                        <th class="text-end">Aidat Tahsilatı</th>
+                        <th class="text-end">Diğer Gelir</th>
+                        <th class="text-end">Toplam Gelir</th>
+                        <th class="text-end">Gider</th>
+                        <th class="text-end">Net</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td class="font-semibold">@row.Month.ToString("MMMM yyyy", trTR)</td>
+                        <td class="text-end tabular-nums">@Money(row.DuesCollections)</td>
+                        <td class="text-end tabular-nums">@Money(row.OtherIncome)</td>
+                        <td class="text-end font-bold tabular-nums">@Money(row.TotalIncome)</td>
+                        <td class="text-end text-error tabular-nums">@Money(row.Expense)</td>
+                        <td class="text-end font-bold @(row.Net >= 0 ? "text-success" : "text-error") tabular-nums">@Money(row.Net)</td>
+                    </tr>
+                }
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-gray-400 py-8">Kayıt yok.</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

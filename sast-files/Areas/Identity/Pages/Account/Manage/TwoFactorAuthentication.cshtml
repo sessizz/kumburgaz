@@ -1,0 +1,83 @@
+@page
+@model TwoFactorAuthenticationModel
+@{
+    ViewData["Title"] = "İki Adımlı Doğrulama";
+}
+
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-gray-700">Ana Sayfa</a>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Hesabımı Yönet</span>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">İki Adımlı Doğrulama</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        <partial name="_ManageNav" />
+
+        <div class="space-y-6">
+            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 class="text-lg font-semibold text-gray-900">İki Adımlı Doğrulama</h1>
+                        <p class="text-sm text-gray-500 mt-0.5">Hesabınıza ekstra güvenlik katmanı ekleyin</p>
+                    </div>
+                    @if (Model.Is2faEnabled)
+                    {
+                        <span class="pill pill-ok">
+                            <span class="material-symbols-outlined" style="font-size:14px">check_circle</span>
+                            Açık
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="pill pill-warn">
+                            <span class="material-symbols-outlined" style="font-size:14px">warning</span>
+                            Kapalı
+                        </span>
+                    }
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                        <span class="material-symbols-outlined text-blue-600" style="font-size:28px">qr_code_2</span>
+                        <div>
+                            <p class="font-medium text-gray-900 text-sm">Kimlik doğrulama uygulaması</p>
+                            <p class="text-xs text-gray-500 mt-0.5">Google Authenticator, Authy vb.</p>
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-xl p-4 flex items-start gap-3">
+                        <span class="material-symbols-outlined text-gray-400" style="font-size:28px">sms</span>
+                        <div>
+                            <p class="font-medium text-gray-500 text-sm">SMS ile kod</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Yakında kullanılabilir</p>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!Model.Is2faEnabled)
+                {
+                    <div class="flex justify-start">
+                        <a asp-area="Identity" asp-page="/Account/Manage/EnableAuthenticator"
+                           class="btn btn-primary gap-2">
+                            <span class="material-symbols-outlined" style="font-size:18px">security</span>
+                            Etkinleştir
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="flex justify-start">
+                        <form method="post" asp-page-handler="Disable">
+                            <button type="submit" class="btn btn-error btn-outline gap-2">
+                                <span class="material-symbols-outlined" style="font-size:18px">gpp_bad</span>
+                                Devre Dışı Bırak
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

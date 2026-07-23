@@ -1,0 +1,254 @@
+@model Kumburgaz.Web.Models.CashBankDetailViewModel
+@using System.Globalization
+@using System.Net
+@{
+    var q = Model.Query;
+    var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
+    var currentPage = Math.Min(Math.Max(q.Page, 1), Math.Max(totalPages, 1));
+    var pageStart = Math.Max(1, currentPage - 2);
+    var pageEnd = Math.Min(totalPages, currentPage + 2);
+    var rows = Model.Groups.SelectMany(g => g.Items).ToList();
+    var fromValue = q.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var toValue = q.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string BuildUrl(int page, string? type = null, bool export = false)
+    {
+        var query = new List<string>
+        {
+            $"type={WebUtility.UrlEncode(type ?? q.Type ?? "all")}",
+            $"range={WebUtility.UrlEncode(q.Range ?? "all")}",
+            $"page={page}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(fromValue)) query.Add($"from={WebUtility.UrlEncode(fromValue)}");
+        if (!string.IsNullOrWhiteSpace(toValue)) query.Add($"to={WebUtility.UrlEncode(toValue)}");
+        if (!string.IsNullOrWhiteSpace(q.Q)) query.Add($"q={WebUtility.UrlEncode(q.Q)}");
+        if (export) query.Add("export=csv");
+
+        return "?" + string.Join("&", query);
+    }
+}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions>
+    <form method="get" id="filterForm">
+        <div class="flex flex-col lg:flex-row lg:items-center gap-3 px-5 py-3 border-b border-gray-200">
+            <div class="flex items-center gap-1 flex-wrap">
+                @{
+                    var tabs = new[] {
+                        ("all", "Tümü", Model.TotalCount),
+                        ("tahsilat", "Tahsilat", Model.TahsilatCount),
+                        ("cikis", "Para Çıkışı", Model.CikisCount),
+                        ("transfer", "Transfer", Model.TransferCount)
+                    };
+                }
+                @foreach (var (val, label, cnt) in tabs)
+                {
+                    var active = (q.Type ?? "all") == val;
+                    <a class="seg-tab @(active ? "active" : "")"
+                       href="@BuildUrl(1, val)">
+                        @label <span class="text-gray-400 ml-1">@cnt</span>
+                    </a>
+                }
+            </div>
+            <div class="flex-1"></div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <label class="input input-bordered input-sm flex items-center gap-2 w-56">
+                    <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
+                    <input name="q" value="@q.Q" placeholder="Açıklama veya hesap ara" class="grow" />
+                </label>
+                <input type="hidden" name="type" value="@(q.Type ?? "all")" />
+                <select name="range" class="select select-bordered select-sm w-40" data-range-select>
+                    <option value="all" selected="@((q.Range ?? "all") == "all")">Tüm tarihler</option>
+                    <option value="this_month" selected="@(q.Range == "this_month")">Bu ay</option>
+                    <option value="last_month" selected="@(q.Range == "last_month")">Geçen ay</option>
+                    <option value="last_90" selected="@(q.Range == "last_90")">Son 90 gün</option>
+                    <option value="custom" selected="@(q.Range == "custom")">Tarih aralığı</option>
+                </select>
+                <input type="date" name="from" value="@fromValue" class="input input-bordered input-sm w-36" data-range-date />
+                <input type="date" name="to" value="@toValue" class="input input-bordered input-sm w-36" data-range-date />
+                <button class="btn btn-sm btn-primary" type="submit">
+                    <span class="material-symbols-outlined ms-sm">filter_alt</span>
+                    Filtrele
+                </button>
+                <button type="button" class="btn btn-sm btn-outline" data-bulk-toggle>
+                    <span class="material-symbols-outlined ms-sm">edit</span>
+                    Seç
+                </button>
+                <a class="btn btn-sm btn-outline"
+                   href="@BuildUrl(currentPage, export: true)">
+                    <span class="material-symbols-outlined ms-sm">download</span>
+                    Dışa aktar
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <form id="bulkDeleteForm" asp-action="DeleteSelectedTransactions" method="post" class="hidden">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="kind" value="@Model.Kind" />
+        <input type="hidden" name="accountId" value="@Model.Id" />
+    </form>
+
+    @if (!rows.Any())
+    {
+        <div class="px-5 py-10 text-center text-gray-400 text-sm">İşlem bulunamadı.</div>
+    }
+    else
+    {
+        <div class="hidden px-5 py-2 border-b border-gray-100 bg-gray-50/70 items-center justify-between gap-3" data-bulk-actions>
+            <label class="flex items-center gap-2 text-sm text-gray-600">
+                <input type="checkbox" class="checkbox checkbox-sm" data-bulk-select-all />
+                Tümünü seç
+            </label>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500" data-bulk-count>0 seçili</span>
+                <button type="submit" form="bulkDeleteForm" class="btn btn-sm btn-error" disabled data-bulk-delete onclick="return confirm('Secilen islemler silinsin mi?')">
+                    <span class="material-symbols-outlined ms-sm">delete</span>
+                    Sil
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost" data-bulk-cancel>Vazgeç</button>
+            </div>
+        </div>
+
+        <div class="hidden md:grid grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-3 px-5 py-2 text-[11px] font-semibold tracking-widest uppercase text-gray-400 border-b border-gray-100">
+            <div class="bulk-select-cell invisible"></div>
+            <div>Tarih</div>
+            <div>Tip</div>
+            <div>Açıklama</div>
+            <div class="text-right">Tutar</div>
+            <div class="text-right">Bakiye</div>
+            <div></div>
+        </div>
+
+        <ul class="divide-y divide-gray-100">
+            @foreach (var row in rows)
+            {
+                <partial name="_DetailParts/_TxRow" model="row" />
+            }
+        </ul>
+    }
+
+    <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50/50">
+        <span class="text-sm text-gray-500">
+            @Model.TotalCount işlem ·
+            @(((currentPage - 1) * q.PageSize) + 1)-@(Math.Min(currentPage * q.PageSize, Model.TotalCount)) gösteriliyor
+        </span>
+        @if (totalPages > 1)
+        {
+            <div class="flex items-center gap-1">
+                @if (currentPage > 1)
+                {
+                    <a class="btn btn-sm btn-ghost"
+                       href="@BuildUrl(currentPage - 1)">
+                        <span class="material-symbols-outlined">chevron_left</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-ghost" disabled><span class="material-symbols-outlined">chevron_left</span></button>
+                }
+                @if (pageStart > 1)
+                {
+                    <a class="btn btn-sm btn-ghost"
+                       href="@BuildUrl(1)">1</a>
+                }
+                @for (int p = pageStart; p <= pageEnd; p++)
+                {
+                    if (p == currentPage)
+                    {
+                        <button class="btn btn-sm btn-primary">@p</button>
+                    }
+                    else
+                    {
+                        <a class="btn btn-sm btn-ghost"
+                           href="@BuildUrl(p)">@p</a>
+                    }
+                }
+                @if (pageEnd < totalPages)
+                {
+                    <a class="btn btn-sm btn-ghost"
+                       href="@BuildUrl(totalPages)">@totalPages</a>
+                }
+                @if (currentPage < totalPages)
+                {
+                    <a class="btn btn-sm btn-ghost"
+                       href="@BuildUrl(currentPage + 1)">
+                        <span class="material-symbols-outlined">chevron_right</span>
+                    </a>
+                }
+                else
+                {
+                    <button class="btn btn-sm btn-ghost" disabled><span class="material-symbols-outlined">chevron_right</span></button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+(() => {
+    const root = document.querySelector('[data-bulk-transactions]');
+    if (!root) return;
+
+    const toggle = root.querySelector('[data-bulk-toggle]');
+    const rangeSelect = root.querySelector('[data-range-select]');
+    const rangeDates = Array.from(root.querySelectorAll('[data-range-date]'));
+    const actions = root.querySelector('[data-bulk-actions]');
+    const cancel = root.querySelector('[data-bulk-cancel]');
+    const deleteButton = root.querySelector('[data-bulk-delete]');
+    const count = root.querySelector('[data-bulk-count]');
+    const selectAll = root.querySelector('[data-bulk-select-all]');
+    const checkboxes = Array.from(root.querySelectorAll('[data-bulk-checkbox]'));
+    const selectCells = Array.from(root.querySelectorAll('.bulk-select-cell'));
+
+    rangeDates.forEach(input => {
+        input.addEventListener('change', () => {
+            if (rangeSelect) rangeSelect.value = 'custom';
+        });
+    });
+
+    rangeSelect?.addEventListener('change', () => {
+        if (rangeSelect.value !== 'custom') {
+            rangeDates.forEach(input => input.value = '');
+        }
+    });
+
+    const setMode = (enabled) => {
+        actions?.classList.toggle('hidden', !enabled);
+        actions?.classList.toggle('flex', enabled);
+        selectCells.forEach(cell => cell.classList.toggle('invisible', !enabled));
+        checkboxes.forEach(box => {
+            box.checked = false;
+            box.closest('li')?.classList.toggle('bg-amber-50/40', false);
+        });
+        if (selectAll) selectAll.checked = false;
+        updateCount();
+    };
+
+    const updateCount = () => {
+        const selected = checkboxes.filter(box => box.checked).length;
+        if (count) count.textContent = `${selected} seçili`;
+        if (deleteButton) deleteButton.disabled = selected === 0;
+        if (selectAll) {
+            const enabledBoxes = checkboxes.filter(box => !box.disabled);
+            selectAll.checked = enabledBoxes.length > 0 && enabledBoxes.every(box => box.checked);
+            selectAll.indeterminate = selected > 0 && !selectAll.checked;
+        }
+    };
+
+    toggle?.addEventListener('click', () => setMode(true));
+    cancel?.addEventListener('click', () => setMode(false));
+    selectAll?.addEventListener('change', () => {
+        checkboxes.filter(box => !box.disabled).forEach(box => {
+            box.checked = selectAll.checked;
+            box.closest('li')?.classList.toggle('bg-amber-50/40', box.checked);
+        });
+        updateCount();
+    });
+    checkboxes.forEach(box => {
+        box.addEventListener('change', () => {
+            box.closest('li')?.classList.toggle('bg-amber-50/40', box.checked);
+            updateCount();
+        });
+    });
+})();
+</script>

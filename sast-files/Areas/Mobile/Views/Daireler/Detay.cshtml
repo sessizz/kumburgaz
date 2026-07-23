@@ -1,0 +1,87 @@
+@model MobileUnitDetailViewModel
+@{
+    var unit = Model.Unit;
+    var display = unit.Block is null ? unit.UnitNo : $"{unit.Block.Name}-{unit.UnitNo}";
+    ViewData["Title"] = display;
+    ViewData["MobileBack"] = Url.Action("Index", "Daireler", new { area = "Mobile" });
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+
+    var b = Model.Balance;
+    string balCls = b > 0.005m ? "debt" : (b < -0.005m ? "credit" : "zero");
+    string balText = b > 0.005m ? Tl(b) + " borç" : (b < -0.005m ? Tl(Math.Abs(b)) + " alacak" : "Temiz");
+    string balBig = b > 0.005m ? "is-debt" : (b < -0.005m ? "is-credit" : "");
+}
+
+<div class="m-card @balBig" style="text-align:center;">
+    <div class="m-stat-label" style="justify-content:center;">Güncel bakiye</div>
+    <div class="m-stat-value mono-amt" style="font-size:26px; @(b > 0.005m ? "color:var(--m-debt);" : (b < -0.005m ? "color:var(--m-credit);" : ""))">@balText</div>
+    @if (!string.IsNullOrWhiteSpace(unit.OwnerName))
+    {
+        <div class="m-stat-sub">@unit.OwnerName</div>
+    }
+</div>
+
+<div class="m-stat-grid" style="margin-bottom:12px;">
+    <div class="m-stat">
+        <div class="m-stat-label">Toplam tahakkuk</div>
+        <div class="m-stat-value mono-amt" style="font-size:16px;">@Tl(Model.Summary.TotalAccrual)</div>
+    </div>
+    <div class="m-stat">
+        <div class="m-stat-label">Toplam tahsilat</div>
+        <div class="m-stat-value mono-amt" style="font-size:16px;">@Tl(Model.Summary.TotalCollections)</div>
+    </div>
+</div>
+
+<div class="m-tabs">
+    <input type="radio" name="m-tab" id="m-tab-1" checked />
+    <input type="radio" name="m-tab" id="m-tab-2" />
+    <div class="m-tab-labels">
+        <label for="m-tab-1">Tahakkuklar (@Model.Accruals.Count)</label>
+        <label for="m-tab-2">Ödemeler (@Model.Collections.Count)</label>
+    </div>
+
+    <div class="m-tab-panel" id="m-panel-1">
+        @if (Model.Accruals.Count == 0)
+        {
+            <div class="m-empty">Tahakkuk kaydı yok.</div>
+        }
+        else
+        {
+            <div class="m-card">
+                @foreach (var e in Model.Accruals)
+                {
+                    <div class="m-row">
+                        <div class="m-row-main">
+                            <div class="m-row-title">@e.Description</div>
+                            <div class="m-row-sub">@e.Date.ToString("dd.MM.yyyy")</div>
+                        </div>
+                        <div class="m-row-amt m-amt-debt">@Tl(e.Amount)</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="m-tab-panel" id="m-panel-2">
+        @if (Model.Collections.Count == 0)
+        {
+            <div class="m-empty">Ödeme kaydı yok.</div>
+        }
+        else
+        {
+            <div class="m-card">
+                @foreach (var e in Model.Collections)
+                {
+                    <div class="m-row">
+                        <div class="m-row-main">
+                            <div class="m-row-title">@e.Description</div>
+                            <div class="m-row-sub">@e.Date.ToString("dd.MM.yyyy")</div>
+                        </div>
+                        <div class="m-row-amt m-amt-credit">@Tl(Math.Abs(e.Amount))</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

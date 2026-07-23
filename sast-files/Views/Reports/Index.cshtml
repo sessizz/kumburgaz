@@ -1,0 +1,41 @@
+@{
+    ViewData["Title"] = "Raporlar";
+}
+
+<div class="bg-white border border-gray-200 shadow-sm">
+    <section class="p-6">
+        <h2 class="text-xl font-medium text-sky-500 mb-7">Finansal Raporlar</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-24 gap-y-3 text-[17px] text-gray-700">
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="CashBankStatement">Kasa - Banka Ekstreleri</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="DuesDebt">Hesap Ekstresi</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="DuesStatus">Aidat Durum Cetveli</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="Income">Gelir Raporu</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="IncomeExpenseSummary">Gelir/Gider Özeti</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="MonthlyCashFlow">Aylık Nakit Akışı</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="DebtAging">Borç/Alacak Yaşlandırma</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="Balance">Bilanço</a>
+            <a class="hover:text-sky-600" asp-controller="Reports" asp-action="BalanceDetailed">Bilanço Detaylı</a>
+            <a class="hover:text-sky-600" asp-controller="Ledger" asp-action="Index">Gelirler / Giderler</a>
+        </div>
+    </section>
+
+    <div class="h-5 bg-gray-100 border-y border-gray-200"></div>
+
+    <section class="p-6">
+        <h2 class="text-xl font-medium text-sky-500 mb-7">Yönetimsel Raporlar</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-24 gap-y-3 text-[17px] text-gray-400">
+            <span>Daire Listesi</span>
+            @if (User.IsInRole(AppRoles.SistemYonetici))
+            {
+                <a class="text-gray-700 hover:text-sky-600" asp-controller="Reports" asp-action="LoginCredentials">Kullanıcı Giriş Bilgileri</a>
+            }
+            else
+            {
+                <span>Kullanıcı Giriş Bilgileri</span>
+            }
+            <a class="text-gray-700 hover:text-sky-600" asp-controller="Reports" asp-action="Attendance">Hazirun Cetveli</a>
+            <span>Personeller</span>
+            <span>Hane Bilgileri</span>
+        </div>
+    </section>
+</div>

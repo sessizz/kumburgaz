@@ -1,0 +1,70 @@
+@{
+    var activeTab = ViewData["ActiveTab"]?.ToString() ?? "";
+}
+
+<style>
+.acct-tab { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:8px; color:#4b5563; font-size:14px; font-weight:500; text-decoration:none; cursor:pointer; border:1px solid transparent; transition:background .12s,color .12s,border-color .12s; }
+.acct-tab:hover { background:#f9fafb; color:#111827; }
+.acct-tab.active { background:#eff6ff; color:#1d4ed8; font-weight:600; border-color:#dbeafe; }
+.acct-tab .acct-icon { font-size:20px; color:#9ca3af; }
+.acct-tab.active .acct-icon { color:#2563eb; }
+.acct-tab .chev { margin-left:auto; color:#d1d5db; font-size:18px; }
+.acct-tab.active .chev { color:#2563eb; }
+.pill { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; }
+.pill-ok { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+.pill-warn { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
+.pill-info { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+.pill-muted { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
+</style>
+
+<div class="bg-white border border-gray-200 rounded-xl p-3 space-y-1">
+    <div class="px-3 py-2 mb-1">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Hesap Yönetimi</p>
+    </div>
+
+    <a asp-area="Identity" asp-page="/Account/Manage/Index"
+       class="acct-tab @(activeTab == "profile" ? "active" : "")">
+        <span class="material-symbols-outlined acct-icon">person</span>
+        Profil
+        <span class="material-symbols-outlined chev">chevron_right</span>
+    </a>
+
+    <a asp-area="Identity" asp-page="/Account/Manage/Email"
+       class="acct-tab @(activeTab == "email" ? "active" : "")">
+        <span class="material-symbols-outlined acct-icon">mail</span>
+        E-posta
+        <span class="material-symbols-outlined chev">chevron_right</span>
+    </a>
+
+    <a asp-area="Identity" asp-page="/Account/Manage/ChangePassword"
+       class="acct-tab @(activeTab == "password" ? "active" : "")">
+        <span class="material-symbols-outlined acct-icon">lock</span>
+        Şifre
+        <span class="material-symbols-outlined chev">chevron_right</span>
+    </a>
+
+    <a asp-area="Identity" asp-page="/Account/Manage/TwoFactorAuthentication"
+       class="acct-tab @(activeTab == "2fa" ? "active" : "")">
+        <span class="material-symbols-outlined acct-icon">security</span>
+        İki adımlı doğrulama
+        <span class="material-symbols-outlined chev">chevron_right</span>
+    </a>
+
+    <a asp-area="Identity" asp-page="/Account/Manage/PersonalData"
+       class="acct-tab @(activeTab == "data" ? "active" : "")">
+        <span class="material-symbols-outlined acct-icon">database</span>
+        Kişisel veriler
+        <span class="material-symbols-outlined chev">chevron_right</span>
+    </a>
+
+    <div class="pt-2 mt-2 border-t border-gray-100">
+        <form asp-area="Identity" asp-page="/Account/Logout"
+              asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })" method="post">
+            <button type="submit"
+                    class="acct-tab w-full text-red-600 hover:bg-red-50 hover:text-red-700 border-transparent">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#dc2626">logout</span>
+                Çıkış Yap
+            </button>
+        </form>
+    </div>
+</div>

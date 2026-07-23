@@ -1,0 +1,100 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Profil";
+}
+
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-gray-700">Ana Sayfa</a>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Hesabımı Yönet</span>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Profil</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        <partial name="_ManageNav" />
+
+        <div class="space-y-6">
+            <partial name="_StatusMessage" model="Model.StatusMessage" />
+
+            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 class="text-lg font-semibold text-gray-900">Profil Bilgileri</h1>
+                        <p class="text-sm text-gray-500 mt-0.5">Kişisel bilgilerinizi güncelleyin</p>
+                    </div>
+                    <span class="pill pill-muted">Genel bilgiler</span>
+                </div>
+
+                <form method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-red-600 text-sm mb-4"></div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="form-control">
+                            <label asp-for="Input.Username" class="label">
+                                <span class="label-text font-medium text-gray-700">Kullanıcı Adı</span>
+                            </label>
+                            <input asp-for="Input.Username" class="input input-bordered w-full" autocomplete="username" />
+                            <span asp-validation-for="Input.Username" class="label-text-alt text-red-500 mt-1 block"></span>
+                        </div>
+
+                        <div class="form-control">
+                            <label asp-for="Input.FullName" class="label">
+                                <span class="label-text font-medium text-gray-700">Tam Ad</span>
+                            </label>
+                            <input asp-for="Input.FullName" class="input input-bordered w-full" placeholder="Adınız Soyadınız" />
+                            <span asp-validation-for="Input.FullName" class="label-text-alt text-red-500 mt-1 block"></span>
+                        </div>
+
+                        <div class="form-control">
+                            <label asp-for="Input.PhoneNumber" class="label">
+                                <span class="label-text font-medium text-gray-700">Telefon</span>
+                            </label>
+                            <input asp-for="Input.PhoneNumber" class="input input-bordered w-full" placeholder="+90 5xx xxx xx xx" />
+                            <span asp-validation-for="Input.PhoneNumber" class="label-text-alt text-red-500 mt-1 block"></span>
+                        </div>
+
+                        <div class="form-control">
+                            <label asp-for="Input.Title" class="label">
+                                <span class="label-text font-medium text-gray-700">Görev / Unvan</span>
+                            </label>
+                            <input asp-for="Input.Title" class="input input-bordered w-full" placeholder="ör. Muhasebe" />
+                            <span asp-validation-for="Input.Title" class="label-text-alt text-red-500 mt-1 block"></span>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 pt-5 border-t border-gray-100">
+                        <span class="label-text font-medium text-gray-700">Rolleriniz</span>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            @if (Model.Roles.Count == 0)
+                            {
+                                <span class="text-sm text-gray-400">Atanmış rol yok.</span>
+                            }
+                            else
+                            {
+                                @foreach (var role in Model.Roles)
+                                {
+                                    <span class="pill pill-info">@role</span>
+                                }
+                            }
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">Roller yalnızca sistem yöneticisi tarafından (Ayarlar &rsaquo; Kullanıcılar) değiştirilebilir.</p>
+                    </div>
+
+                    <div class="flex justify-end mt-6">
+                        <button type="submit" class="btn btn-primary gap-2">
+                            <span class="material-symbols-outlined" style="font-size:18px">save</span>
+                            Kaydet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

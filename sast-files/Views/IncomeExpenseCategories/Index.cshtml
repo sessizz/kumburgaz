@@ -1,0 +1,132 @@
+@model List<Kumburgaz.Web.Models.IncomeExpenseCategory>
+@using Kumburgaz.Web.Services
+@{
+    ViewData["Title"] = "Kategori Ayarları";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Kategori Ayarları</h2>
+            <p class="text-sm text-gray-400">Gelir/gider kategorileri</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="categoryModal.showModal()">
+            <span class="material-symbols-outlined ms-sm">add</span>
+            Yeni Kategori
+        </button>
+    </div>
+
+    @if (TempData["Success"] is string successMessage)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@successMessage</span>
+        </div>
+    }
+    @if (TempData["Error"] is string errorMessage)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@errorMessage</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Tür</th>
+                        <th>Ad</th>
+                        <th>Durum</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>
+                            @{
+                                var typeDisplay = CategoryTypeHelper.Display(item.Type);
+                                var typeBadge = typeDisplay == CategoryTypeHelper.Gelir ? "badge-success badge-soft" : "badge-error badge-soft";
+                            }
+                            <span class="badge @typeBadge">@typeDisplay</span>
+                        </td>
+                        <td class="font-medium">@item.Name</td>
+                        <td>
+                            @if (item.Active)
+                            {
+                                <span class="badge badge-success badge-soft">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-ghost">Pasif</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                    Düzenle
+                                </a>
+                                <form asp-action="Toggle" asp-route-id="@item.Id" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">toggle_on</span>
+                                        Durum
+                                    </button>
+                                </form>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Bu kategori silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Yeni Kategori Modal -->
+<dialog id="categoryModal" class="modal">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold mb-4">Yeni Kategori</h3>
+        <form asp-action="Create" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Tür</legend>
+                <select name="Type" class="select select-bordered w-full">
+                    @foreach (var t in (IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)ViewBag.Types)
+                    {
+                        <option value="@t.Value">@t.Text</option>
+                    }
+                </select>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Ad</legend>
+                <input name="Name" class="input input-bordered w-full" placeholder="Kategori adı" required />
+            </fieldset>
+            <label class="label cursor-pointer justify-start gap-3">
+                <input name="Active" type="checkbox" value="true" checked class="toggle toggle-primary" />
+                <span class="label-text">Aktif</span>
+            </label>
+            <div class="flex gap-2 justify-end pt-2">
+                <button type="button" class="btn btn-ghost" onclick="categoryModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-symbols-outlined ms-sm">save</span>
+                    Ekle
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>kapat</button>
+    </form>
+</dialog>

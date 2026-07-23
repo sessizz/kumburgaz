@@ -1,0 +1,84 @@
+@model List<Kumburgaz.Web.Models.BillingGroup>
+@{
+    ViewData["Title"] = "Aidatlandırma Grupları";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold">Aidatlandırma Grupları</h2>
+            <p class="text-sm text-gray-400">Aidat tipi + dönem + daire eşleşmeleri</p>
+        </div>
+        <a class="btn btn-primary btn-sm" asp-action="Create">
+            <span class="material-symbols-outlined ms-sm">add</span>
+            Yeni Grup
+        </a>
+    </div>
+
+    @if (TempData["ActionSuccess"] is string actionSuccess)
+    {
+        <div class="alert alert-success">
+            <span class="material-symbols-outlined">check_circle</span>
+            <span>@actionSuccess</span>
+        </div>
+    }
+    @if (TempData["ActionError"] is string actionError)
+    {
+        <div class="alert alert-error">
+            <span class="material-symbols-outlined">error</span>
+            <span>@actionError</span>
+        </div>
+    }
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table table-zebra">
+                <thead>
+                    <tr>
+                        <th>Grup</th>
+                        <th>Aidat Tipi</th>
+                        <th>Geçerlilik</th>
+                        <th>Daire / Birleşik Daire</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td class="font-semibold">@item.Name</td>
+                        <td>
+                            <div class="flex flex-col">
+                                <span>@item.DuesType?.Name</span>
+                                <span class="text-xs text-gray-400">@item.DuesType?.Amount.ToString("N2") TL</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge badge-ghost badge-sm">@item.EffectiveStartPeriod</span>
+                            <span class="text-gray-300">→</span>
+                            <span class="badge badge-ghost badge-sm">@(item.EffectiveEndPeriod ?? "Devam")</span>
+                        </td>
+                        <td class="text-sm">@BillingGroupDisplayHelper.UnitDisplay(item)</td>
+                        <td>
+                            <div class="flex justify-end gap-1">
+                                <a class="btn btn-xs btn-ghost" asp-action="Edit" asp-route-id="@item.Id">
+                                    <span class="material-symbols-outlined ms-sm">edit</span>
+                                    Düzenle
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post"
+                                      onsubmit="return confirm('Bu aidat grubu silinsin mi?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-xs btn-ghost text-error" type="submit">
+                                        <span class="material-symbols-outlined ms-sm">delete</span>
+                                        Sil
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

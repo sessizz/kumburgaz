@@ -1,0 +1,115 @@
+@model MobileGiderFormViewModel
+@{
+    ViewData["Title"] = Model.IsResident ? "Mahsuplu Gider" : "Yeni Gider";
+    ViewData["MobileBack"] = Url.Action("Index", "Gider", new { area = "Mobile" });
+    var inputStyle = "width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;background:#fff;";
+    var labelStyle = "font-size:13px;font-weight:600;color:var(--m-muted);";
+}
+
+<form method="post" asp-area="Mobile" asp-controller="Gider" asp-action="Yeni" enctype="multipart/form-data"
+      class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+    @Html.AntiForgeryToken()
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="m-note">
+            @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@err.ErrorMessage</div>
+            }
+        </div>
+    }
+
+    @if (!Model.IsResident)
+    {
+        <label style="display:flex;align-items:center;gap:10px;background:#f8fafc;border-radius:12px;padding:10px 12px;">
+            <input type="checkbox" id="isMahsupToggle" asp-for="IsMahsup" style="width:20px;height:20px;" />
+            <span style="font-size:14px;font-weight:600;">Mahsuplu gider (bir daireden mahsup et)</span>
+        </label>
+    }
+
+    <div id="unitField" style="display:@((Model.IsResident || Model.IsMahsup) ? "block" : "none");">
+        <label style="display:block;">
+            <span style="@labelStyle">Daire</span>
+            <select asp-for="UnitId" id="unitSelect" style="@inputStyle">
+                <option value="">Seçiniz</option>
+                @foreach (var opt in Model.UnitOptions)
+                {
+                    <option value="@opt.Value">@opt.Text</option>
+                }
+            </select>
+        </label>
+        <div id="borcOzet" style="font-size:13px;color:var(--m-muted);margin-top:6px;"></div>
+    </div>
+
+    <label style="display:block;">
+        <span style="@labelStyle">Kategori</span>
+        <select asp-for="CategoryId" style="@inputStyle">
+            <option value="">Seçiniz</option>
+            @foreach (var opt in Model.CategoryOptions)
+            {
+                <option value="@opt.Value">@opt.Text</option>
+            }
+        </select>
+    </label>
+
+    <label style="display:block;">
+        <span style="@labelStyle">Tutar (TL)</span>
+        <input asp-for="Amount" type="number" step="0.01" min="0.01" style="@inputStyle" />
+    </label>
+
+    <label style="display:block;">
+        <span style="@labelStyle">Açıklama</span>
+        <textarea asp-for="Description" rows="3"
+                  style="width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;resize:vertical;"></textarea>
+    </label>
+
+    <label style="display:block;">
+        <span style="@labelStyle">
+            Fiş / fatura fotoğrafı @(Model.IsResident ? "(zorunlu)" : "(opsiyonel)")
+        </span>
+        <input type="file" name="Fotograflar" accept="image/*" multiple
+               style="width:100%;margin-top:6px;font-size:14px;" />
+    </label>
+
+    <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+        Kaydet
+    </button>
+</form>
+
+@section Scripts {
+    <script>
+        (function () {
+            var toggle = document.getElementById('isMahsupToggle');
+            var unitField = document.getElementById('unitField');
+            if (toggle) {
+                toggle.addEventListener('change', function () {
+                    unitField.style.display = toggle.checked ? 'block' : 'none';
+                });
+            }
+
+            var unitSelect = document.getElementById('unitSelect');
+            var borcOzet = document.getElementById('borcOzet');
+            if (unitSelect && borcOzet) {
+                unitSelect.addEventListener('change', function () {
+                    var unitId = unitSelect.value;
+                    if (!unitId) { borcOzet.textContent = ''; return; }
+                    borcOzet.textContent = 'Yükleniyor...';
+                    fetch('@Url.Action("BorcOzet", "Daireler", new { area = "Mobile" })?unitId=' + unitId)
+                        .then(function (r) { return r.ok ? r.json() : null; })
+                        .then(function (data) {
+                            if (!data) { borcOzet.textContent = ''; return; }
+                            var debt = data.acikBorc || 0;
+                            borcOzet.textContent = debt > 0
+                                ? ('Açık borç: ' + debt.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' TL')
+                                : 'Bu dairenin açık borcu yok.';
+                        })
+                        .catch(function () { borcOzet.textContent = ''; });
+                });
+                if (unitSelect.value) {
+                    unitSelect.dispatchEvent(new Event('change'));
+                }
+            }
+        })();
+    </script>
+}

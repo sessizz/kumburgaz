@@ -1,0 +1,79 @@
+@page
+@model DeletePersonalDataModel
+@{
+    ViewData["Title"] = "Hesabı Sil";
+}
+
+<div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-gray-700">Ana Sayfa</a>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Hesabımı Yönet</span>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <a asp-area="Identity" asp-page="/Account/Manage/PersonalData" class="hover:text-gray-700">Kişisel Veriler</a>
+        <span class="material-symbols-outlined" style="font-size:14px">chevron_right</span>
+        <span class="text-gray-900 font-medium">Hesabı Sil</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        <partial name="_ManageNav" />
+
+        <div class="space-y-6">
+            <div class="bg-white border border-red-200 rounded-xl p-6">
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-red-600" style="font-size:26px">delete_forever</span>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-semibold text-red-900">Hesabı Sil</h1>
+                        <p class="text-sm text-red-700 mt-1">
+                            Bu işlem geri alınamaz. Hesabınız ve tüm verileriniz kalıcı olarak silinecektir.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="bg-red-50 border border-red-100 rounded-lg p-4 mb-6">
+                    <ul class="space-y-1 text-sm text-red-700">
+                        <li class="flex items-center gap-2">
+                            <span class="material-symbols-outlined" style="font-size:14px">close</span>
+                            Hesap bilgileriniz silinir
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="material-symbols-outlined" style="font-size:14px">close</span>
+                            Bu işlem geri alınamaz
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <span class="material-symbols-outlined" style="font-size:14px">close</span>
+                            Oturumunuz otomatik kapatılır
+                        </li>
+                    </ul>
+                </div>
+
+                <form method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-red-600 text-sm mb-4"></div>
+
+                    <div class="form-control mb-6">
+                        <label asp-for="Input.Password" class="label">
+                            <span class="label-text font-medium text-gray-700">Onaylamak için şifrenizi girin</span>
+                        </label>
+                        <input asp-for="Input.Password" type="password"
+                               class="input input-bordered border-red-200 focus:border-red-400 w-full"
+                               placeholder="Mevcut şifreniz" autocomplete="current-password" />
+                        <span asp-validation-for="Input.Password" class="label-text-alt text-red-500 mt-1 block"></span>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="btn btn-error gap-2">
+                            <span class="material-symbols-outlined" style="font-size:18px">delete_forever</span>
+                            Kalıcı Olarak Sil
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

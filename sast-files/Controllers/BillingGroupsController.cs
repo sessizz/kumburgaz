@@ -1,0 +1,138 @@
+using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Models;
+using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
+
+namespace Kumburgaz.Web.Controllers;
+
+[ModuleAuthorize(AppModules.Aidatlar)]
+public class BillingGroupsController(
+    ApplicationDbContext db,
+    IBillingGroupService billingGroupService) : Controller
+{
+    public async Task<IActionResult> Index()
+    {
+        return View(await billingGroupService.GetAllAsync());
+    }
+
+    public async Task<IActionResult> Create()
+    {
+        return View(await BuildFormAsync(new BillingGroupFormViewModel
+        {
+            EffectiveStartPeriod = PeriodHelper.CurrentFiscalPeriod(DateTime.Today),
+            Active = true
+        }));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(BillingGroupFormViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(await BuildFormAsync(model));
+        }
+
+        try
+        {
+            await billingGroupService.CreateOrUpdateAsync(model);
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(await BuildFormAsync(model));
+        }
+    }
+
+    public async Task<IActionResult> Edit(int id)
+    {
+        var group = await billingGroupService.GetByIdAsync(id);
+        if (group is null)
+        {
+            return NotFound();
+        }
+
+        var model = new BillingGroupFormViewModel
+        {
+            Id = group.Id,
+            Name = group.Name,
+            DuesTypeId = group.DuesTypeId,
+            EffectiveStartPeriod = group.EffectiveStartPeriod,
+            EffectiveEndPeriod = group.EffectiveEndPeriod,
+            Active = group.Active,
+            MergeUnits = false,
+            SelectedUnitIds = group.Units.Select(x => x.UnitId).ToList()
+        };
+
+        return View(await BuildFormAsync(model));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(BillingGroupFormViewModel model)
+    {
+        if (!ModelState.IsValid || model.Id is null)
+        {
+            return View(await BuildFormAsync(model));
+        }
+
+        try
+        {
+            await billingGroupService.CreateOrUpdateAsync(model);
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            return View(await BuildFormAsync(model));
+        }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            await billingGroupService.DeleteAsync(id);
+            TempData["ActionSuccess"] = "Aidat grubu silindi.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ActionError"] = ex.Message;
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    private async Task<BillingGroupFormViewModel> BuildFormAsync(BillingGroupFormViewModel model)
+    {
+        model.DuesTypeOptions = await db.DuesTypes
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .OrderBy(x => x.Name)
+            .Select(x => new SelectListItem(x.Name + $" ({x.Amount:N2} TL)", x.Id.ToString()))
+            .ToListAsync();
+
+        var units = await db.Units
+            .AsNoTracking()
+            .Where(x => x.Active)
+            .Include(x => x.Block)
+            .Include(x => x.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .OrderBy(x => x.Block!.Name)
+            .ThenBy(x => x.UnitNo)
+            .ToListAsync();
+
+        model.UnitOptions = units
+            .Select(x => new SelectListItem(UnitDisplayHelper.Display(x), x.Id.ToString()))
+            .ToList();
+
+        return model;
+    }
+}

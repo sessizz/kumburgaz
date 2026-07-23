@@ -1,0 +1,25 @@
+@model Kumburgaz.Web.Models.Announcement
+@{
+    var isEdit = Model.Id > 0;
+}
+<div class="max-w-3xl">
+    <form method="post" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+        @Html.AntiForgeryToken()
+        <input asp-for="Id" type="hidden" />
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-extrabold text-gray-900">@(isEdit ? "Duyuru Düzenle" : "Yeni Duyuru")</h1>
+            <a class="btn btn-ghost btn-sm" asp-action="Index">Geri</a>
+        </div>
+        <div asp-validation-summary="ModelOnly" class="text-error text-sm"></div>
+        <fieldset class="fieldset"><legend class="fieldset-legend">Başlık</legend><input asp-for="Title" class="input input-bordered w-full" /></fieldset>
+        <fieldset class="fieldset"><legend class="fieldset-legend">İçerik</legend><textarea asp-for="Body" class="textarea textarea-bordered w-full min-h-40"></textarea></fieldset>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <fieldset class="fieldset"><legend class="fieldset-legend">Öncelik</legend><select asp-for="Priority" class="select select-bordered w-full"><option>Normal</option><option>Önemli</option><option>Acil</option></select></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Yayın Tarihi</legend><input asp-for="PublishDate" type="datetime-local" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset"><legend class="fieldset-legend">Durum</legend><label class="label cursor-pointer justify-start gap-3"><input asp-for="IsPublished" class="toggle toggle-primary" /> Yayında</label></fieldset>
+        </div>
+        <div class="flex justify-end gap-2"><a class="btn btn-ghost" asp-action="Index">Vazgeç</a><button class="btn btn-primary"><span class="material-symbols-outlined ms-sm">save</span>Kaydet</button></div>
+    </form>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

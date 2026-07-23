@@ -1,0 +1,159 @@
+@model Kumburgaz.Web.Models.CollectionCreateViewModel
+@{
+    ViewData["Title"] = "Yeni Tahsilat";
+    var cancelUrl = string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Url.Action("Index", "Dues") : Model.ReturnUrl;
+}
+
+<div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" href="@cancelUrl" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div>
+            <h2 class="text-2xl font-extrabold">Yeni Tahsilat</h2>
+            <p class="text-sm text-gray-400">Tahsilat aynı daire/gruptaki en eski açık borçtan kapatılır; fazla tutar avans olarak kalır.</p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form method="get" asp-action="Create" class="mb-4">
+                <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Dönem</legend>
+                    <select name="period" class="select select-bordered w-full" onchange="this.form.submit()" asp-items="Model.PeriodOptions"></select>
+                    <p class="text-xs text-gray-400 mt-1">Aşağıdaki aidat borcu listesini seçtiğin döneme daraltır.</p>
+                </fieldset>
+            </form>
+
+            <form asp-action="Create" method="post" class="space-y-4">
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+                <input asp-for="BillingGroupId" type="hidden" />
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="ExistingAllocatedAmount" type="hidden" />
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Aidat Borcu</legend>
+                    <select asp-for="DuesInstallmentId" asp-items="Model.DuesInstallmentOptions" class="select select-bordered w-full">
+                        <option value="">Aidat borcu seçiniz</option>
+                    </select>
+                    <span asp-validation-for="DuesInstallmentId" class="text-error text-xs"></span>
+                </fieldset>
+
+                @if (Model.DuesInstallmentId.HasValue)
+                {
+                    <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+                        <div class="font-bold flex items-center gap-2">
+                            <span class="material-symbols-outlined" style="font-size:18px;">info</span>
+                            Tahsilat uygulama özeti
+                        </div>
+                        <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <div class="text-sky-700">Açık borç</div>
+                                <div class="font-bold">@Model.AllocationPreviewDebt.ToString("N2") TL</div>
+                            </div>
+                            <div>
+                                <div class="text-sky-700">Bu tahsilattan borca uygulanacak</div>
+                                <div id="allocationAppliedPreview" class="font-bold">@Model.AllocationPreviewApplied.ToString("N2") TL</div>
+                            </div>
+                            <div>
+                                <div class="text-sky-700">Avans kalacak</div>
+                                <div id="allocationAdvancePreview" class="font-bold">@Model.AllocationPreviewAdvance.ToString("N2") TL</div>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-xs text-sky-700">Kayıt sırasında sistem en eski açık aidattan başlayarak dağıtım yapar.</div>
+                    </div>
+                }
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tarih</legend>
+                        <input asp-for="Date" class="input input-bordered w-full" type="date" />
+                        <span asp-validation-for="Date" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tutar</legend>
+                        <input asp-for="Amount" class="input input-bordered w-full" data-allocation-debt="@Model.AllocationPreviewDebt.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                        <span asp-validation-for="Amount" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Kasa / Banka</legend>
+                        <select asp-for="AccountKey" asp-items="Model.AccountOptions" class="select select-bordered w-full">
+                            <option value="">Seçiniz</option>
+                        </select>
+                        <span asp-validation-for="AccountKey" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+
+                <fieldset class="fieldset">
+                    <label class="label cursor-pointer gap-2 px-0 w-fit">
+                        <input asp-for="IsReceipt" id="isReceiptToggle" type="checkbox" class="toggle toggle-sm toggle-primary" />
+                        <span class="label-text">Makbuz</span>
+                    </label>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend id="referenceNoLegend" class="fieldset-legend">Referans No</legend>
+                    <input asp-for="ReferenceNo" id="referenceNoInput" class="input input-bordered w-full" />
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Not</legend>
+                    <textarea asp-for="Note" class="textarea textarea-bordered w-full" rows="3"></textarea>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" href="@cancelUrl">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const amountInput = document.getElementById("Amount");
+            const appliedEl = document.getElementById("allocationAppliedPreview");
+            const advanceEl = document.getElementById("allocationAdvancePreview");
+            if (!amountInput || !appliedEl || !advanceEl) return;
+
+            const debt = Number.parseFloat(amountInput.dataset.allocationDebt || "0") || 0;
+            const formatter = new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const parseAmount = value => {
+                const normalized = (value || "").replace(/\./g, "").replace(",", ".");
+                const parsed = Number.parseFloat(normalized);
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+            const updatePreview = () => {
+                const amount = parseAmount(amountInput.value);
+                appliedEl.textContent = `${formatter.format(Math.min(amount, debt))} TL`;
+                advanceEl.textContent = `${formatter.format(Math.max(0, amount - debt))} TL`;
+            };
+
+            amountInput.addEventListener("input", updatePreview);
+            updatePreview();
+        })();
+
+        (() => {
+            const isReceiptToggle = document.getElementById("isReceiptToggle");
+            const referenceNoLegend = document.getElementById("referenceNoLegend");
+            const referenceNoInput = document.getElementById("referenceNoInput");
+            if (!isReceiptToggle || !referenceNoLegend || !referenceNoInput) return;
+
+            const sync = () => {
+                const isReceipt = isReceiptToggle.checked;
+                referenceNoLegend.textContent = isReceipt ? "Makbuz No" : "Referans No";
+                referenceNoInput.required = isReceipt;
+            };
+
+            isReceiptToggle.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
+}

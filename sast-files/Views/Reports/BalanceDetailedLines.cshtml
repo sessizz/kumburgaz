@@ -1,0 +1,89 @@
+@model List<Kumburgaz.Web.Models.ReportLineListItemViewModel>
+@{
+    ViewData["Title"] = "Bilanço Detaylı - Satırlar";
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Bilanço Detaylı Satırları</h2>
+            <div class="text-sm text-gray-500 mt-0.5">
+                Kategorileri başlıklar altında topla, görünen adları değiştir, istemediklerini gizle.
+                Hiçbir satıra atanmamış kategoriler raporda kendi adlarıyla görünür.
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a class="btn btn-sm btn-primary" asp-action="BalanceDetailedLineCreate">
+                <span class="material-symbols-outlined ms-sm">add</span>
+                Yeni Satır
+            </a>
+            <a class="btn btn-sm btn-outline" asp-action="BalanceDetailedManualEntries">
+                <span class="material-symbols-outlined ms-sm">edit_note</span>
+                Manuel Kalemler
+            </a>
+            <a class="btn btn-sm btn-ghost" asp-action="BalanceDetailed">Rapora Dön</a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success text-sm py-2">@success</div>
+    }
+
+    <div class="bg-white border border-gray-200 overflow-x-auto">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Sıra</th>
+                    <th>Görünen Ad</th>
+                    <th>Bölüm</th>
+                    <th>İçindeki Kategoriler</th>
+                    <th class="text-center">Durum</th>
+                    <th class="text-end">İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var line in Model)
+            {
+                <tr class="@(line.Visible ? "" : "opacity-50")">
+                    <td class="tabular-nums">@line.SortOrder</td>
+                    <td class="font-semibold">@line.Name</td>
+                    <td>
+                        <span class="badge badge-sm @(line.Section == "Gelir" ? "badge-success" : "badge-error")">@line.Section</span>
+                    </td>
+                    <td class="text-sm text-gray-600 max-w-md">@(string.IsNullOrWhiteSpace(line.MembersText) ? "-" : line.MembersText)</td>
+                    <td class="text-center">
+                        <form method="post" asp-action="BalanceDetailedLineToggle" asp-route-id="@line.Id" class="inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-ghost btn-xs" title="@(line.Visible ? "Gizle" : "Göster")">
+                                <span class="material-symbols-outlined ms-sm">@(line.Visible ? "visibility" : "visibility_off")</span>
+                            </button>
+                        </form>
+                    </td>
+                    <td class="text-end">
+                        <a class="btn btn-ghost btn-xs" asp-action="BalanceDetailedLineEdit" asp-route-id="@line.Id">
+                            <span class="material-symbols-outlined ms-sm">edit</span>
+                        </a>
+                        <form method="post" asp-action="BalanceDetailedLineDelete" asp-route-id="@line.Id" class="inline"
+                              onsubmit="return confirm('@line.Name satırı silinsin mi? Kategorileri raporda tekrar kendi adlarıyla görünür.');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-ghost btn-xs text-red-500">
+                                <span class="material-symbols-outlined ms-sm">delete</span>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (Model.Count == 0)
+            {
+                <tr>
+                    <td colspan="6" class="text-gray-400 py-6 text-center">
+                        Henüz satır tanımlanmadı. Rapor şu an tüm kategorileri kendi adlarıyla gösteriyor.
+                        "Yeni Satır" ile başlıklar oluşturabilirsiniz.
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

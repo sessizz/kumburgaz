@@ -1,0 +1,75 @@
+@model Kumburgaz.Web.Models.DocumentDetailViewModel
+@{
+    ViewData["Title"] = Model.Document.Title;
+    string FileSize(int bytes) => bytes < 1024 * 1024
+        ? $"{Math.Max(1, bytes / 1024d):0.#} KB"
+        : $"{bytes / 1024d / 1024d:0.##} MB";
+}
+<div class="space-y-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <div class="flex items-center gap-2"><h1 class="text-2xl font-extrabold text-gray-900">@Model.Document.Title</h1><span class="pill pill-info">@Model.Document.Category</span></div>
+            <div class="text-sm text-gray-500 mt-1">@Model.Document.DocumentDate.ToString("dd.MM.yyyy")</div>
+        </div>
+        <div class="flex gap-2"><a class="btn btn-ghost btn-sm" asp-action="Index">Geri</a><a class="btn btn-primary btn-sm" asp-action="Edit" asp-route-id="@Model.Document.Id"><span class="material-symbols-outlined ms-sm">edit</span>Düzenle</a></div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Document.Note))
+    {
+        <div class="bg-white border border-gray-200 shadow-sm rounded-lg p-4 text-sm text-gray-700 whitespace-pre-line">@Model.Document.Note</div>
+    }
+
+    @if (TempData["ActionSuccess"] is string success) { <div class="alert alert-success"><span class="material-symbols-outlined">check_circle</span><span>@success</span></div> }
+    @if (TempData["ActionError"] is string error) { <div class="alert alert-error"><span class="material-symbols-outlined">error</span><span>@error</span></div> }
+
+    <div class="document-detail-grid">
+        <section class="bg-white border border-gray-200 shadow-sm rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between"><h2 class="font-bold text-gray-900">Dosyalar</h2><span class="text-xs text-gray-500">@Model.Attachments.Count dosya</span></div>
+            @if (Model.Attachments.Count == 0)
+            {
+                <div class="p-8 text-center text-sm text-gray-500">Bu belgeye dosya eklenmemiş.</div>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-100">
+                    @foreach (var attachment in Model.Attachments)
+                    {
+                        var previewUrl = Url.Action("PreviewFile", new { documentId = Model.Document.Id, attachmentId = attachment.Id });
+                        <div class="p-3 flex items-center gap-3">
+                            <span class="material-symbols-outlined text-blue-600">@DocumentIcon(attachment.ContentType)</span>
+                            <div class="min-w-0 flex-1"><div class="font-medium text-sm text-gray-800 truncate">@attachment.FileName</div><div class="text-xs text-gray-500">@attachment.ContentType · @FileSize(attachment.ByteSize)</div></div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button type="button" class="btn btn-xs btn-ghost" title="Önizle" data-document-preview data-preview-url="@previewUrl" data-content-type="@attachment.ContentType" data-file-name="@attachment.FileName"><span class="material-symbols-outlined ms-sm">visibility</span></button>
+                                <a class="btn btn-xs btn-ghost" title="İndir" asp-action="DownloadFile" asp-route-documentId="@Model.Document.Id" asp-route-attachmentId="@attachment.Id"><span class="material-symbols-outlined ms-sm">download</span></a>
+                                <form method="post" asp-action="DeleteAttachment" asp-route-documentId="@Model.Document.Id" asp-route-attachmentId="@attachment.Id" onsubmit="return confirm('Bu dosya kaldırılsın mı?');">@Html.AntiForgeryToken()<button class="btn btn-xs btn-ghost text-error" title="Kaldır"><span class="material-symbols-outlined ms-sm">delete</span></button></form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="bg-white border border-gray-200 shadow-sm rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100"><h2 class="font-bold text-gray-900">Önizleme</h2></div>
+            <div id="documentPreview" class="document-preview"><div class="document-preview-empty"><span class="material-symbols-outlined">preview</span><span>Önizlemek için bir dosya seçin.</span></div></div>
+        </section>
+    </div>
+</div>
+
+@functions {
+    public string DocumentIcon(string contentType) => contentType switch
+    {
+        "application/pdf" => "picture_as_pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "article",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" or "application/vnd.ms-excel" or "text/csv" or "application/csv" => "table_chart",
+        _ when contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) => "image",
+        _ => "draft"
+    };
+}
+
+@section Scripts {
+    <script src="~/lib/jszip/jszip.min.js" asp-append-version="true"></script>
+    <script src="~/lib/docx-preview/docx-preview.min.js" asp-append-version="true"></script>
+    <script src="~/lib/sheetjs/xlsx.full.min.js" asp-append-version="true"></script>
+    <script src="~/js/document-preview.js" asp-append-version="true"></script>
+}

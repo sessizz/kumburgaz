@@ -1,0 +1,148 @@
+@model Kumburgaz.Web.Models.CashBankIndexViewModel
+@{
+    ViewData["Title"] = "Kasa/Banka";
+}
+
+<div class="space-y-4">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 px-5 py-4 border-b border-gray-200">
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-extrabold">Kasa ve Bankalar</h1>
+                <form method="get" class="join">
+                    <label class="input input-bordered input-sm join-item flex items-center gap-2 min-w-[260px]">
+                        <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
+                        <input name="q" value="@Model.Query" placeholder="Hesap ara" class="grow" />
+                    </label>
+                    <button class="btn btn-sm btn-primary join-item">Ara</button>
+                </form>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn btn-outline btn-sm" type="button" onclick="cashBoxModal.showModal()">
+                    <span class="material-symbols-outlined ms-sm">payments</span>
+                    Kasa Ekle
+                </button>
+                <button class="btn btn-outline btn-sm" type="button" onclick="bankAccountModal.showModal()">
+                    <span class="material-symbols-outlined ms-sm">account_balance</span>
+                    Banka Ekle
+                </button>
+            </div>
+        </div>
+
+        @if (TempData["ActionSuccess"] is string actionSuccess)
+        {
+            <div class="alert alert-success m-4">
+                <span class="material-symbols-outlined">check_circle</span>
+                <span>@actionSuccess</span>
+            </div>
+        }
+        @if (TempData["ActionError"] is string actionError)
+        {
+            <div class="alert alert-error m-4">
+                <span class="material-symbols-outlined">error</span>
+                <span>@actionError</span>
+            </div>
+        }
+
+        <ul class="divide-y divide-gray-200">
+            @foreach (var item in Model.Items)
+            {
+                var icon = item.Type == "bank" ? "account_balance" : "payments";
+                var iconBg = item.Type == "bank" ? "bg-info/10 text-info" : "bg-warning/10 text-warning";
+                <li>
+                    <a class="grid grid-cols-[64px_1fr_180px] gap-4 items-center px-5 py-4 hover:bg-gray-50 transition-colors block"
+                       asp-action="@(item.Type == "bank" ? "BankDetail" : "CashBoxDetail")"
+                       asp-route-id="@item.Id">
+                        <div class="flex justify-center">
+                            <span class="material-symbols-outlined rounded-xl @iconBg p-3">@icon</span>
+                        </div>
+                        <div>
+                            <div class="font-bold">@item.Name</div>
+                            @if (!string.IsNullOrWhiteSpace(item.Detail))
+                            {
+                                <div class="text-sm text-gray-400">@item.Detail</div>
+                            }
+                        </div>
+                        <div class="text-end font-extrabold text-lg">@item.Balance.ToString("N2") TL</div>
+                    </a>
+                </li>
+            }
+        </ul>
+
+        <div class="px-5 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <span class="text-sm font-semibold text-gray-500">Toplam Bakiye</span>
+            <span class="text-end font-extrabold text-xl">@Model.TotalBalance.ToString("N2") TL</span>
+        </div>
+    </div>
+</div>
+
+<dialog id="cashBoxModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="CreateCashBox" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Kasa Ekle</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="cashBoxModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Kasa Adı</legend>
+                <input name="Name" value="@Model.CashBoxForm.Name" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Açılış Bakiyesi</legend>
+                <input name="OpeningBalance" value="@Model.CashBoxForm.OpeningBalance" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Açılış Tarihi</legend>
+                <input name="OpeningBalanceDate" value="@Model.CashBoxForm.OpeningBalanceDate.ToString("yyyy-MM-dd")" class="input input-bordered w-full" type="date" />
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="cashBoxModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-symbols-outlined ms-sm">save</span>
+                    Kaydet
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>
+
+<dialog id="bankAccountModal" class="modal">
+    <div class="modal-box">
+        <form asp-action="CreateBankAccount" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold">Banka Ekle</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="bankAccountModal.close()">✕</button>
+            </div>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Banka İsmi</legend>
+                <input name="Name" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Şube</legend>
+                <input name="Branch" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">IBAN</legend>
+                <input name="Iban" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Devir Bakiyesi</legend>
+                <input name="OpeningBalance" value="@Model.BankAccountForm.OpeningBalance" class="input input-bordered w-full" />
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Devir Tarihi</legend>
+                <input name="OpeningBalanceDate" value="@Model.BankAccountForm.OpeningBalanceDate.ToString("yyyy-MM-dd")" class="input input-bordered w-full" type="date" />
+            </fieldset>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" onclick="bankAccountModal.close()">Vazgeç</button>
+                <button type="submit" class="btn btn-primary">
+                    <span class="material-symbols-outlined ms-sm">save</span>
+                    Kaydet
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
+</dialog>

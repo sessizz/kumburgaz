@@ -1,0 +1,101 @@
+@model List<Kumburgaz.Web.Models.ReportManualEntryListItemViewModel>
+@using System.Globalization
+@{
+    ViewData["Title"] = "Bilanço Detaylı - Manuel Kalemler";
+    var trTR = CultureInfo.GetCultureInfo("tr-TR");
+    string Money(decimal value) => value.ToString("N2", trTR);
+}
+
+<div class="space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-extrabold text-sky-500">Bilanço Detaylı Manuel Kalemler</h2>
+            <div class="text-sm text-gray-500 mt-0.5">
+                Kategoriye bağlı olmayan gelir/gider kalemleri ekleyin; isterseniz mevcut bir rapor satırının içine bağlayın.
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a class="btn btn-sm btn-primary" asp-action="BalanceDetailedManualEntryCreate">
+                <span class="material-symbols-outlined ms-sm">add</span>
+                Yeni Manuel Kalem
+            </a>
+            <a class="btn btn-sm btn-outline" asp-action="BalanceDetailedLines">Satırlar</a>
+            <a class="btn btn-sm btn-ghost" asp-action="BalanceDetailed">Rapora Dön</a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success text-sm py-2">@success</div>
+    }
+
+    <div class="bg-white border border-gray-200 overflow-x-auto">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Sıra</th>
+                    <th>Tarih</th>
+                    <th>Görünen Ad</th>
+                    <th>Bölüm</th>
+                    <th>Bağlı Satır</th>
+                    <th class="text-end">Kasa</th>
+                    <th class="text-end">Banka</th>
+                    <th class="text-end">Toplam</th>
+                    <th class="text-center">Durum</th>
+                    <th class="text-end">İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var entry in Model)
+            {
+                <tr class="@(entry.Visible ? "" : "opacity-50")">
+                    <td class="tabular-nums">@entry.SortOrder</td>
+                    <td>@entry.EntryDate.ToString("dd.MM.yyyy")</td>
+                    <td>
+                        <div class="font-semibold">@entry.Name</div>
+                        @if (!string.IsNullOrWhiteSpace(entry.Note))
+                        {
+                            <div class="text-xs text-gray-400">@entry.Note</div>
+                        }
+                    </td>
+                    <td>
+                        <span class="badge badge-sm @(entry.Section == "Gelir" ? "badge-success" : "badge-error")">@entry.Section</span>
+                    </td>
+                    <td class="text-sm text-gray-600">@(entry.ReportLineName ?? "Bağımsız satır")</td>
+                    <td class="text-end tabular-nums">@Money(entry.CashAmount)</td>
+                    <td class="text-end tabular-nums">@Money(entry.BankAmount)</td>
+                    <td class="text-end tabular-nums font-bold">@Money(entry.Total)</td>
+                    <td class="text-center">
+                        <form method="post" asp-action="BalanceDetailedManualEntryToggle" asp-route-id="@entry.Id" class="inline">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-ghost btn-xs" title="@(entry.Visible ? "Gizle" : "Göster")">
+                                <span class="material-symbols-outlined ms-sm">@(entry.Visible ? "visibility" : "visibility_off")</span>
+                            </button>
+                        </form>
+                    </td>
+                    <td class="text-end">
+                        <a class="btn btn-ghost btn-xs" asp-action="BalanceDetailedManualEntryEdit" asp-route-id="@entry.Id">
+                            <span class="material-symbols-outlined ms-sm">edit</span>
+                        </a>
+                        <form method="post" asp-action="BalanceDetailedManualEntryDelete" asp-route-id="@entry.Id" class="inline"
+                              onsubmit="return confirm('@entry.Name manuel kalemi silinsin mi?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-ghost btn-xs text-red-500">
+                                <span class="material-symbols-outlined ms-sm">delete</span>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            @if (Model.Count == 0)
+            {
+                <tr>
+                    <td colspan="10" class="text-gray-400 py-6 text-center">
+                        Henüz manuel kalem yok. "Yeni Manuel Kalem" ile peşin aidat, düzeltme veya özel bilanço satırı ekleyebilirsiniz.
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

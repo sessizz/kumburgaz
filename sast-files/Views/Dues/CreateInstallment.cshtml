@@ -1,0 +1,81 @@
+@model Kumburgaz.Web.Models.DuesInstallmentCreateViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Aidat Borcu Ekle";
+}
+
+<div class="max-w-3xl mx-auto space-y-4">
+    <div class="flex items-center gap-3">
+        <a class="btn btn-ghost btn-sm btn-square" asp-action="Index" title="Geri">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <h2 class="text-2xl font-extrabold">Aidat Borcu Ekle</h2>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="p-6">
+            <form asp-action="CreateInstallment" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm py-2"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Daire</legend>
+                        <select asp-for="UnitId" asp-items="Model.UnitOptions" class="select select-bordered w-full">
+                            <option value="">Daire seçiniz</option>
+                        </select>
+                        <span asp-validation-for="UnitId" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Aidat Grubu</legend>
+                        <select asp-for="BillingGroupId" asp-items="Model.BillingGroupOptions" class="select select-bordered w-full">
+                            <option value="">Aidat grubu seçiniz</option>
+                        </select>
+                        <span asp-validation-for="BillingGroupId" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Aidatı Kim Ödeyecek?</legend>
+                    <select asp-for="PayerType" asp-items="Model.PayerTypeOptions" class="select select-bordered w-full"></select>
+                </fieldset>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Dönem</legend>
+                        <input asp-for="Period" class="input input-bordered w-full" />
+                        <span asp-validation-for="Period" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Tahakkuk Tarihi</legend>
+                        <input asp-for="AccrualDate" type="date" class="input input-bordered w-full" />
+                        <span asp-validation-for="AccrualDate" class="text-error text-xs"></span>
+                    </fieldset>
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">Vade Tarihi</legend>
+                        <input asp-for="DueDate" type="date" class="input input-bordered w-full" />
+                        <span asp-validation-for="DueDate" class="text-error text-xs"></span>
+                    </fieldset>
+                </div>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Borç Tutarı</legend>
+                    <input asp-for="Amount" class="input input-bordered w-full md:w-64" />
+                    <span asp-validation-for="Amount" class="text-error text-xs"></span>
+                </fieldset>
+
+                <div class="flex gap-2 justify-end pt-2">
+                    <a class="btn btn-ghost" asp-action="Index">Vazgeç</a>
+                    <button class="btn btn-primary" type="submit">
+                        <span class="material-symbols-outlined ms-sm">save</span>
+                        Kaydet
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

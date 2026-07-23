@@ -1,0 +1,114 @@
+@model MobileGiderFormViewModel
+@{
+    ViewData["Title"] = "Gider Düzenle";
+    ViewData["MobileBack"] = Url.Action("Detay", "Gider", new { area = "Mobile", id = Model.Id });
+    var inputStyle = "width:100%;height:44px;margin-top:4px;padding:0 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;background:#fff;";
+    var readonlyStyle = "width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;background:#f8fafc;color:var(--m-muted);";
+    var labelStyle = "font-size:13px;font-weight:600;color:var(--m-muted);";
+}
+
+<form method="post" asp-area="Mobile" asp-controller="Gider" asp-action="Duzenle" asp-route-id="@Model.Id" enctype="multipart/form-data"
+      class="m-card" style="display:flex;flex-direction:column;gap:14px;">
+    @Html.AntiForgeryToken()
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="m-note">
+            @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@err.ErrorMessage</div>
+            }
+        </div>
+    }
+
+    @if (Model.IsMahsup)
+    {
+        <div class="m-note" style="background:#e2f1f2;border-color:#bfe0e2;color:#0a5c64;">
+            Bu bir mahsup işlemidir; daire, kategori ve tutar aidat tahsilatıyla bağlı olduğu için değiştirilemez.
+        </div>
+        <div style="display:block;">
+            <span style="@labelStyle">Daire</span>
+            <div style="@readonlyStyle">@Model.UnitDisplay</div>
+        </div>
+    }
+
+    <label style="display:block;">
+        <span style="@labelStyle">Kategori</span>
+        @if (Model.AmountCategoryEditable)
+        {
+            <select asp-for="CategoryId" style="@inputStyle">
+                <option value="">Seçiniz</option>
+                @foreach (var opt in Model.CategoryOptions)
+                {
+                    <option value="@opt.Value">@opt.Text</option>
+                }
+            </select>
+        }
+        else
+        {
+            <div style="@readonlyStyle">@Model.CategoryOptions.FirstOrDefault(x => x.Value == Model.CategoryId.ToString())?.Text</div>
+        }
+    </label>
+
+    <label style="display:block;">
+        <span style="@labelStyle">Tutar (TL)</span>
+        @if (Model.AmountCategoryEditable)
+        {
+            <input asp-for="Amount" type="number" step="0.01" min="0.01" style="@inputStyle" />
+        }
+        else
+        {
+            <div style="@readonlyStyle">@Model.Amount?.ToString("N2") TL</div>
+        }
+    </label>
+
+    <label style="display:block;">
+        <span style="@labelStyle">Açıklama</span>
+        <textarea asp-for="Description" rows="3"
+                  style="width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--m-border);border-radius:12px;font-size:15px;resize:vertical;"></textarea>
+    </label>
+
+    @if (Model.ExistingAttachments.Count > 0)
+    {
+        <div>
+            <span style="@labelStyle">Ekli fotoğraflar</span>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+                @foreach (var att in Model.ExistingAttachments)
+                {
+                    <span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:999px;padding:5px 10px;font-size:13px;">
+                        <a href="#" style="color:var(--m-primary);text-decoration:none;"
+                           onclick="event.preventDefault(); openLightbox('@Url.Action("Ek", "Gider", new { area = "Mobile", id = att.Id })')">@att.FileName</a>
+                        @if (Model.CanRemoveAttachments)
+                        {
+                            <button type="submit" form="ekSil-@att.Id" style="background:none;border:none;color:var(--m-debt);font-weight:700;cursor:pointer;padding:0;">✕</button>
+                        }
+                    </span>
+                }
+            </div>
+        </div>
+    }
+
+    <label style="display:block;">
+        <span style="@labelStyle">Fiş / fatura fotoğrafı ekle</span>
+        <input type="file" name="Fotograflar" accept="image/*" multiple
+               style="width:100%;margin-top:6px;font-size:14px;" />
+    </label>
+
+    <button type="submit" style="height:46px;background:var(--m-primary);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;">
+        Güncelle
+    </button>
+</form>
+
+@if (Model.CanRemoveAttachments)
+{
+    @* Ic ice <form> gecersiz oldugu icin kaldirma formlari ana formun disinda; buton "form" attribute'u ile bunlara baglanir. *@
+    foreach (var att in Model.ExistingAttachments)
+    {
+        <form id="ekSil-@att.Id" asp-area="Mobile" asp-controller="Gider" asp-action="EkSil" method="post" style="display:none;"
+              onsubmit="return confirm('Bu fotoğraf kaldırılsın mı?');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="attachmentId" value="@att.Id" />
+            <input type="hidden" name="ledgerTransactionId" value="@Model.Id" />
+        </form>
+    }
+}

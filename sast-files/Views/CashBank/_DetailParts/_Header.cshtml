@@ -1,0 +1,93 @@
+@model Kumburgaz.Web.Models.CashBankDetailViewModel
+@using System.Globalization
+@{
+    var trTR = new CultureInfo("tr-TR");
+    var isBank = Model.Kind == "bank";
+    var iconName = isBank ? "account_balance" : "payments";
+    var iconBg = isBank ? "bg-info/10 text-info" : "bg-warning/10 text-warning";
+    var kindLabel = isBank ? "Banka" : "Kasa";
+    var kindPill = isBank ? "pill-info" : "pill-warn";
+    var max14 = Model.Last14DaysActivity.Any() ? Math.Max(1, Model.Last14DaysActivity.Max()) : 1;
+}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="p-5 flex items-start gap-5">
+        <div class="w-14 h-14 rounded-xl @iconBg flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined" style="font-size:28px;">@iconName</span>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="pill @kindPill">@kindLabel</span>
+                @if (Model.IsActive)
+                {
+                    <span class="pill pill-ok"><span class="material-symbols-outlined" style="font-size:14px;">check_circle</span>Aktif</span>
+                }
+                else
+                {
+                    <span class="pill pill-muted">Pasif</span>
+                }
+            </div>
+            <h2 class="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight">@Model.Name</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-1.5 mt-3 text-sm">
+                @if (isBank)
+                {
+                    <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Banka Adı</span><span class="text-gray-900 font-medium">@Model.Name</span></div>
+                    <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">Şube</span><span class="text-gray-900 font-medium">@(Model.Branch ?? "-")</span></div>
+                    <div class="flex gap-2"><span class="text-gray-400 w-24 shrink-0">IBAN</span><span class="text-gray-900 font-medium tracking-wide">@(Model.Iban ?? "-")</span></div>
+                }
+                else
+                {
+                    <div class="flex gap-2"><span class="text-gray-400 w-32 shrink-0">Açılış Bakiyesi</span><span class="text-gray-900 font-medium">@Model.OpeningBalance.ToString("N2", trTR) ₺</span></div>
+                    <div class="flex gap-2"><span class="text-gray-400 w-32 shrink-0">Açılış Tarihi</span><span class="text-gray-900 font-medium">@Model.OpeningDate.ToString("dd.MM.yyyy")</span></div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 border-t border-gray-100 divide-x divide-gray-100">
+        <div class="p-4">
+            <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bakiye</div>
+            <div class="mt-1 flex items-baseline gap-1">
+                @{
+                    var balStr = Model.Balance.ToString("N2", trTR);
+                    var dotIdx = balStr.LastIndexOf(',');
+                    var balMain = dotIdx >= 0 ? balStr[..dotIdx] : balStr;
+                    var balCents = dotIdx >= 0 ? balStr[(dotIdx + 1)..] : "00";
+                }
+                <span class="text-2xl font-extrabold text-gray-900 tabular-nums">@balMain,<span class="text-gray-500 text-lg">@balCents</span></span>
+                <span class="text-base text-gray-500 ml-0.5">₺</span>
+            </div>
+        </div>
+        <div class="p-4">
+            <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bu Ay Giriş</div>
+            <div class="mt-1 flex items-baseline gap-1">
+                <span class="text-xl font-bold text-emerald-600 tabular-nums">+@Model.MonthInflow.ToString("N2", trTR)</span>
+                <span class="text-sm text-emerald-600/80">₺</span>
+            </div>
+            <div class="text-[11px] text-gray-400 mt-0.5">@Model.MonthInflowCount işlem</div>
+        </div>
+        <div class="p-4">
+            <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Bu Ay Çıkış</div>
+            <div class="mt-1 flex items-baseline gap-1">
+                <span class="text-xl font-bold text-red-600 tabular-nums">−@Model.MonthOutflow.ToString("N2", trTR)</span>
+                <span class="text-sm text-red-600/80">₺</span>
+            </div>
+            <div class="text-[11px] text-gray-400 mt-0.5">@Model.MonthOutflowCount işlem</div>
+        </div>
+        <div class="p-4">
+            <div class="text-xs font-semibold tracking-widest uppercase text-gray-400">Son 14 Gün</div>
+            <div class="spark mt-2">
+                @{
+                    var act = Model.Last14DaysActivity;
+                    var maxAct = act.Any() ? Math.Max(1, act.Max()) : 1;
+                }
+                @for (int i = 0; i < act.Count; i++)
+                {
+                    var pct = (int)Math.Round((double)act[i] / maxAct * 100);
+                    var isHi = act[i] == maxAct && act[i] > 0;
+                    <span class="@(isHi ? "hi" : "")" style="height:@(Math.Max(8, pct))%"></span>
+                }
+            </div>
+        </div>
+    </div>
+</div>

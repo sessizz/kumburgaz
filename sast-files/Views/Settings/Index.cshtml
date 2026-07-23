@@ -1,0 +1,28 @@
+@{
+    ViewData["Title"] = "Ayarlar";
+    var cards = new[]
+    {
+        new { Title = "Bloklar", Text = "Blok tanımları ve daire sayıları", Controller = "Blocks", Icon = "domain" },
+        new { Title = "Hesaplar", Text = "Malik, kiracı, personel ve tedarikçiler", Controller = "Accounts", Icon = "contacts" },
+        new { Title = "Kullanıcılar", Text = "Giriş kullanıcıları, roller ve hesap bağlantıları", Controller = "SystemUsers", Icon = "manage_accounts" },
+        new { Title = "Roller ve Yetkiler", Text = "Rollerin modül bazında görüntüleme/değiştirme yetkileri", Controller = "RolePermissions", Icon = "admin_panel_settings" },
+        new { Title = "Aidat Grupları", Text = "Daireleri aidat gruplarına bağla", Controller = "BillingGroups", Icon = "group_work" },
+        new { Title = "Aidat Tipleri", Text = "Aidat tutarı ve tipleri", Controller = "DuesTypes", Icon = "sell" },
+        new { Title = "Gelir/Gider Kategorileri", Text = "Muhasebe kategori sözlüğü", Controller = "IncomeExpenseCategories", Icon = "category" },
+        new { Title = "Devir Bakiyeleri", Text = "Önceki dönem borç/alacakları", Controller = "OpeningBalances", Icon = "account_balance" },
+        new { Title = "Denetim Kaydı", Text = "Audit, import ve tutarlılık kayıtları", Controller = "Audit", Icon = "manage_search" },
+        new { Title = "Yedekleme", Text = "Manuel yedek ve geri yükleme", Controller = "Backups", Icon = "backup" }
+    };
+}
+<div class="space-y-4">
+    <div><h1 class="text-2xl font-extrabold text-gray-900">Ayarlar</h1><p class="text-sm text-gray-400">Sistemin ana tanımları ve dönem başlangıç ayarları</p></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        @foreach (var card in cards)
+        {
+            <a class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:border-blue-300 hover:shadow-md transition flex items-start gap-4" asp-controller="@card.Controller" asp-action="Index">
+                <div class="ico" style="background:#eff6ff;"><span class="material-symbols-outlined text-blue-600">@card.Icon</span></div>
+                <div><div class="font-bold text-gray-900">@card.Title</div><div class="text-sm text-gray-500 mt-1">@card.Text</div></div>
+            </a>
+        }
+    </div>
+</div>

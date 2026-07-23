@@ -1,0 +1,85 @@
+@model MobileUnitListViewModel
+@{
+    ViewData["Title"] = "Daireler";
+
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+
+    (string cls, string text) Bal(decimal b)
+    {
+        if (b > 0.005m) return ("debt", Tl(b) + " borç");
+        if (b < -0.005m) return ("credit", Tl(Math.Abs(b)) + " alacak");
+        return ("zero", "Temiz");
+    }
+
+    string Active(string status) => Model.Status == status ? "active" : string.Empty;
+    var allCount = Model.DebtorCount + Model.CreditorCount + Model.CleanCount;
+}
+
+<form method="get" class="m-search" role="search">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+    <input type="hidden" name="status" value="@Model.Status" />
+    <input type="search" name="q" value="@Model.Query" placeholder="Daire, blok veya malik ara" autocomplete="off" />
+</form>
+
+<nav class="m-filter-tabs" aria-label="Daire bakiye filtresi">
+    <a class="m-filter-tab @Active("all")" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-q="@Model.Query" asp-route-status="all">
+        <span>Tümü</span>
+        <strong>@allCount</strong>
+    </a>
+    <a class="m-filter-tab @Active("debt")" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-q="@Model.Query" asp-route-status="debt">
+        <span>Borçlular</span>
+        <strong>@Model.DebtorCount</strong>
+    </a>
+    <a class="m-filter-tab @Active("credit")" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-q="@Model.Query" asp-route-status="credit">
+        <span>Alacaklılar</span>
+        <strong>@Model.CreditorCount</strong>
+    </a>
+    <a class="m-filter-tab @Active("clean")" asp-area="Mobile" asp-controller="Daireler" asp-action="Index" asp-route-q="@Model.Query" asp-route-status="clean">
+        <span>Temiz</span>
+        <strong>@Model.CleanCount</strong>
+    </a>
+</nav>
+
+@if (Model.Blocks.Count == 0)
+{
+    <div class="m-empty">
+        <div class="m-empty-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /></svg>
+        </div>
+        @if (string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <div>Aktif daire bulunamadı.</div>
+        }
+        else
+        {
+            <div>"@Model.Query" için sonuç yok.</div>
+        }
+    </div>
+}
+else
+{
+    foreach (var block in Model.Blocks)
+    {
+        <div class="m-section-title">@block.BlockName</div>
+        <div class="m-list">
+            @foreach (var u in block.Units)
+            {
+                var bal = Bal(u.Balance);
+                var ownerName = string.IsNullOrWhiteSpace(u.ResponsibleAccountName) ? u.OwnerName : u.ResponsibleAccountName;
+                <a class="m-list-item" asp-area="Mobile" asp-controller="Daireler" asp-action="Detay" asp-route-id="@u.Id">
+                    <div class="m-li-main">
+                        <div class="m-li-title">@u.Display</div>
+                        @if (!string.IsNullOrWhiteSpace(ownerName))
+                        {
+                            <div class="m-li-sub">@ownerName</div>
+                        }
+                    </div>
+                    <span class="m-bal @bal.cls">@bal.text</span>
+                    <span class="m-li-chev">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                    </span>
+                </a>
+            }
+        </div>
+    }
+}

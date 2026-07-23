@@ -1,0 +1,31 @@
+@model List<Announcement>
+@{
+    ViewData["Title"] = "Duyurular";
+}
+
+@if (Model.Count == 0)
+{
+    <div class="m-empty">
+        <div class="m-empty-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>
+        </div>
+        <div>Yayınlanmış duyuru yok.</div>
+    </div>
+}
+else
+{
+    <div class="m-list">
+        @foreach (var a in Model)
+        {
+            <a class="m-list-item" asp-area="Mobile" asp-controller="Duyurular" asp-action="Detay" asp-route-id="@a.Id">
+                <div class="m-li-main">
+                    <div class="m-li-title">@a.Title</div>
+                    <div class="m-li-sub">@a.PublishDate.ToString("dd.MM.yyyy")@(a.Priority != "Normal" ? " · " + a.Priority : "")</div>
+                </div>
+                <span class="m-li-chev">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                </span>
+            </a>
+        }
+    </div>
+}

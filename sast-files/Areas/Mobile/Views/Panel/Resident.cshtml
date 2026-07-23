@@ -1,0 +1,84 @@
+@model MobileResidentPanelViewModel
+@{
+    ViewData["Title"] = "Panel";
+    string Tl(decimal v) => v.ToString("N2") + " TL";
+
+    var b = Model.Balance;
+    string balCls = b > 0.005m ? "is-debt" : (b < -0.005m ? "is-credit" : "");
+    string balColor = b > 0.005m ? "color:var(--m-debt);" : (b < -0.005m ? "color:var(--m-credit);" : "");
+    string balText = b > 0.005m ? Tl(b) + " borç" : (b < -0.005m ? Tl(Math.Abs(b)) + " alacak" : "Bakiye temiz");
+
+    (string cls, string text) Bal(decimal x)
+    {
+        if (x > 0.005m) return ("debt", Tl(x) + " borç");
+        if (x < -0.005m) return ("credit", Tl(Math.Abs(x)) + " alacak");
+        return ("zero", "Temiz");
+    }
+}
+
+@if (!Model.HasUnits)
+{
+    <div class="m-note">
+        Hesabınız henüz bir daireye bağlanmamış. Lütfen site yönetimi ile görüşün.
+    </div>
+}
+else
+{
+    <div class="m-card @balCls" style="text-align:center;">
+        <div class="m-stat-label" style="justify-content:center;">Güncel bakiyeniz</div>
+        <div class="m-stat-value mono-amt" style="font-size:26px;@balColor">@balText</div>
+        <div class="m-stat-sub">@Model.UnitCount daire</div>
+    </div>
+
+    <div class="m-section-title">Dairelerim</div>
+    <div class="m-list">
+        @foreach (var u in Model.Units)
+        {
+            var bal = Bal(u.Balance);
+            <a class="m-list-item" asp-area="Mobile" asp-controller="Daireler" asp-action="Detay" asp-route-id="@u.Id">
+                <div class="m-li-main">
+                    <div class="m-li-title">@u.Display</div>
+                    @if (!string.IsNullOrWhiteSpace(u.OwnerName))
+                    {
+                        <div class="m-li-sub">@u.OwnerName</div>
+                    }
+                </div>
+                <span class="m-bal @bal.cls">@bal.text</span>
+                <span class="m-li-chev">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+                </span>
+            </a>
+        }
+    </div>
+
+    @if (Model.RecentPayments.Count > 0)
+    {
+        <div class="m-section-title">Son ödemeler</div>
+        <div class="m-card">
+            @foreach (var p in Model.RecentPayments)
+            {
+                <div class="m-row">
+                    <div class="m-row-main">
+                        <div class="m-row-title">@p.UnitDisplay</div>
+                        <div class="m-row-sub">@p.Date.ToString("dd.MM.yyyy")</div>
+                    </div>
+                    <div class="m-row-amt m-amt-credit">@Tl(p.Amount)</div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (Model.RecentAnnouncements.Count > 0)
+    {
+        <div class="m-section-title">Son duyurular</div>
+        <div class="m-list">
+            @foreach (var a in Model.RecentAnnouncements)
+            {
+                <a class="m-list-item" style="display:block;" asp-area="Mobile" asp-controller="Duyurular" asp-action="Detay" asp-route-id="@a.Id">
+                    <div class="m-li-title">@a.Title</div>
+                    <div class="m-li-sub" style="white-space:normal;">@a.PublishDate.ToString("dd.MM.yyyy")</div>
+                </a>
+            }
+        </div>
+    }
+}

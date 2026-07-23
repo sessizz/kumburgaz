@@ -1,0 +1,104 @@
+@inject Kumburgaz.Web.Services.PermissionService Perm
+@{
+    ViewData["Title"] = "Diğer";
+    var isResident = User.IsInRole(AppRoles.Sakin);
+    var displayName = User.FindFirst(Kumburgaz.Web.Services.ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType)?.Value
+        ?? User.Identity?.Name;
+}
+
+@if (TempData["MobileSuccess"] is string ok)
+{
+    <div class="m-note" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857;">@ok</div>
+}
+
+<div class="m-card" style="display:flex;align-items:center;gap:12px;">
+    <div style="width:44px;height:44px;border-radius:999px;background:var(--m-primary);color:#fff;display:flex;align-items:center;justify-content:center;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
+    </div>
+    <div class="m-li-main">
+        <div class="m-li-title">@displayName</div>
+        <div class="m-li-sub">@(isResident ? "Sakin" : "Yönetim")</div>
+    </div>
+</div>
+
+@{
+    var showDuyurular = Perm.CanView(User, AppModules.Duyurular);
+    var showTalepler = Perm.CanView(User, AppModules.Talepler);
+    var showKasaBanka = Perm.CanView(User, AppModules.KasaBanka);
+}
+@* Bildirimler herkese acik (sadece [Authorize]); bolum bu yuzden kosulsuz gosterilir. *@
+<div class="m-section-title">Hızlı erişim</div>
+<div class="m-list">
+        @if (showDuyurular)
+        {
+            <a class="m-list-item" asp-area="Mobile" asp-controller="Duyurular" asp-action="Index">
+                <span style="color:var(--m-muted);">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>
+                </span>
+                <div class="m-li-main"><div class="m-li-title">Duyurular</div></div>
+                <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+            </a>
+        }
+        @if (showTalepler)
+        {
+            <a class="m-list-item" asp-area="Mobile" asp-controller="Talepler" asp-action="Index">
+                <span style="color:var(--m-muted);">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                </span>
+                <div class="m-li-main"><div class="m-li-title">Talepler</div></div>
+                <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+            </a>
+        }
+        <a class="m-list-item" asp-area="Mobile" asp-controller="Bildirimler" asp-action="Index">
+            <span style="color:var(--m-muted);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+            </span>
+            <div class="m-li-main"><div class="m-li-title">Bildirimler</div></div>
+            <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+        </a>
+        @if (showKasaBanka)
+        {
+            <a class="m-list-item" asp-area="Mobile" asp-controller="KasaBanka" asp-action="Index">
+                <span style="color:var(--m-muted);">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V10l7-6 7 6v11" /><path d="M9 21v-6h6v6" /></svg>
+                </span>
+                <div class="m-li-main"><div class="m-li-title">Kasa-Banka</div></div>
+                <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+            </a>
+        }
+</div>
+
+<div class="m-section-title">Hesap</div>
+<div class="m-list">
+    <a class="m-list-item" asp-area="Mobile" asp-controller="Hesap" asp-action="Sifre">
+        <span style="color:var(--m-muted);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="16" r="1" /><rect x="3" y="10" width="18" height="12" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" /></svg>
+        </span>
+        <div class="m-li-main"><div class="m-li-title">Şifre Değiştir</div></div>
+        <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+    </a>
+    <a class="m-list-item" asp-area="Mobile" asp-controller="Yardim" asp-action="Kurulum">
+        <span style="color:var(--m-muted);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 1.5-2.5 3" /><path d="M12 17h.01" /></svg>
+        </span>
+        <div class="m-li-main"><div class="m-li-title">Kurulum Yardımı</div></div>
+        <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+    </a>
+    @if (!isResident)
+    {
+        <a class="m-list-item" href="/">
+            <span style="color:var(--m-muted);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+            </span>
+            <div class="m-li-main"><div class="m-li-title">Masaüstü sürüm</div></div>
+            <span class="m-li-chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg></span>
+        </a>
+    }
+</div>
+
+<form method="post" action="/Identity/Account/Logout?returnUrl=%2FIdentity%2FAccount%2FLogin" style="margin-top:8px;">
+    @Html.AntiForgeryToken()
+    <button type="submit" class="m-card" style="width:100%;text-align:center;color:var(--m-debt);font-weight:700;font-size:15px;border:none;cursor:pointer;">
+        Çıkış Yap
+    </button>
+</form>

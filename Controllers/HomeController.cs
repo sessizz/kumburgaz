@@ -225,6 +225,7 @@ public class HomeController(
             SelectedPeriod = selectedPeriod,
             PeriodOptions = DuesController.BuildPeriodOptions(periods, selectedPeriod),
             CollectionRate = collectionRate,
+            CollectedInPeriod = collectedInPeriod,
             TotalGenerated = totalGenerated,
             OverdueDebt = overdueDebt,
             OverdueUnitCount = overdueUnitCount,

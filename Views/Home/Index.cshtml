@@ -105,6 +105,9 @@
             <div class="min-w-0 flex-1">
                 <div class="text-xs text-gray-500 font-medium">Tahsilat Oranı</div>
                 <div class="mt-0.5 text-2xl font-extrabold text-gray-900 tabular-nums">%@Model.CollectionRate.ToString("N1")</div>
+                <div class="text-sm text-gray-600 mt-1">
+                    Toplanan: <span class="font-bold text-emerald-600 tabular-nums">@Money(Model.CollectedInPeriod)</span>
+                </div>
                 <div class="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1">
                     <span class="material-symbols-outlined" style="font-size:14px;">trending_up</span>
                     <span class="text-gray-400 font-normal">Tahsil edilen / toplam tahakkuk</span>

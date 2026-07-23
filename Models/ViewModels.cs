@@ -1030,6 +1030,7 @@ public class DashboardViewModel
     public string SelectedPeriod { get; set; } = string.Empty;
     public List<SelectListItem> PeriodOptions { get; set; } = [];
     public decimal CollectionRate { get; set; }
+    public decimal CollectedInPeriod { get; set; }
     public decimal TotalGenerated { get; set; }
     public decimal OverdueDebt { get; set; }
     public int OverdueUnitCount { get; set; }

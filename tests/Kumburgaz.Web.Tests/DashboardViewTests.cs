@@ -5,14 +5,19 @@ namespace Kumburgaz.Web.Tests;
 public class DashboardViewTests
 {
     [Fact]
-    public void Collection_rate_card_displays_the_selected_period_collected_amount()
+    public void Collection_rate_card_displays_payments_carryover_and_total_separately()
     {
         var root = FindProjectRoot();
         var controller = File.ReadAllText(Path.Combine(root, "Controllers", "HomeController.cs"));
         var view = File.ReadAllText(Path.Combine(root, "Views", "Home", "Index.cshtml"));
 
-        Assert.Contains("CollectedInPeriod = collectedInPeriod", controller);
+        Assert.Contains("CollectedFromPayments = collectedFromPayments", controller);
+        Assert.Contains("CarriedCreditInPeriod = carriedCreditInPeriod", controller);
         Assert.Contains("Toplanan:", view);
+        Assert.Contains("Devirden:", view);
+        Assert.Contains("Toplam:", view);
+        Assert.Contains("Money(Model.CollectedFromPayments)", view);
+        Assert.Contains("Money(Model.CarriedCreditInPeriod)", view);
         Assert.Contains("Money(Model.CollectedInPeriod)", view);
     }
 

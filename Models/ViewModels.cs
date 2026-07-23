@@ -418,6 +418,7 @@ public class DuesListItemViewModel
     public bool IsOverdue { get; set; }
     public decimal Amount { get; set; }
     public decimal RemainingAmount { get; set; }
+    public decimal CarriedCreditAppliedAmount { get; set; }
     /// <summary>True ise bu satır bir aidat taksiti değil, devir bakiyesidir (Tahsilat butonu gizlenir).</summary>
     public bool IsOpeningBalance { get; set; }
 }
@@ -1030,6 +1031,8 @@ public class DashboardViewModel
     public string SelectedPeriod { get; set; } = string.Empty;
     public List<SelectListItem> PeriodOptions { get; set; } = [];
     public decimal CollectionRate { get; set; }
+    public decimal CollectedFromPayments { get; set; }
+    public decimal CarriedCreditInPeriod { get; set; }
     public decimal CollectedInPeriod { get; set; }
     public decimal TotalGenerated { get; set; }
     public decimal OverdueDebt { get; set; }

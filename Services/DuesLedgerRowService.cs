@@ -180,11 +180,24 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
         {
             var unitRows = rows.Where(r => r.UnitId == unit.Id).ToList();
             var collectionCredit = collectionCredits.GetValueOrDefault(unit.Id);
-            var credit = collectionCredit?.Amount ?? 0m;
+            var collectionCreditRemaining = collectionCredit?.Amount ?? 0m;
+            if (collectionCreditRemaining > 0)
+            {
+                collectionCreditRemaining = ApplyCreditToRows(
+                    unitRows,
+                    collectionCreditRemaining,
+                    collectionCredit?.LastDate,
+                    trackAsCarriedCredit: false);
+            }
 
+            var openingCreditRemaining = 0m;
             if (unit.OpeningBalance > 0)
             {
-                credit += unit.OpeningBalance;
+                openingCreditRemaining = ApplyCreditToRows(
+                    unitRows,
+                    unit.OpeningBalance,
+                    unit.OpeningBalanceDate,
+                    trackAsCarriedCredit: true);
             }
             else if (unit.OpeningBalance < 0)
             {
@@ -198,29 +211,33 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
                     rows.Add(BuildOpeningBalanceRow(unit, debt));
             }
 
-            if (credit > 0)
-            {
-                credit = ApplyCreditToRows(unitRows, credit, collectionCredit?.LastDate ?? unit.OpeningBalanceDate);
-            }
-
             if (unit.OpeningBalance > 0)
             {
                 // Kullanılmayan kredi varsa ek bir bilgilendirme satırı (alacaklı)
-                if (credit > 0 && unit.OpeningBalanceDate.HasValue)
+                var remainingCredit = collectionCreditRemaining + openingCreditRemaining;
+                if (remainingCredit > 0 && unit.OpeningBalanceDate.HasValue)
                 {
-                    rows.Add(BuildOpeningBalanceRow(unit, -credit));
+                    rows.Add(BuildOpeningBalanceRow(unit, -remainingCredit));
                 }
             }
         }
     }
 
-    private static decimal ApplyCreditToRows(List<DuesListItemViewModel> unitRows, decimal credit, DateTime? creditDate)
+    private static decimal ApplyCreditToRows(
+        List<DuesListItemViewModel> unitRows,
+        decimal credit,
+        DateTime? creditDate,
+        bool trackAsCarriedCredit)
     {
         foreach (var row in unitRows.Where(r => !r.IsPaid).OrderBy(r => r.AccrualDate).ThenBy(r => r.PaymentOrDueDate))
         {
             if (credit <= 0) break;
             var reduction = Math.Min(row.RemainingAmount, credit);
             row.RemainingAmount -= reduction;
+            if (trackAsCarriedCredit)
+            {
+                row.CarriedCreditAppliedAmount += reduction;
+            }
             credit -= reduction;
             if (row.RemainingAmount <= 0)
             {

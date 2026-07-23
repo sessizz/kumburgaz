@@ -44,6 +44,8 @@ public class HomeController(
             .Count();
         var totalCredit = openingRows.Where(x => x.RemainingAmount < 0).Sum(x => -x.RemainingAmount);
         var collectedInPeriod = totalGenerated - periodRows.Sum(x => x.RemainingAmount);
+        var carriedCreditInPeriod = periodRows.Sum(x => x.CarriedCreditAppliedAmount);
+        var collectedFromPayments = collectedInPeriod - carriedCreditInPeriod;
         var collectionRate = totalGenerated > 0 ? Math.Min(100m, collectedInPeriod / totalGenerated * 100m) : 0m;
         var overdueItems = openingRows.Where(x => x.RemainingAmount > 0)
             .Concat(allDuesRows.Where(x => !x.IsPaid && x.IsOverdue))
@@ -225,6 +227,8 @@ public class HomeController(
             SelectedPeriod = selectedPeriod,
             PeriodOptions = DuesController.BuildPeriodOptions(periods, selectedPeriod),
             CollectionRate = collectionRate,
+            CollectedFromPayments = collectedFromPayments,
+            CarriedCreditInPeriod = carriedCreditInPeriod,
             CollectedInPeriod = collectedInPeriod,
             TotalGenerated = totalGenerated,
             OverdueDebt = overdueDebt,

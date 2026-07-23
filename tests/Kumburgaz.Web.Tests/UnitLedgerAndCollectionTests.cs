@@ -9,6 +9,24 @@ namespace Kumburgaz.Web.Tests;
 public class UnitLedgerAndCollectionTests
 {
     [Fact]
+    public async Task Dues_rows_track_credit_applied_to_each_period()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedUnitAsync(db, openingBalance: 10_000m, openingDate: Utc(2025, 5, 26));
+        var older = await AddInstallmentAsync(
+            db, seed, Utc(2025, 7, 20), Utc(2026, 5, 31), 8_000m, period: "2025-2026");
+        var newer = await AddInstallmentAsync(
+            db, seed, Utc(2026, 7, 20), Utc(2026, 9, 30), 5_000m, period: "2026-2027");
+
+        var rows = await new DuesLedgerRowService(db).GetInstallmentRowsAsync();
+        var creditProperty = typeof(DuesListItemViewModel).GetProperty("CarriedCreditAppliedAmount");
+
+        Assert.NotNull(creditProperty);
+        Assert.Equal(8_000m, creditProperty.GetValue(rows.Single(x => x.Id == older.Id)));
+        Assert.Equal(2_000m, creditProperty.GetValue(rows.Single(x => x.Id == newer.Id)));
+    }
+
+    [Fact]
     public async Task Opening_credit_reduces_net_balance()
     {
         await using var db = CreateDb();

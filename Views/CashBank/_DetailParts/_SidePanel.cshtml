@@ -37,7 +37,7 @@
                 Para Hareketi
             </button>
             <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-sm border border-gray-200">
-                <li><button type="button" onclick="collectionModal.showModal()">Tahsilat</button></li>
+                <li><button type="button" onclick="incomeModal.showModal()">Gelir</button></li>
                 <li><button type="button" onclick="openLedgerModal(false)">Ödeme</button></li>
                 @if (Model.Kind == "bank")
                 {
@@ -64,13 +64,13 @@
         <div class="grid grid-cols-3 gap-2 mt-4">
             @{
                 var shortcuts = Model.Kind == "bank"
-                    ? new[] { ("south_west", "Tahsilat"), ("north_east", "Ödeme"), ("swap_horiz", "Transfer") }
-                    : new[] { ("south_west", "Tahsilat"), ("north_east", "Ödeme"), ("upload", "Bankaya Yatır") };
+                    ? new[] { ("south_west", "Gelir"), ("north_east", "Ödeme"), ("swap_horiz", "Transfer") }
+                    : new[] { ("south_west", "Gelir"), ("north_east", "Ödeme"), ("upload", "Bankaya Yatır") };
             }
             @foreach (var (icon, label) in shortcuts)
             {
-                var click = label == "Tahsilat"
-                    ? "collectionModal.showModal()"
+                var click = label == "Gelir"
+                    ? "incomeModal.showModal()"
                     : label == "Ödeme"
                         ? "openLedgerModal(false)"
                         : "transferModal.showModal()";
@@ -176,44 +176,61 @@
     <form method="dialog" class="modal-backdrop"><button>kapat</button></form>
 </dialog>
 
-<dialog id="collectionModal" class="modal">
+<dialog id="incomeModal" class="modal">
     <div class="modal-box max-w-2xl">
-        <form asp-action="CreateCollection" method="post" class="space-y-4">
+        <form asp-action="CreateIncome" method="post" class="space-y-4">
             @Html.AntiForgeryToken()
             <input type="hidden" name="Kind" value="@Model.Kind" />
             <input type="hidden" name="Id" value="@Model.Id" />
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold">Tahsilat</h3>
-                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="collectionModal.close()">✕</button>
+                <h3 class="text-lg font-bold">Gelir</h3>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="incomeModal.close()">✕</button>
             </div>
-            <input type="hidden" name="BillingGroupId" data-dues-billing-group />
             <fieldset class="fieldset">
-                <legend class="fieldset-legend">Dönem</legend>
-                <select class="select select-bordered w-full" data-dues-period>
-                    @foreach (var option in Model.PeriodOptions)
+                <legend class="fieldset-legend">Gelir kategorisi</legend>
+                <select name="IncomeSource"
+                        class="select select-bordered w-full"
+                        required
+                        data-income-source
+                        onchange="syncIncomeFields()">
+                    <option value="">Seçiniz</option>
+                    <option value="dues">Aidat</option>
+                    @foreach (var option in Model.IncomeCategoryOptions)
                     {
-                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                        <option value="category:@option.Value">@option.Text</option>
                     }
                 </select>
             </fieldset>
-            <fieldset class="fieldset">
-                <legend class="fieldset-legend">Daire / Malik</legend>
-                <label class="input input-bordered flex items-center gap-2 mb-2">
-                    <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
-                    <input type="search" data-dues-search placeholder="Daire no, blok veya isim ara" class="grow" />
-                </label>
-                <select name="DuesInstallmentId" class="select select-bordered w-full" required data-dues-select>
-                    <option value="">Daire veya malik seçin</option>
-                    @foreach (var option in Model.DuesInstallmentOptions)
-                    {
-                        <option value="@option.Id"
-                                data-billing-group-id="@option.BillingGroupId"
-                                data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                                data-period="@option.Period"
-                                data-search="@option.SearchText">@option.Text</option>
-                    }
-                </select>
-            </fieldset>
+            <div class="hidden space-y-4" data-income-dues-fields>
+                <input type="hidden" name="BillingGroupId" data-dues-billing-group />
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Dönem</legend>
+                    <select class="select select-bordered w-full" data-dues-period>
+                        @foreach (var option in Model.PeriodOptions)
+                        {
+                            <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Daire / Malik</legend>
+                    <label class="input input-bordered flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined ms-sm text-gray-400">search</span>
+                        <input type="search" data-dues-search placeholder="Daire no, blok veya isim ara" class="grow" />
+                    </label>
+                    <select name="DuesInstallmentId" class="select select-bordered w-full" data-dues-select>
+                        <option value="">Daire veya malik seçin</option>
+                        @foreach (var option in Model.DuesInstallmentOptions)
+                        {
+                            <option value="@option.Id"
+                                    data-billing-group-id="@option.BillingGroupId"
+                                    data-amount="@option.RemainingAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                    data-period="@option.Period"
+                                    data-search="@option.SearchText">@option.Text</option>
+                        }
+                    </select>
+                </fieldset>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <fieldset class="fieldset">
                     <legend class="fieldset-legend">Tarih</legend>
@@ -224,19 +241,28 @@
                     <input name="Amount" type="text" inputmode="decimal" class="input input-bordered w-full" required data-dues-amount />
                 </fieldset>
             </div>
-            <fieldset class="fieldset">
-                <label class="label cursor-pointer gap-2 px-0 w-fit">
-                    <input type="checkbox" id="createCollectionIsReceipt" name="IsReceipt" value="true" class="toggle toggle-sm toggle-primary" />
-                    <span class="label-text">Makbuz</span>
-                </label>
+            <fieldset class="fieldset hidden" data-income-ledger-fields>
+                <legend class="fieldset-legend">Açıklama</legend>
+                <textarea name="Description"
+                          class="textarea textarea-bordered w-full"
+                          rows="2"
+                          placeholder="Gelir açıklaması"></textarea>
             </fieldset>
-            <fieldset class="fieldset">
-                <legend id="createCollectionReferenceNoLegend" class="fieldset-legend">Referans / Not</legend>
-                <input name="ReferenceNo" id="createCollectionReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
-                <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not"></textarea>
-            </fieldset>
+            <div class="hidden space-y-4" data-income-dues-fields>
+                <fieldset class="fieldset">
+                    <label class="label cursor-pointer gap-2 px-0 w-fit">
+                        <input type="checkbox" id="createCollectionIsReceipt" name="IsReceipt" value="true" class="toggle toggle-sm toggle-primary" />
+                        <span class="label-text">Makbuz</span>
+                    </label>
+                </fieldset>
+                <fieldset class="fieldset">
+                    <legend id="createCollectionReferenceNoLegend" class="fieldset-legend">Referans / Not</legend>
+                    <input name="ReferenceNo" id="createCollectionReferenceNo" class="input input-bordered w-full mb-2" placeholder="Referans no" />
+                    <textarea name="Note" class="textarea textarea-bordered w-full" rows="2" placeholder="Not"></textarea>
+                </fieldset>
+            </div>
             <div class="modal-action">
-                <button type="button" class="btn btn-ghost" onclick="collectionModal.close()">Vazgeç</button>
+                <button type="button" class="btn btn-ghost" onclick="incomeModal.close()">Vazgeç</button>
                 <button type="submit" class="btn btn-primary">Kaydet</button>
             </div>
         </form>
@@ -404,6 +430,25 @@ function switchTab(btn, tab) {
     });
 }
 
+function syncIncomeFields() {
+    var modal = document.getElementById('incomeModal');
+    if (!modal) return;
+
+    var source = modal.querySelector('[data-income-source]');
+    var isDues = source && source.value === 'dues';
+    var isLedger = source && source.value.startsWith('category:');
+
+    modal.querySelectorAll('[data-income-dues-fields]').forEach(function(element) {
+        element.classList.toggle('hidden', !isDues);
+    });
+    modal.querySelectorAll('[data-income-ledger-fields]').forEach(function(element) {
+        element.classList.toggle('hidden', !isLedger);
+    });
+
+    var duesSelect = modal.querySelector('[data-dues-select]');
+    if (duesSelect) duesSelect.required = isDues;
+}
+
 function openLedgerModal(isBankFee) {
     document.getElementById('ledgerIsBankFee').value = isBankFee ? 'true' : 'false';
     document.getElementById('ledgerModalTitle').textContent = isBankFee ? 'Banka Masrafı' : 'Ödeme';
@@ -454,6 +499,7 @@ function wireDuesPicker(scope) {
 }
 
 document.querySelectorAll('.modal').forEach(wireDuesPicker);
+syncIncomeFields();
 
 (() => {
     const checkbox = document.getElementById("createCollectionIsReceipt");

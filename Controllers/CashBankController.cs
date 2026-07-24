@@ -92,8 +92,8 @@ public class CashBankController(
     {
         query.Type ??= "all"; query.Range ??= "all";
         if (query.From.HasValue || query.To.HasValue) query.Range = "custom";
-        if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
-            return await ExportCsv("cash", id, query);
+        if (Request.Query.ContainsKey("export"))
+            return await ExportExcel("cash", id, query);
         var vm = await detailService.BuildAsync("cash", id, query);
         if (vm == null) return NotFound();
         ViewData["Title"] = vm.Name;
@@ -105,8 +105,8 @@ public class CashBankController(
     {
         query.Type ??= "all"; query.Range ??= "all";
         if (query.From.HasValue || query.To.HasValue) query.Range = "custom";
-        if (Request.Query.ContainsKey("export") && Request.Query["export"] == "csv")
-            return await ExportCsv("bank", id, query);
+        if (Request.Query.ContainsKey("export"))
+            return await ExportExcel("bank", id, query);
         var vm = await detailService.BuildAsync("bank", id, query);
         if (vm == null) return NotFound();
         ViewData["Title"] = vm.Name;
@@ -1086,17 +1086,35 @@ public class CashBankController(
         return RedirectToDetail(model.Kind, model.Id);
     }
 
-    private async Task<IActionResult> ExportCsv(string kind, int id, CashBankDetailQuery query)
+    private async Task<IActionResult> ExportExcel(string kind, int id, CashBankDetailQuery query)
     {
-        var vm = await detailService.BuildAsync(kind, id, query);
+        // Dışa aktarma seçili filtreyi (tür, tarih aralığı, arama) korur ama sayfalamayı
+        // devre dışı bırakır: eşleşen TÜM işlemler tek dosyada gelir, yalnızca görünen sayfa değil.
+        var exportQuery = new CashBankDetailQuery
+        {
+            Q = query.Q,
+            Type = query.Type,
+            Range = query.Range,
+            From = query.From,
+            To = query.To,
+            Page = 1,
+            PageSize = int.MaxValue
+        };
+
+        var vm = await detailService.BuildAsync(kind, id, exportQuery);
         if (vm == null) return NotFound();
-        var rows = vm.Groups.SelectMany(g => g.Items).ToList();
-        var sb = new StringBuilder();
-        sb.AppendLine("Tarih;Açıklama;Tip;Tutar;Bakiye");
-        foreach (var r in rows)
-            sb.AppendLine($"{r.Date:dd.MM.yyyy};{r.Description};{r.Kind};{r.Amount:N2};{r.RunningBalance:N2}");
-        var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-        return File(bytes, "text/csv;charset=utf-8", $"{vm.Name}-islemler.csv");
+
+        var bytes = CashBankExcelExportHelper.Build(vm);
+        var safeName = string.Concat((vm.Name ?? "hareketler")
+            .Select(c => char.IsLetterOrDigit(c) ? c : '-'))
+            .Trim('-');
+        if (string.IsNullOrWhiteSpace(safeName)) safeName = "hareketler";
+        var fileName = $"{safeName}-hareketler-{DateTime.Now:yyyyMMdd}.xlsx";
+
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
     }
 
     private RedirectToActionResult RedirectToDetail(string kind, int id)

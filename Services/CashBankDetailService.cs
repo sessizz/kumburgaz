@@ -275,14 +275,6 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         return vm;
     }
 
-    public async Task<List<TxRow>> GetAllRowsAsync(string kind, int id)
-    {
-        // Export için tüm satırlar
-        var q = new CashBankDetailQuery { PageSize = int.MaxValue };
-        var vm = await BuildAsync(kind, id, q);
-        return vm?.Groups.SelectMany(g => g.Items).ToList() ?? new();
-    }
-
     private static bool IsTransfer(LedgerTransaction tx)
     {
         if (tx.IsTransfer)

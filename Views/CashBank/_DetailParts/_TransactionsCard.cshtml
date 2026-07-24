@@ -22,7 +22,7 @@
         if (!string.IsNullOrWhiteSpace(fromValue)) query.Add($"from={WebUtility.UrlEncode(fromValue)}");
         if (!string.IsNullOrWhiteSpace(toValue)) query.Add($"to={WebUtility.UrlEncode(toValue)}");
         if (!string.IsNullOrWhiteSpace(q.Q)) query.Add($"q={WebUtility.UrlEncode(q.Q)}");
-        if (export) query.Add("export=csv");
+        if (export) query.Add("export=xlsx");
 
         return "?" + string.Join("&", query);
     }
@@ -74,9 +74,10 @@
                     Seç
                 </button>
                 <a class="btn btn-sm btn-outline"
-                   href="@BuildUrl(currentPage, export: true)">
-                    <span class="material-symbols-outlined ms-sm">download</span>
-                    Dışa aktar
+                   href="@BuildUrl(currentPage, export: true)"
+                   title="Seçili filtredeki tüm işlemleri Excel olarak indir">
+                    <span class="material-symbols-outlined ms-sm">table_view</span>
+                    Excel'e aktar
                 </a>
             </div>
         </div>

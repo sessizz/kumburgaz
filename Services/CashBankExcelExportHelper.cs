@@ -99,8 +99,13 @@ public static class CashBankExcelExportHelper
         var isFiltered = (q.Type ?? "all") != "all"
             || (q.Range ?? "all") != "all"
             || !string.IsNullOrWhiteSpace(q.Q);
-        var closingBalance = isFiltered && rows.Count > 0 ? rows[^1].RunningBalance : vm.Balance;
-        var closingLabel = isFiltered ? "Kapanış Bakiyesi" : "Güncel Bakiye";
+        // "Kapanış Bakiyesi" yalnızca dökümde satır varsa gösterilir; en son satırın yürüyen
+        // bakiyesi aralık sonundaki gerçek bakiyedir. Filtre eşleşen satır getirmediyse (boş
+        // aralık) listelenen veriden aralık-sonu türetilemez; bu durumda anlık bakiye "Güncel
+        // Bakiye" etiketiyle gösterilir - böylece etiket her zaman gösterilen değerle tutarlıdır.
+        var showClosing = isFiltered && rows.Count > 0;
+        var closingBalance = showClosing ? rows[^1].RunningBalance : vm.Balance;
+        var closingLabel = showClosing ? "Kapanış Bakiyesi" : "Güncel Bakiye";
 
         var cards = new (string Label, decimal Value, XLColor Color)[]
         {

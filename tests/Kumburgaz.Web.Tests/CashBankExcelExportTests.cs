@@ -224,6 +224,63 @@ public class CashBankExcelExportTests
         Assert.Equal(1_000m, valueCell.GetValue<decimal>());
     }
 
+    [Fact]
+    public async Task Export_of_empty_date_range_does_not_mislabel_current_balance_as_closing()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Ana Hesap",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        var income = new IncomeExpenseCategory { Name = "Gelir", Type = CategoryTypeHelper.Gelir, Active = true };
+        db.AddRange(bank, income);
+        await db.SaveChangesAsync();
+
+        // İşlemler Şubat ve Nisan'da; Mart aralığında hiç işlem yok.
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            Date = Utc(2026, 2, 10),
+            Amount = 1_000m,
+            PaymentChannel = PaymentChannel.Bank,
+            BankAccountId = bank.Id,
+            IncomeExpenseCategoryId = income.Id,
+            Description = "Şubat geliri"
+        });
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            Date = Utc(2026, 4, 10),
+            Amount = 500m,
+            PaymentChannel = PaymentChannel.Bank,
+            BankAccountId = bank.Id,
+            IncomeExpenseCategoryId = income.Id,
+            Description = "Nisan geliri"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CashBankDetailService(db, new DuesLedgerRowService(db));
+        var vm = await service.BuildAsync("bank", bank.Id, new CashBankDetailQuery
+        {
+            Range = "custom",
+            From = new DateOnly(2026, 3, 1),
+            To = new DateOnly(2026, 3, 31),
+            PageSize = int.MaxValue
+        });
+        Assert.Empty(vm!.Groups.SelectMany(g => g.Items));
+
+        var bytes = CashBankExcelExportHelper.Build(vm);
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var ws = wb.Worksheet(1);
+
+        // Boş aralıkta yanıltıcı "Kapanış Bakiyesi" olmamalı; anlık bakiye "Güncel Bakiye"
+        // etiketiyle (1.500) gösterilmeli, böylece etiket değeriyle tutarlı olur.
+        Assert.Empty(ws.CellsUsed(c => c.GetString() == "Kapanış Bakiyesi".ToUpperInvariant()));
+        var labelCell = ws.CellsUsed(c => c.GetString() == "Güncel Bakiye".ToUpperInvariant()).Single();
+        var valueCell = ws.Cell(labelCell.Address.RowNumber + 1, labelCell.Address.ColumnNumber);
+        Assert.Equal(1_500m, valueCell.GetValue<decimal>());
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

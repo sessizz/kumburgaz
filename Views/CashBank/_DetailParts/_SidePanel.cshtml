@@ -444,9 +444,16 @@ function syncIncomeFields() {
     modal.querySelectorAll('[data-income-ledger-fields]').forEach(function(element) {
         element.classList.toggle('hidden', !isLedger);
     });
+    modal.querySelectorAll('[data-income-dues-fields] input, [data-income-dues-fields] select, [data-income-dues-fields] textarea').forEach(function(element) {
+        element.disabled = !isDues;
+    });
 
     var duesSelect = modal.querySelector('[data-dues-select]');
     if (duesSelect) duesSelect.required = isDues;
+
+    var receiptCheckbox = modal.querySelector('#createCollectionIsReceipt');
+    var referenceNo = modal.querySelector('#createCollectionReferenceNo');
+    if (referenceNo && receiptCheckbox) referenceNo.required = isDues && receiptCheckbox.checked;
 }
 
 function openLedgerModal(isBankFee) {
@@ -511,7 +518,7 @@ syncIncomeFields();
         const isReceipt = checkbox.checked;
         legend.textContent = isReceipt ? "Makbuz No" : "Referans / Not";
         input.placeholder = isReceipt ? "Makbuz no" : "Referans no";
-        input.required = isReceipt;
+        syncIncomeFields();
     };
 
     checkbox.addEventListener("change", sync);

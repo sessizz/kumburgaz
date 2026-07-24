@@ -91,12 +91,28 @@ public static class CashBankExcelExportHelper
         var totalInflow = rows.Where(r => r.Kind != TxKind.Acilis && r.Amount > 0).Sum(r => r.Amount);
         var totalOutflow = rows.Where(r => r.Kind != TxKind.Acilis && r.Amount < 0).Sum(r => Math.Abs(r.Amount));
 
+        // Filtre (tür/tarih aralığı/arama) uygulandığında son kart, hesabın anlık bakiyesini
+        // (vm.Balance) değil, dökümdeki EN SON satırın yürüyen bakiyesini gösterir - yani seçilen
+        // aralığın kapanış bakiyesini. rows eskiden yeniye sıralı olduğu için son eleman en yeni
+        // satırdır ve yürüyen bakiye tüm geçmişi kapsadığından bu değer aralık sonundaki bakiyedir.
+        var q = vm.Query;
+        var isFiltered = (q.Type ?? "all") != "all"
+            || (q.Range ?? "all") != "all"
+            || !string.IsNullOrWhiteSpace(q.Q);
+        // "Kapanış Bakiyesi" yalnızca dökümde satır varsa gösterilir; en son satırın yürüyen
+        // bakiyesi aralık sonundaki gerçek bakiyedir. Filtre eşleşen satır getirmediyse (boş
+        // aralık) listelenen veriden aralık-sonu türetilemez; bu durumda anlık bakiye "Güncel
+        // Bakiye" etiketiyle gösterilir - böylece etiket her zaman gösterilen değerle tutarlıdır.
+        var showClosing = isFiltered && rows.Count > 0;
+        var closingBalance = showClosing ? rows[^1].RunningBalance : vm.Balance;
+        var closingLabel = showClosing ? "Kapanış Bakiyesi" : "Güncel Bakiye";
+
         var cards = new (string Label, decimal Value, XLColor Color)[]
         {
             ("Açılış Bakiyesi", vm.OpeningBalance, Muted),
             ("Toplam Giriş", totalInflow, Inflow),
             ("Toplam Çıkış", totalOutflow, Outflow),
-            ("Güncel Bakiye", vm.Balance, vm.Balance < 0 ? Outflow : BrandDark)
+            (closingLabel, closingBalance, closingBalance < 0 ? Outflow : BrandDark)
         };
 
         // Her kart 2 sütun kaplar: A-B, C-D, E-F, G-H

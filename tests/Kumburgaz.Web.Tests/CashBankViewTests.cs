@@ -25,6 +25,8 @@ public class CashBankViewTests
         Assert.Contains("data-income-ledger-fields", view);
         Assert.Contains("syncIncomeFields", view);
         Assert.Contains("element.disabled = !isDues;", view);
+        Assert.Contains("[data-income-ledger-fields] input, [data-income-ledger-fields] select, [data-income-ledger-fields] textarea", view);
+        Assert.Contains("element.disabled = !isLedger;", view);
         Assert.Contains("referenceNo.required = isDues && receiptCheckbox.checked;", view);
     }
 

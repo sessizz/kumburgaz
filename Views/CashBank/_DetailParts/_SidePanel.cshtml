@@ -447,6 +447,9 @@ function syncIncomeFields() {
     modal.querySelectorAll('[data-income-dues-fields] input, [data-income-dues-fields] select, [data-income-dues-fields] textarea').forEach(function(element) {
         element.disabled = !isDues;
     });
+    modal.querySelectorAll('[data-income-ledger-fields] input, [data-income-ledger-fields] select, [data-income-ledger-fields] textarea').forEach(function(element) {
+        element.disabled = !isLedger;
+    });
 
     var duesSelect = modal.querySelector('[data-dues-select]');
     if (duesSelect) duesSelect.required = isDues;

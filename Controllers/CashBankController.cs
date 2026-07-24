@@ -612,7 +612,9 @@ public class CashBankController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateIncome(CashBankIncomeFormViewModel model)
     {
-        if (!TryReadAmount(out var parsedAmount))
+        if (!TryReadAmount(out var parsedAmount) ||
+            parsedAmount < 1m ||
+            parsedAmount > 999_999_999m)
         {
             ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
         }
@@ -624,6 +626,21 @@ public class CashBankController(
         if (!ModelState.IsValid)
         {
             TempData["ActionError"] = "Gelir bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        if ((model.Kind != "cash" && model.Kind != "bank") || model.Id <= 0)
+        {
+            TempData["ActionError"] = "Hesap bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var hasActiveAccount = model.Kind == "bank"
+            ? await db.BankAccounts.AsNoTracking().AnyAsync(x => x.Id == model.Id && x.Active)
+            : await db.CashBoxes.AsNoTracking().AnyAsync(x => x.Id == model.Id && x.Active);
+        if (!hasActiveAccount)
+        {
+            TempData["ActionError"] = "Hesap bilgilerini kontrol edin.";
             return RedirectToDetail(model.Kind, model.Id);
         }
 

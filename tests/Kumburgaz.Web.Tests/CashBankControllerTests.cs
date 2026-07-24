@@ -222,6 +222,175 @@ public class CashBankControllerTests
         Assert.Equal("Geçerli bir gelir kategorisi seçin.", controller.TempData["ActionError"]);
     }
 
+    [Theory]
+    [InlineData("wallet", true, true, true)]
+    [InlineData("bank", true, true, false)]
+    [InlineData("bank", false, true, true)]
+    [InlineData("bank", true, false, true)]
+    [InlineData("cash", false, true, true)]
+    [InlineData("cash", true, false, true)]
+    public async Task Create_income_rejects_invalid_missing_or_inactive_account(
+        string kind,
+        bool seedAccount,
+        bool active,
+        bool usePositiveId)
+    {
+        await using var db = CreateDb();
+        object account = kind == "cash"
+            ? new CashBox
+            {
+                Name = "Ana Kasa",
+                OpeningBalanceDate = Utc(2026, 1, 1),
+                Active = active
+            }
+            : new BankAccount
+            {
+                Name = "Vadeli",
+                OpeningBalanceDate = Utc(2026, 1, 1),
+                Active = active
+            };
+        var category = new IncomeExpenseCategory
+        {
+            Name = "Faiz Geliri",
+            Type = CategoryTypeHelper.Gelir,
+            Active = true
+        };
+        db.Add(category);
+        if (seedAccount)
+        {
+            db.Add(account);
+        }
+        await db.SaveChangesAsync();
+
+        var accountId = account switch
+        {
+            CashBox cashBox => cashBox.Id,
+            BankAccount bankAccount => bankAccount.Id,
+            _ => throw new InvalidOperationException()
+        };
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "100"
+        });
+
+        var result = await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = kind,
+            Id = usePositiveId ? (seedAccount ? accountId : 1234) : 0,
+            IncomeSource = $"category:{category.Id}",
+            Date = Utc(2026, 7, 24),
+            Amount = 100m
+        });
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+        Assert.Equal("Hesap bilgilerini kontrol edin.", controller.TempData["ActionError"]);
+    }
+
+    [Fact]
+    public async Task Create_income_rejects_inactive_dues_account_without_writes()
+    {
+        await using var db = CreateDb();
+        var (bank, installment) = await SeedDuesAsync(db);
+        bank.Active = false;
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "3703,77"
+        });
+
+        var result = await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = "dues",
+            BillingGroupId = installment.BillingGroupId,
+            DuesInstallmentId = installment.Id,
+            Date = Utc(2026, 7, 24),
+            Amount = 3_703.77m
+        });
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Empty(await db.Collections.ToListAsync());
+        Assert.Empty(await db.CollectionAllocations.ToListAsync());
+        Assert.Equal(15_000m, (await db.DuesInstallments.SingleAsync()).RemainingAmount);
+        Assert.Equal("Hesap bilgilerini kontrol edin.", controller.TempData["ActionError"]);
+    }
+
+    [Fact]
+    public async Task Create_income_rejects_parsed_amount_above_supported_maximum()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Vadeli",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        var category = new IncomeExpenseCategory
+        {
+            Name = "Faiz Geliri",
+            Type = CategoryTypeHelper.Gelir,
+            Active = true
+        };
+        db.AddRange(bank, category);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "1000000000"
+        });
+
+        var result = await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = $"category:{category.Id}",
+            Date = Utc(2026, 7, 24),
+            Amount = 1_000_000_000m
+        });
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+        Assert.Equal("Gelir bilgilerini kontrol edin.", controller.TempData["ActionError"]);
+    }
+
+    [Fact]
+    public async Task Create_income_rejects_parsed_amount_below_supported_minimum()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Vadeli",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        var category = new IncomeExpenseCategory
+        {
+            Name = "Faiz Geliri",
+            Type = CategoryTypeHelper.Gelir,
+            Active = true
+        };
+        db.AddRange(bank, category);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "0,99"
+        });
+
+        var result = await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = $"category:{category.Id}",
+            Date = Utc(2026, 7, 24),
+            Amount = 0.99m
+        });
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+        Assert.Equal("Gelir bilgilerini kontrol edin.", controller.TempData["ActionError"]);
+    }
+
     private static CashBankController CreateController(
         ApplicationDbContext db,
         Dictionary<string, StringValues> formValues)

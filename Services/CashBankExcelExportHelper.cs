@@ -152,8 +152,11 @@ public static class CashBankExcelExportHelper
         var zebra = false;
         foreach (var r in rows)
         {
-            var inflow = r.Amount > 0 ? r.Amount : (decimal?)null;
-            var outflow = r.Amount < 0 ? Math.Abs(r.Amount) : (decimal?)null;
+            // Açılış (devir) satırı bir işlem değildir; özet kartlarında toplam giriş/çıkışa
+            // dahil edilmediği için Giriş/Çıkış sütunları boş bırakılır, yalnızca Bakiye gösterilir.
+            var isOpening = r.Kind == TxKind.Acilis;
+            var inflow = !isOpening && r.Amount > 0 ? r.Amount : (decimal?)null;
+            var outflow = !isOpening && r.Amount < 0 ? Math.Abs(r.Amount) : (decimal?)null;
 
             ws.Cell(dataRow, 1).Value = r.Date;
             ws.Cell(dataRow, 1).Style.DateFormat.Format = "dd.MM.yyyy";
@@ -263,7 +266,11 @@ public static class CashBankExcelExportHelper
     {
         var invalid = new[] { '[', ']', ':', '*', '?', '/', '\\' };
         var cleaned = new string((name ?? "Hareketler").Where(c => !invalid.Contains(c)).ToArray()).Trim();
+        if (cleaned.Length > 31) cleaned = cleaned[..31];
+        // Excel çalışma sayfası adı tek tırnakla (') başlayamaz veya bitemez; kırpma sonrası
+        // sona tırnak gelebileceği için uzunluk sınırından SONRA temizlenir.
+        cleaned = cleaned.Trim('\'').Trim();
         if (string.IsNullOrWhiteSpace(cleaned)) cleaned = "Hareketler";
-        return cleaned.Length > 31 ? cleaned[..31] : cleaned;
+        return cleaned;
     }
 }

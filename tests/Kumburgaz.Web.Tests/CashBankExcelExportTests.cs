@@ -116,6 +116,58 @@ public class CashBankExcelExportTests
         Assert.True(bytes.Length > 1000);
     }
 
+    [Fact]
+    public async Task Export_with_apostrophe_bounded_account_name_does_not_throw()
+    {
+        await using var db = CreateDb();
+        // Excel çalışma sayfası adı tek tırnakla başlayıp bitemez; SafeSheetName bunu temizlemeli,
+        // aksi halde Worksheets.Add hata fırlatır ve dışa aktarma 500 döner.
+        var bank = new BankAccount
+        {
+            Name = "'Vadeli'",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        db.Add(bank);
+        await db.SaveChangesAsync();
+
+        var service = new CashBankDetailService(db, new DuesLedgerRowService(db));
+        var vm = await service.BuildAsync("bank", bank.Id, new CashBankDetailQuery { PageSize = int.MaxValue });
+
+        var exception = Record.Exception(() => { _ = CashBankExcelExportHelper.Build(vm!); });
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Export_does_not_list_opening_balance_as_inflow_or_outflow()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Devirli Hesap",
+            OpeningBalance = 2_500m,
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        db.Add(bank);
+        await db.SaveChangesAsync();
+
+        var service = new CashBankDetailService(db, new DuesLedgerRowService(db));
+        var vm = await service.BuildAsync("bank", bank.Id, new CashBankDetailQuery { PageSize = int.MaxValue });
+
+        var bytes = CashBankExcelExportHelper.Build(vm!);
+        using var wb = new XLWorkbook(new MemoryStream(bytes));
+        var ws = wb.Worksheet(1);
+
+        // Açılış satırının bulunduğu satırda Giriş (6) ve Çıkış (7) boş olmalı, Bakiye (8) = 2.500.
+        var openingCell = ws.CellsUsed(c => c.GetString() == "Açılış").FirstOrDefault();
+        Assert.NotNull(openingCell);
+        var r = openingCell!.Address.RowNumber;
+        Assert.True(ws.Cell(r, 6).IsEmpty());
+        Assert.True(ws.Cell(r, 7).IsEmpty());
+        Assert.Equal(2_500m, ws.Cell(r, 8).GetValue<decimal>());
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

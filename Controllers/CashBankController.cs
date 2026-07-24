@@ -610,6 +610,106 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateIncome(CashBankIncomeFormViewModel model)
+    {
+        if (!TryReadAmount(out var parsedAmount))
+        {
+            ModelState.AddModelError(nameof(model.Amount), "Geçerli bir tutar giriniz.");
+        }
+        else
+        {
+            model.Amount = parsedAmount;
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ActionError"] = "Gelir bilgilerini kontrol edin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
+        if (model.IncomeSource == "dues")
+        {
+            if (!model.DuesInstallmentId.HasValue || model.BillingGroupId <= 0)
+            {
+                TempData["ActionError"] = "Dönem ve aidat seçin.";
+                return RedirectToDetail(model.Kind, model.Id);
+            }
+
+            try
+            {
+                var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
+                {
+                    BillingGroupId = model.BillingGroupId,
+                    DuesInstallmentId = model.DuesInstallmentId,
+                    Date = orderedDate,
+                    Amount = model.Amount,
+                    PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
+                    AccountKey = BuildAccountKey(model.Kind, model.Id),
+                    ReferenceNo = model.ReferenceNo,
+                    IsReceipt = model.IsReceipt,
+                    Note = model.Note
+                });
+                TempData["ActionSuccess"] = "Aidat tahsilatı kaydedildi.";
+
+                if (model.IsReceipt)
+                {
+                    var returnUrl = Url.Action(
+                        model.Kind == "bank" ? nameof(BankDetail) : nameof(CashBoxDetail),
+                        new { id = model.Id });
+                    return RedirectToAction(
+                        "PrintReceipt",
+                        "Collections",
+                        new { id = collectionId, returnUrl });
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["ActionError"] = ex.Message;
+            }
+
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        const string categoryPrefix = "category:";
+        if (!model.IncomeSource.StartsWith(categoryPrefix, StringComparison.Ordinal) ||
+            !int.TryParse(model.IncomeSource[categoryPrefix.Length..], out var categoryId))
+        {
+            TempData["ActionError"] = "Geçerli bir gelir kategorisi seçin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        var category = await db.IncomeExpenseCategories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.Id == categoryId &&
+                x.Active &&
+                x.Type == CategoryTypeHelper.Gelir);
+        if (category is null)
+        {
+            TempData["ActionError"] = "Geçerli bir gelir kategorisi seçin.";
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            Date = DateTimeHelper.EnsureUtc(orderedDate),
+            IncomeExpenseCategoryId = category.Id,
+            Amount = model.Amount,
+            PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
+            CashBoxId = model.Kind == "cash" ? model.Id : null,
+            BankAccountId = model.Kind == "bank" ? model.Id : null,
+            Description = string.IsNullOrWhiteSpace(model.Description)
+                ? category.Name
+                : model.Description
+        });
+        await db.SaveChangesAsync();
+        TempData["ActionSuccess"] = "Gelir kaydedildi.";
+        return RedirectToDetail(model.Kind, model.Id);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateCollection(CashBankCollectionFormViewModel model)
     {
         if (!TryReadAmount(out var parsedAmount))

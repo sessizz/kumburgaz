@@ -75,6 +75,153 @@ public class CashBankControllerTests
         Assert.Equal(CategoryTypeHelper.Gelir, updated.IncomeExpenseCategory!.Type);
     }
 
+    [Fact]
+    public async Task Create_income_creates_positive_ledger_transaction_for_income_category()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Vadeli",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        var category = new IncomeExpenseCategory
+        {
+            Name = "Faiz Geliri",
+            Type = CategoryTypeHelper.Gelir,
+            Active = true
+        };
+        db.AddRange(bank, category);
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "17015,19"
+        });
+
+        await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = $"category:{category.Id}",
+            Date = Utc(2026, 6, 22),
+            Amount = 17_015.19m,
+            Description = "FAİZ"
+        });
+
+        var transaction = await db.LedgerTransactions.SingleAsync();
+        Assert.Equal(category.Id, transaction.IncomeExpenseCategoryId);
+        Assert.Equal(17_015.19m, transaction.Amount);
+        Assert.Equal(bank.Id, transaction.BankAccountId);
+        Assert.Null(transaction.CashBoxId);
+    }
+
+    private static async Task<(BankAccount Bank, DuesInstallment Installment)> SeedDuesAsync(ApplicationDbContext db)
+    {
+        var site = new Site { Name = "Test Site" };
+        var block = new Block { Site = site, Name = "C" };
+        var unit = new Unit { Block = block, UnitNo = "27", OwnerName = "Malik", Active = true };
+        var duesType = new DuesType { Name = "Çift Oda", Amount = 15_000m, Active = true };
+        var group = new BillingGroup
+        {
+            Name = "Çift Oda",
+            DuesType = duesType,
+            EffectiveStartPeriod = "2026-2027",
+            Active = true
+        };
+        var membership = new BillingGroupUnit
+        {
+            BillingGroup = group,
+            Unit = unit,
+            StartPeriod = "2026-2027"
+        };
+        var installment = new DuesInstallment
+        {
+            BillingGroup = group,
+            Unit = unit,
+            Period = "2026-2027",
+            AccrualDate = Utc(2026, 7, 12),
+            DueDate = Utc(2026, 9, 30),
+            Amount = 15_000m,
+            RemainingAmount = 15_000m
+        };
+        var bank = new BankAccount
+        {
+            Name = "Vadeli",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        db.AddRange(site, block, unit, duesType, group, membership, installment, bank);
+        await db.SaveChangesAsync();
+        return (bank, installment);
+    }
+
+    [Fact]
+    public async Task Create_income_uses_collection_flow_when_dues_is_selected()
+    {
+        await using var db = CreateDb();
+        var (bank, installment) = await SeedDuesAsync(db);
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "3703,77"
+        });
+
+        await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = "dues",
+            BillingGroupId = installment.BillingGroupId,
+            DuesInstallmentId = installment.Id,
+            Date = Utc(2026, 7, 17),
+            Amount = 3_703.77m
+        });
+
+        var collection = await db.Collections.SingleAsync();
+        var allocation = await db.CollectionAllocations.SingleAsync();
+        Assert.Equal(bank.Id, collection.BankAccountId);
+        Assert.Equal(installment.Id, allocation.DuesInstallmentId);
+        Assert.Equal(3_703.77m, allocation.AppliedAmount);
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_income_rejects_expense_category()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount
+        {
+            Name = "Vadeli",
+            OpeningBalanceDate = Utc(2026, 1, 1),
+            Active = true
+        };
+        var category = new IncomeExpenseCategory
+        {
+            Name = "Banka Masrafı",
+            Type = CategoryTypeHelper.Gider,
+            Active = true
+        };
+        db.AddRange(bank, category);
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db, new Dictionary<string, StringValues>
+        {
+            ["Amount"] = "100"
+        });
+
+        await controller.CreateIncome(new CashBankIncomeFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            IncomeSource = $"category:{category.Id}",
+            Date = Utc(2026, 7, 24),
+            Amount = 100m
+        });
+
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+        Assert.Equal("Geçerli bir gelir kategorisi seçin.", controller.TempData["ActionError"]);
+    }
+
     private static CashBankController CreateController(
         ApplicationDbContext db,
         Dictionary<string, StringValues> formValues)

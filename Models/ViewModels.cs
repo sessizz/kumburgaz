@@ -772,6 +772,39 @@ public class CashBankCollectionFormViewModel
     public string? Note { get; set; }
 }
 
+public class CashBankIncomeFormViewModel
+{
+    [Required]
+    public string Kind { get; set; } = "bank";
+
+    [Required]
+    public int Id { get; set; }
+
+    [Required]
+    public string IncomeSource { get; set; } = string.Empty;
+
+    public int? DuesInstallmentId { get; set; }
+    public int BillingGroupId { get; set; }
+
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    [Range(1, 999999999)]
+    public decimal Amount { get; set; }
+
+    [MaxLength(80)]
+    public string? ReferenceNo { get; set; }
+
+    public bool IsReceipt { get; set; }
+
+    [MaxLength(250)]
+    public string? Note { get; set; }
+
+    [MaxLength(250)]
+    public string? Description { get; set; }
+}
+
 public class CashBankDuesOptionViewModel
 {
     public int Id { get; set; }

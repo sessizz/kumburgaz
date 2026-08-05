@@ -1,4 +1,4 @@
-@model Kumburgaz.Web.Models.LedgerIndexViewModel
+@model Kumburgaz.Web.Models.LedgerIncomeViewModel
 @using Kumburgaz.Web.Services
 @{
     ViewData["Title"] = "Gelirler";
@@ -10,7 +10,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-extrabold">Gelirler</h2>
-            <p class="text-sm text-gray-400">Aidat dışı gelir hareketleri</p>
+            <p class="text-sm text-gray-400">Aidat tahsilatları dahil tüm gelir hareketleri</p>
         </div>
         <div class="flex gap-2">
             <a class="btn btn-outline btn-sm"
@@ -117,11 +117,17 @@
                 {
                     <tr>
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
-                        <td><span class="@CategoryBadgeClass(row.IncomeExpenseCategoryId)">@row.IncomeExpenseCategory?.Name</span></td>
+                        <td>
+                            <span class="@CategoryBadgeClass(row.CategoryId)">@row.CategoryName</span>
+                            @if (row.IsDuesCollection)
+                            {
+                                <span class="badge badge-outline badge-sm ms-1">Aidat</span>
+                            }
+                        </td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
                         <td>
                             <span class="badge badge-ghost">
-                                @(row.CashBox?.Name ?? row.BankAccount?.Name ?? EnumDisplayHelper.Display(row.PaymentChannel))
+                                @(row.AccountName ?? EnumDisplayHelper.Display(row.PaymentChannel))
                             </span>
                         </td>
                         <td class="text-sm text-gray-500">@row.Description</td>

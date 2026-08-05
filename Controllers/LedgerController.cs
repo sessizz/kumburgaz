@@ -72,28 +72,22 @@ public class LedgerController(
 
     public async Task<IActionResult> Income(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await BuildIncomeQuery(categoryId, startDate, endDate)
-            .OrderByDescending(x => x.Date)
-            .ThenByDescending(x => x.Id)
-            .ToListAsync();
+        var rows = await BuildIncomeRowsAsync(categoryId, startDate, endDate);
 
-        return View(new LedgerIndexViewModel
+        return View(new LedgerIncomeViewModel
         {
             CategoryId = categoryId,
             StartDate = startDate,
             EndDate = endDate,
             CategoryOptions = await BuildIncomeCategoryOptionsAsync(categoryId),
             Rows = rows,
-            CategorySummaryRows = BuildCategorySummaryRows(rows)
+            CategorySummaryRows = BuildIncomeCategorySummaryRows(rows)
         });
     }
 
     public async Task<IActionResult> ExportIncomeCsv(int? categoryId, DateTime? startDate, DateTime? endDate)
     {
-        var rows = await BuildIncomeQuery(categoryId, startDate, endDate)
-            .OrderByDescending(x => x.Date)
-            .ThenByDescending(x => x.Id)
-            .ToListAsync();
+        var rows = await BuildIncomeRowsAsync(categoryId, startDate, endDate);
 
         var csvRows = new List<string[]>
         {
@@ -102,9 +96,9 @@ public class LedgerController(
 
         csvRows.AddRange(rows.Select(x => new[]
         {
-            x.IncomeExpenseCategoryId?.ToString() ?? string.Empty,
-            x.IncomeExpenseCategory?.Type ?? string.Empty,
-            x.IncomeExpenseCategory?.Name ?? string.Empty,
+            x.IsDuesCollection ? string.Empty : x.CategoryId?.ToString() ?? string.Empty,
+            CategoryTypeHelper.Gelir,
+            x.CategoryName,
             x.Date.ToString("yyyy-MM-dd"),
             x.Amount.ToString(CultureInfo.InvariantCulture),
             EnumDisplayHelper.Display(x.PaymentChannel),
@@ -669,6 +663,77 @@ public class LedgerController(
         return BuildLedgerQuery(CategoryTypeHelper.Gelir, NormalizeCategoryIds([], categoryId), startDate, endDate);
     }
 
+    private IQueryable<Collection> BuildDuesIncomeQuery(DateTime? startDate, DateTime? endDate)
+    {
+        var query = db.Collections.AsNoTracking()
+            .Include(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.CashBox)
+            .Include(x => x.BankAccount)
+            .AsQueryable();
+
+        if (startDate.HasValue)
+        {
+            var start = DateTimeHelper.EnsureUtc(startDate.Value.Date);
+            query = query.Where(x => x.Date >= start);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endExclusive = DateTimeHelper.EnsureUtc(endDate.Value.Date.AddDays(1));
+            query = query.Where(x => x.Date < endExclusive);
+        }
+
+        return query;
+    }
+
+    /// <summary>
+    /// Gelirler sayfası için hem gelir kategorisi hareketlerini hem de aidat tahsilatlarını
+    /// tek bir listede birleştirir. categoryId, "Aidat Tahsilatı" seçeneğine (sentinel değer)
+    /// karşılık geliyorsa yalnızca tahsilatlar; belirli bir gelir kategorisine karşılık geliyorsa
+    /// yalnızca o kategorinin hareketleri; boşsa ikisi de döner.
+    /// </summary>
+    private async Task<List<LedgerIncomeRow>> BuildIncomeRowsAsync(int? categoryId, DateTime? startDate, DateTime? endDate)
+    {
+        var isDuesFilter = categoryId == LedgerIncomeViewModel.DuesCategoryFilterId;
+        var rows = new List<LedgerIncomeRow>();
+
+        if (!isDuesFilter)
+        {
+            var ledgerRows = await BuildIncomeQuery(categoryId, startDate, endDate).ToListAsync();
+            rows.AddRange(ledgerRows.Select(x => new LedgerIncomeRow
+            {
+                Date = x.Date,
+                CategoryId = x.IncomeExpenseCategoryId,
+                CategoryName = x.IncomeExpenseCategory?.Name ?? "Kategorisiz",
+                Amount = x.Amount,
+                PaymentChannel = x.PaymentChannel,
+                AccountName = x.CashBox?.Name ?? x.BankAccount?.Name,
+                Description = x.Description
+            }));
+        }
+
+        if (categoryId is null || isDuesFilter)
+        {
+            var duesRows = await BuildDuesIncomeQuery(startDate, endDate).ToListAsync();
+            rows.AddRange(duesRows.Select(x => new LedgerIncomeRow
+            {
+                Date = x.Date,
+                CategoryId = LedgerIncomeViewModel.DuesCategoryFilterId,
+                CategoryName = BalanceDetailedReportService.DuesCollectionsLabel,
+                Amount = x.Amount,
+                PaymentChannel = x.PaymentChannel,
+                AccountName = x.CashBox?.Name ?? x.BankAccount?.Name,
+                Description = UnitDisplayHelper.Display(x.Unit),
+                IsDuesCollection = true
+            }));
+        }
+
+        return rows
+            .OrderByDescending(x => x.Date)
+            .ToList();
+    }
+
     private IQueryable<LedgerTransaction> BuildLedgerQuery(string categoryType, IReadOnlyCollection<int> categoryIds, DateTime? startDate, DateTime? endDate)
     {
         var query = db.LedgerTransactions.AsNoTracking()
@@ -724,9 +789,33 @@ public class LedgerController(
             .ToList();
     }
 
+    private static List<LedgerCategorySummaryRow> BuildIncomeCategorySummaryRows(List<LedgerIncomeRow> rows)
+    {
+        return rows
+            .GroupBy(x => new { x.CategoryId, x.CategoryName })
+            .Select(x => new LedgerCategorySummaryRow
+            {
+                CategoryId = x.Key.CategoryId,
+                CategoryName = x.Key.CategoryName,
+                Count = x.Count(),
+                TotalAmount = x.Sum(row => row.Amount)
+            })
+            .OrderByDescending(x => x.TotalAmount)
+            .ThenBy(x => x.CategoryName)
+            .ToList();
+    }
+
     private async Task<List<SelectListItem>> BuildIncomeCategoryOptionsAsync(int? selectedId)
     {
-        return await BuildCategoryOptionsAsync(CategoryTypeHelper.Gelir, NormalizeCategoryIds([], selectedId));
+        var options = new List<SelectListItem>
+        {
+            new(
+                BalanceDetailedReportService.DuesCollectionsLabel,
+                LedgerIncomeViewModel.DuesCategoryFilterId.ToString(),
+                selectedId == LedgerIncomeViewModel.DuesCategoryFilterId)
+        };
+        options.AddRange(await BuildCategoryOptionsAsync(CategoryTypeHelper.Gelir, NormalizeCategoryIds([], selectedId)));
+        return options;
     }
 
     private async Task<List<SelectListItem>> BuildCategoryOptionsAsync(string categoryType, IReadOnlyCollection<int> selectedIds)

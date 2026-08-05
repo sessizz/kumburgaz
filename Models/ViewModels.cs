@@ -674,6 +674,41 @@ public class LedgerCategorySummaryRow
     public decimal TotalAmount { get; set; }
 }
 
+/// <summary>
+/// Gelirler sayfasında gösterilen tek bir satır; hem gelir kategorisi hareketlerini
+/// (LedgerTransaction) hem de aidat tahsilatlarını (Collection) tek listede birleştirir.
+/// </summary>
+public class LedgerIncomeRow
+{
+    public DateTime Date { get; set; }
+    public int? CategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public PaymentChannel PaymentChannel { get; set; }
+    public string? AccountName { get; set; }
+    public string? Description { get; set; }
+    public bool IsDuesCollection { get; set; }
+}
+
+public class LedgerIncomeViewModel
+{
+    public const int DuesCategoryFilterId = -1;
+
+    public int? CategoryId { get; set; }
+    [DataType(DataType.Date)]
+    public DateTime? StartDate { get; set; }
+    [DataType(DataType.Date)]
+    public DateTime? EndDate { get; set; }
+    public List<SelectListItem> CategoryOptions { get; set; } = [];
+    public List<LedgerIncomeRow> Rows { get; set; } = [];
+    public List<LedgerCategorySummaryRow> CategorySummaryRows { get; set; } = [];
+    public decimal TotalAmount => Rows.Sum(x => x.Amount);
+    public decimal CashAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Cash).Sum(x => x.Amount);
+    public decimal BankAmount => Rows.Where(x => x.PaymentChannel == PaymentChannel.Bank).Sum(x => x.Amount);
+    public decimal AverageAmount => Rows.Count == 0 ? 0 : TotalAmount / Rows.Count;
+    public decimal MaxAmount => Rows.Count == 0 ? 0 : Rows.Max(x => x.Amount);
+}
+
 public class CashBoxFormViewModel
 {
     [Required, MaxLength(80)]

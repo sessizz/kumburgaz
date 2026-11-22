@@ -229,7 +229,7 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
                 var appliedToDevir = Math.Min(remaining, devirLeft);
                 if (appliedToDevir > 0)
                 {
-                    lines.Add(new AllocationLine(null, "Devir borcu", appliedToDevir, devirLeft - appliedToDevir));
+                    lines.Add(new AllocationLine(null, AllocationLine.LabelOf(null), appliedToDevir, devirLeft - appliedToDevir));
                     remaining -= appliedToDevir;
                 }
             }
@@ -243,11 +243,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             }
 
             var applied = Math.Min(remaining, installment.RemainingAmount);
-            var duesTypeName = installment.BillingGroup?.DuesType?.Name;
-            var label = string.IsNullOrWhiteSpace(duesTypeName)
-                ? installment.Period
-                : $"{installment.Period} {duesTypeName}";
-            lines.Add(new AllocationLine(installment.Id, label, applied, installment.RemainingAmount - applied));
+            lines.Add(new AllocationLine(
+                installment.Id, AllocationLine.LabelOf(installment), applied, installment.RemainingAmount - applied));
             remaining -= applied;
         }
 

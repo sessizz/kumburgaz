@@ -68,6 +68,47 @@ public class LedgerEntryServiceTests
             new LedgerEntryRequest(new DateTime(2026, 3, 5), expenseId, 150m, "bank:999", null)));
     }
 
+    // Form yalnız aktif kategorileri sunar; servis de pasifi yok sayar.
+    [Fact]
+    public async Task Inactive_category_is_rejected_as_not_found()
+    {
+        await using var db = CreateDb();
+        var (expenseId, _, bankId) = Seed(db);
+        (await db.IncomeExpenseCategories.SingleAsync(x => x.Id == expenseId)).Active = false;
+        await db.SaveChangesAsync();
+        var service = new LedgerEntryService(db);
+        var request = new LedgerEntryRequest(new DateTime(2026, 3, 5), expenseId, 150m, $"bank:{bankId}", null);
+
+        var preview = await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(request));
+        var create = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(request));
+
+        Assert.Equal("Kategori bulunamadı.", preview.Message);
+        Assert.Equal("Kategori bulunamadı.", create.Message);
+        Assert.Equal(0, await db.LedgerTransactions.CountAsync());
+    }
+
+    // Pasif hesap formda sunulmaz; banka adı şubesiyle gösterilir.
+    [Fact]
+    public async Task Preview_resolves_active_account_with_branch_and_rejects_inactive_account()
+    {
+        await using var db = CreateDb();
+        var (expenseId, _, bankId) = Seed(db);
+        var bank = await db.BankAccounts.SingleAsync(x => x.Id == bankId);
+        bank.Branch = "Merkez";
+        await db.SaveChangesAsync();
+        var service = new LedgerEntryService(db);
+        var request = new LedgerEntryRequest(new DateTime(2026, 3, 5), expenseId, 150m, $"BANK:{bankId}", null);
+
+        var preview = await service.PreviewAsync(request);
+        bank.Active = false;
+        await db.SaveChangesAsync();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(request));
+
+        Assert.Equal($"bank:{bankId}", preview.AccountKey);
+        Assert.Equal("İş Bankası - Merkez", preview.AccountName);
+        Assert.Equal("Geçerli bir kasa/banka hesabı seçiniz.", ex.Message);
+    }
+
     private static (int ExpenseId, int IncomeId, int BankId) Seed(ApplicationDbContext db)
     {
         var expense = new IncomeExpenseCategory { Name = "Bakım", Type = "Expense" };

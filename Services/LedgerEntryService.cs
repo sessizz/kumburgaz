@@ -25,22 +25,22 @@ public class LedgerEntryService(ApplicationDbContext db)
 {
     public async Task<LedgerEntryPreview> PreviewAsync(LedgerEntryRequest request, LedgerEntryKind? expectedKind = null)
     {
-        var (preview, _, _, _) = await ResolveAsync(request, expectedKind);
+        var (preview, _) = await ResolveAsync(request, expectedKind);
         return preview;
     }
 
     public async Task<int> CreateAsync(LedgerEntryRequest request, LedgerEntryKind? expectedKind = null)
     {
-        var (preview, channel, cashBoxId, bankAccountId) = await ResolveAsync(request, expectedKind);
+        var (preview, account) = await ResolveAsync(request, expectedKind);
 
         var entity = new LedgerTransaction
         {
             Date = preview.Date,
             IncomeExpenseCategoryId = preview.CategoryId,
             Amount = request.Amount,
-            PaymentChannel = channel,
-            CashBoxId = cashBoxId,
-            BankAccountId = bankAccountId,
+            PaymentChannel = account.Channel,
+            CashBoxId = account.CashBoxId,
+            BankAccountId = account.BankAccountId,
             Description = request.Description
         };
         db.LedgerTransactions.Add(entity);
@@ -48,7 +48,7 @@ public class LedgerEntryService(ApplicationDbContext db)
         return entity.Id;
     }
 
-    private async Task<(LedgerEntryPreview Preview, PaymentChannel Channel, int? CashBoxId, int? BankAccountId)> ResolveAsync(
+    private async Task<(LedgerEntryPreview Preview, ActiveFinancialAccount Account)> ResolveAsync(
         LedgerEntryRequest request, LedgerEntryKind? expectedKind)
     {
         if (request.Amount <= 0)
@@ -57,7 +57,7 @@ public class LedgerEntryService(ApplicationDbContext db)
         }
 
         var category = await db.IncomeExpenseCategories.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == request.CategoryId);
+            .FirstOrDefaultAsync(x => x.Id == request.CategoryId && x.Active);
         if (category is null)
         {
             throw new InvalidOperationException("Kategori bulunamadı.");
@@ -73,38 +73,11 @@ public class LedgerEntryService(ApplicationDbContext db)
                 : "Seçilen kategori bir gelir kategorisi değil.");
         }
 
-        const string invalidAccount = "Geçerli bir kasa/banka hesabı seçiniz.";
-        if (!FinancialAccountHelper.TryParse(request.AccountKey, out var channel, out var cashBoxId, out var bankAccountId))
-        {
-            throw new InvalidOperationException(invalidAccount);
-        }
-
-        string? accountName;
-        string accountKey;
-        if (cashBoxId.HasValue)
-        {
-            var id = cashBoxId.Value;
-            accountKey = FinancialAccountHelper.CashKey(id);
-            accountName = await db.CashBoxes.AsNoTracking()
-                .Where(x => x.Id == id && x.Active)
-                .Select(x => x.Name).FirstOrDefaultAsync();
-        }
-        else
-        {
-            var id = bankAccountId!.Value;
-            accountKey = FinancialAccountHelper.BankKey(id);
-            accountName = await db.BankAccounts.AsNoTracking()
-                .Where(x => x.Id == id && x.Active)
-                .Select(x => x.Name).FirstOrDefaultAsync();
-        }
-
-        if (accountName is null)
-        {
-            throw new InvalidOperationException(invalidAccount);
-        }
+        var account = await FinancialAccountHelper.FindActiveAsync(db, request.AccountKey)
+            ?? throw new InvalidOperationException("Geçerli bir kasa/banka hesabı seçiniz.");
 
         var preview = new LedgerEntryPreview(kind, category.Id, category.Name, request.Amount,
-            DateTimeHelper.EnsureUtc(request.Date), accountKey, accountName, request.Description);
-        return (preview, channel, cashBoxId, bankAccountId);
+            DateTimeHelper.EnsureUtc(request.Date), account.Key, account.Name, request.Description);
+        return (preview, account);
     }
 }

@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kumburgaz.Web.Services;
 
+public sealed record ActiveFinancialAccount(string Key, string Name, PaymentChannel Channel, int? CashBoxId, int? BankAccountId);
+
 public static class FinancialAccountHelper
 {
     public static string CashKey(int id) => $"cash:{id}";
@@ -42,6 +44,34 @@ public static class FinancialAccountHelper
         }
 
         return false;
+    }
+
+    /// <summary>Anahtarı aktif bir kasa/banka hesabına çözer; anahtar bozuksa ya da hesap yok/pasifse null.</summary>
+    public static async Task<ActiveFinancialAccount?> FindActiveAsync(ApplicationDbContext db, string? key)
+    {
+        if (!TryParse(key, out var channel, out var cashBoxId, out var bankAccountId))
+        {
+            return null;
+        }
+
+        if (cashBoxId.HasValue)
+        {
+            var cashBox = await db.CashBoxes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == cashBoxId.Value && x.Active);
+            return cashBox is null
+                ? null
+                : new ActiveFinancialAccount(CashKey(cashBox.Id), cashBox.Name, channel, cashBox.Id, null);
+        }
+
+        var bank = await db.BankAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == bankAccountId!.Value && x.Active);
+        if (bank is null)
+        {
+            return null;
+        }
+
+        var name = string.IsNullOrWhiteSpace(bank.Branch) ? bank.Name : $"{bank.Name} - {bank.Branch}";
+        return new ActiveFinancialAccount(BankKey(bank.Id), name, channel, null, bank.Id);
     }
 
     public static string? BuildKey(int? cashBoxId, int? bankAccountId)

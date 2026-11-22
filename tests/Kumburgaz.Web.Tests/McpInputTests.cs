@@ -35,6 +35,45 @@ public class McpInputTests
         Assert.Equal("Geçerli bir tutar giriniz.", ex.Message);
     }
 
+    // Tutar sütunları (18,2): fazla basamak sessizce yuvarlanır, 0.001 ise 0 olarak yazılırdı.
+    [Theory]
+    [InlineData("0.001")]
+    [InlineData("2500.755")]
+    [InlineData("\"2.500,755\"")]
+    [InlineData("\"0,001\"")]
+    public void ParseAmount_rejects_more_than_two_decimals(string json)
+    {
+        var ex = Assert.Throws<McpException>(() => McpInput.ParseAmount(Json(json)));
+        Assert.Equal("Tutar en fazla 2 ondalık basamak içerebilir.", ex.Message);
+    }
+
+    // Sondaki sıfırlar değeri değiştirmez.
+    [Theory]
+    [InlineData("2500.750")]
+    [InlineData("\"2.500,7500\"")]
+    public void ParseAmount_ignores_trailing_zero_decimals(string json)
+    {
+        Assert.Equal(2500.75m, McpInput.ParseAmount(Json(json)));
+    }
+
+    [Theory]
+    [InlineData("999999999", 999_999_999)]
+    [InlineData("\"999.999.999,00\"", 999_999_999)]
+    public void ParseAmount_accepts_the_upper_limit(string json, double expected)
+    {
+        Assert.Equal((decimal)expected, McpInput.ParseAmount(Json(json)));
+    }
+
+    [Theory]
+    [InlineData("999999999.01")]
+    [InlineData("1000000000")]
+    [InlineData("\"1.000.000.000,00\"")]
+    public void ParseAmount_rejects_amounts_above_the_upper_limit(string json)
+    {
+        var ex = Assert.Throws<McpException>(() => McpInput.ParseAmount(Json(json)));
+        Assert.Equal("Geçerli bir tutar giriniz.", ex.Message);
+    }
+
     [Fact]
     public void ParseAmount_rejects_missing_value()
     {

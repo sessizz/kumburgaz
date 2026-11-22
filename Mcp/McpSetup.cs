@@ -49,6 +49,8 @@ public static class McpSetup
         services.AddScoped<IAuthorizationHandler, ConnectorEligibilityHandler>();
 
         services.AddSingleton<McpLinks>();
+        services.AddSingleton<McpPreviewTokens>();
+        services.AddScoped<McpIdempotencyStore>();
 
         services.AddMcpServer(options =>
             {
@@ -60,6 +62,7 @@ public static class McpSetup
             .WithTools<CategoryTools>(ToolJsonOptions)
             .WithTools<UnitTools>(ToolJsonOptions)
             .WithTools<FinanceTools>(ToolJsonOptions)
+            .WithTools<WriteTools>(ToolJsonOptions)
             .WithResources<McpGuideResource>();
 
         return services;

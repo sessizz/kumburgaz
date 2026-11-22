@@ -55,10 +55,11 @@ public class OpeningBalancesController(ApplicationDbContext db) : Controller
         {
             if (!unitMap.TryGetValue(unitIds[i], out var unit)) continue;
 
-            var raw = (balances[i] ?? string.Empty).Trim().Replace(',', '.');
+            var raw = (balances[i] ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(raw)) raw = "0";
 
-            if (!decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var newValue))
+            // "1.234" (Türkçe binlik) eskiden 1,234 TL; "1.234,56" ise geçersiz sayılıyordu.
+            if (!FlexibleDecimalParser.TryParse(raw, out var newValue))
             {
                 invalidCount++;
                 continue;

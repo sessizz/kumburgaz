@@ -31,8 +31,11 @@ public static class FlexibleDecimalParser
         {
             normalized = normalized.Replace(".", string.Empty).Replace(',', '.');
         }
-        else if (dotIndex >= 0 && normalized.IndexOf('.') != dotIndex)
+        else if (dotIndex >= 0)
         {
+            // Yalnız nokta varsa: son noktadan sonra tam 3 basamak Türkçe binlik ayracıdır
+            // ("2.500" = 2500, "1.234.567" = 1234567). Aksi halde son nokta ondalıktır
+            // ("2500.75", "1.5"), önceki noktalar binlik ayracıdır.
             var decimals = normalized.Length - dotIndex - 1;
             normalized = decimals == 3
                 ? normalized.Replace(".", string.Empty)

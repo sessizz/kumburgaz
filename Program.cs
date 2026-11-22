@@ -3,6 +3,7 @@ using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Data.Sqlite;
@@ -106,16 +107,45 @@ builder.Services.AddControllersWithViews(options =>
 {
     // Sakin rolü masaüstü controller'lara erişemez (gerçek sunucu sınırı).
     options.Filters.Add<SakinAreaRestrictionFilter>();
+    // tr-TR binder'ı "1234.56" girişini 123456 yapıyordu; tutarlar iki biçimde de okunur.
+    options.UseFlexibleDecimalBinding();
 });
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions.AuthorizeAreaPage("Identity", "/Account/Register", AppPolicies.SystemAdmin);
+    // Hesaplar yalnız Sistem Kullanıcıları ekranından açılır.
+    options.DisableSelfRegistration();
+});
+builder.Services.AddHealthChecks();
+
+// Uygulama Cloudflare Tunnel + Traefik arkasında düz HTTP alır. Şema/istemci IP'si
+// proxy başlıklarından okunmazsa yönlendirmeler http:// olur, çerezler Secure
+// işaretlenmez ve HSTS hiç gönderilmez. Konteyner portu dışarı açık değil; tek
+// gelen trafik Traefik'ten olduğu için proxy adresi kısıtlanmıyor.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
+app.Use(async (context, next) =>
+{
+    // Traefik, Cloudflare'in X-Forwarded-Proto değerini kendi (http) değeriyle ezebilir;
+    // Cloudflare'in CF-Visitor başlığı ziyaretçinin gerçek şemasını taşır.
+    if (!context.Request.IsHttps
+        && context.Request.Headers["CF-Visitor"].ToString().Contains("\"scheme\":\"https\"", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Request.Scheme = "https";
+    }
+
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -142,7 +172,7 @@ using (var scope = app.Services.CreateScope())
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    await SeedIdentityAsync(roleManager, userManager);
+    await SeedIdentityAsync(roleManager, userManager, app.Configuration["Seed:AdminPassword"], app.Logger);
     await SeedRolePermissionsAsync(db);
     var residentAccountService = scope.ServiceProvider.GetRequiredService<ResidentAccountService>();
     await SeedResidentAccountsAsync(db, residentAccountService);
@@ -192,10 +222,15 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.MapRazorPages().WithStaticAssets();
+app.MapHealthChecks("/health");
 
 app.Run();
 
-static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
+static async Task SeedIdentityAsync(
+    RoleManager<IdentityRole> roleManager,
+    UserManager<ApplicationUser> userManager,
+    string? configuredAdminPassword,
+    ILogger logger)
 {
     foreach (var role in AppRoles.All)
     {
@@ -218,11 +253,25 @@ static async Task SeedIdentityAsync(RoleManager<IdentityRole> roleManager, UserM
             Title = "Site Yöneticisi"
         };
 
-        var createResult = await userManager.CreateAsync(admin, "Admin123!");
+        var (password, generated) = AdminSeedPassword.Resolve(configuredAdminPassword);
+        var createResult = await userManager.CreateAsync(admin, password);
         if (createResult.Succeeded)
         {
             await userManager.AddToRoleAsync(admin, AppRoles.SistemYonetici);
+            if (generated)
+            {
+                logger.LogWarning(
+                    "İlk yönetici hesabı oluşturuldu: {Email} / geçici şifre: {Password}. Girişten sonra değiştirin " +
+                    "veya Seed__AdminPassword ortam değişkenini verin.",
+                    adminEmail, password);
+            }
         }
+    }
+    else if (await userManager.CheckPasswordAsync(admin, AdminSeedPassword.LegacyDefault))
+    {
+        logger.LogCritical(
+            "Yönetici hesabı {Email} hâlâ kaynak kodda yazılı varsayılan şifreyi kullanıyor. Hemen değiştirin.",
+            adminEmail);
     }
 }
 

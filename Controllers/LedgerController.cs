@@ -921,11 +921,10 @@ public class LedgerController(
             || DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
     }
 
+    // ExportCsv tutarları InvariantCulture ("2500.75") yazar; önce tr-TR denemek bunu
+    // 250075 olarak okuyordu. FlexibleDecimalParser iki biçimi de doğru ayırt eder.
     private static bool TryParseAmount(string value, out decimal amount)
-    {
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out amount)
-            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
-    }
+        => FlexibleDecimalParser.TryParse(value, out amount);
 
     private static bool TryParsePaymentChannel(string value, out PaymentChannel channel)
     {

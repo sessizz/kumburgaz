@@ -70,6 +70,25 @@ public class ClientRegistrationTests(KumburgazAppFactory factory)
         Assert.Equal("client_secret_post", root.GetProperty("token_endpoint_auth_method").GetString());
     }
 
+    // client_secret_basic'te "+" OpenIddict tarafından boşluğa çevrilir; secret yalnız URL-güvenli karakter içermeli.
+    [Fact]
+    public async Task Confidential_client_secret_is_url_safe()
+    {
+        var client = CreateClient();
+        for (var i = 0; i < 20; i++)
+        {
+            var response = await RegisterAsync(client, new
+            {
+                client_name = "Claude",
+                redirect_uris = new[] { ClaudeCallback },
+                token_endpoint_auth_method = "client_secret_basic"
+            });
+            var secret = (await ReadJsonAsync(response)).GetProperty("client_secret").GetString()!;
+            Assert.Matches("^[A-Za-z0-9_-]+$", secret);
+            Assert.True(secret.Length >= 43);
+        }
+    }
+
     [Fact]
     public async Task Rejects_redirect_uri_outside_allowlist()
     {

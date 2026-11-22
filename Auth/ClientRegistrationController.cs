@@ -44,7 +44,7 @@ public class ClientRegistrationController(IOpenIddictApplicationManager applicat
         if (clientName.Length > 100) clientName = clientName[..100];
 
         var clientId = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        var secret = confidential ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) : null;
+        var secret = confidential ? System.Buffers.Text.Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)) : null;
 
         var descriptor = new OpenIddictApplicationDescriptor
         {

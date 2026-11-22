@@ -21,6 +21,7 @@ public sealed record RecentCollection(int Id, string Date, decimal Amount, strin
 public sealed record UnitDetail(
     int Id,
     string Display,
+    bool Active,
     string Block,
     List<UnitPerson> People,
     string? BillingGroup,
@@ -36,7 +37,7 @@ public sealed record UnitStatementResult(string Unit, List<StatementLine> Entrie
 
 public sealed record OverdueRow(int? UnitId, string Unit, string Responsible, decimal Remaining, string? OldestPeriod, string? Link);
 
-public sealed record OverdueDuesResult(int Total, decimal TotalRemaining, List<OverdueRow> Rows);
+public sealed record OverdueDuesResult(decimal Total, int Count, List<OverdueRow> Rows);
 
 [McpServerToolType]
 public class UnitTools(
@@ -97,14 +98,27 @@ public class UnitTools(
             var tenant = AccountAssignmentService.ActiveTenant(unit);
             var ownerName = owner?.Name ?? unit.OwnerName;
 
+            // Daire no: tam/önek eşleşir, rakam sorgusunda "içerir" gürültü yapar. Boşluk, "A Blok" + "5"
+            // birleşince "blok" kelimesinin düşmesi içindir. Birleşik dairede bileşenlerin anahtarları da aranır.
+            var numberKeys = new List<string>
+            {
+                TurkishSearchNormalizer.Normalize($"{unit.Block?.Name} {unit.UnitNo}"),
+                TurkishSearchNormalizer.Normalize(unit.UnitNo)
+            };
+            numberKeys.AddRange(unit.CombinedUnitMembers
+                .Where(x => x.ComponentUnit is not null)
+                .SelectMany(x => new[]
+                {
+                    TurkishSearchNormalizer.Normalize($"{x.ComponentUnit!.Block?.Name} {x.ComponentUnit.UnitNo}"),
+                    TurkishSearchNormalizer.Normalize(x.ComponentUnit.UnitNo)
+                }));
+
             var ranks = new List<int?>
             {
-                // Daire no: tam/önek eşleşir, rakam sorgusunda "içerir" gürültü yapar.
-                Rank(key, TurkishSearchNormalizer.Normalize($"{unit.Block?.Name}{unit.UnitNo}"), allowContains: !digitsOnly),
-                Rank(key, TurkishSearchNormalizer.Normalize(unit.UnitNo), allowContains: !digitsOnly),
                 Rank(key, TurkishSearchNormalizer.Normalize(ownerName), allowContains: true),
                 Rank(key, TurkishSearchNormalizer.Normalize(tenant?.Name), allowContains: true)
             };
+            ranks.AddRange(numberKeys.Select(x => Rank(key, x, allowContains: !digitsOnly)));
 
             if (canSeePhone)
             {
@@ -120,8 +134,9 @@ public class UnitTools(
             }
 
             var display = UnitDisplayHelper.Display(unit);
-            found.Add((best, 0, $"{unit.Block?.Name}\u0001{unit.UnitNo.PadLeft(10)}",
-                new SearchResult("unit", unit.Id, display, UnitSubtitle(ownerName, tenant?.Name), links.Unit(unit.Id))));
+            // Aynı eşleşme kalitesinde aktif daire pasifin (birleştirilmiş bileşen) önünde gelir.
+            found.Add((best, unit.Active ? 0 : 1, $"{unit.Block?.Name}\u0001{unit.UnitNo.PadLeft(10)}",
+                new SearchResult("unit", unit.Id, display, UnitSubtitle(ownerName, tenant?.Name, unit.Active), links.Unit(unit.Id))));
         }
 
         if (permissions.CanView(user, AppModules.Hesaplar))
@@ -142,7 +157,7 @@ public class UnitTools(
                 var subtitle = string.IsNullOrWhiteSpace(account.Phone)
                     ? AccountDisplayHelper.TypeLabel(account.AccountType)
                     : $"{AccountDisplayHelper.TypeLabel(account.AccountType)}, {account.Phone}";
-                found.Add((best, 1, account.Name, new SearchResult("account", account.Id, account.Name, subtitle, links.Account(account.Id))));
+                found.Add((best, 2, account.Name, new SearchResult("account", account.Id, account.Name, subtitle, links.Account(account.Id))));
             }
         }
 
@@ -209,6 +224,7 @@ public class UnitTools(
         return new UnitDetail(
             unit.Id,
             UnitDisplayHelper.Display(unit),
+            unit.Active,
             unit.Block?.Name ?? string.Empty,
             people,
             billingGroup,
@@ -255,7 +271,7 @@ public class UnitTools(
     [McpServerTool(Name = "overdue_dues", Title = "Borçlu daireler", ReadOnly = true)]
     [Description("Kalan borcu sıfırdan büyük daireleri, en çok borçlu önce listeler (Daire Borç/Alacak raporuyla aynı hesap; devir borcu dahil). "
         + "remaining: toplam kalan borç; oldestPeriod: kalanı olan en eski dönem (yalnız devir borcu varsa \"Devir\"). "
-        + "total: eşleşen toplam daire sayısı, totalRemaining: bunların toplam borcu (limit'ten bağımsız).")]
+        + "total: eşleşen tüm dairelerin toplam borcu (TL, limit'ten bağımsız); count: eşleşen daire sayısı.")]
     public async Task<OverdueDuesResult> OverdueDuesAsync(
         ClaimsPrincipal user,
         [Description("Dönem, YYYY-YYYY (ör. 2026-2027). Verilmezse tüm dönemler.")] string? period = null,
@@ -288,8 +304,8 @@ public class UnitTools(
         var oldest = await OldestOpenPeriodsAsync(shown, requestedPeriod, cancellationToken);
 
         return new OverdueDuesResult(
-            debtors.Count,
             debtors.Sum(x => x.RemainingAmount),
+            debtors.Count,
             shown.Select(x => new OverdueRow(
                 x.UnitId,
                 x.UnitDisplay,
@@ -403,9 +419,14 @@ public class UnitTools(
         return allowContains && candidate.Contains(key, StringComparison.Ordinal) ? 2 : null;
     }
 
-    private static string UnitSubtitle(string? ownerName, string? tenantName)
+    private static string UnitSubtitle(string? ownerName, string? tenantName, bool active)
     {
         var parts = new List<string>();
+        if (!active)
+        {
+            parts.Add("Pasif (birleştirilmiş daire)");
+        }
+
         if (!string.IsNullOrWhiteSpace(ownerName))
         {
             parts.Add($"Malik: {ownerName}");

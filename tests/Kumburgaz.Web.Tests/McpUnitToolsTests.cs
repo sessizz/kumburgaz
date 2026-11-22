@@ -32,6 +32,53 @@ public class McpUnitToolsTests
         Assert.Equal($"https://localhost/Units/Detail/{seed.A5.Id}", first.Link);
     }
 
+    // Seed'deki blok adları "A Blok" biçimindedir; ayraçsız birleşince "Blok5" kelimesi düşmemeli.
+    [Theory]
+    [InlineData("A-5")]
+    [InlineData("a blok 5")]
+    [InlineData("A5")]
+    [InlineData("A Blok-5")]
+    public async Task Search_finds_unit_in_block_named_with_blok_suffix(string query)
+    {
+        await using var db = CreateDb();
+        var site = new Site { Name = "Site" };
+        var block = new Block { Site = site, Name = "A Blok" };
+        var unit = new Unit { Block = block, UnitNo = "5" };
+        db.AddRange(site, block, unit);
+        await db.SaveChangesAsync();
+
+        var results = await Tools(db).SearchAsync(Admin(), query);
+
+        Assert.Equal(unit.Id, Assert.Single(results).Id);
+    }
+
+    // Birleştirmede bileşenler pasif olur, "1+2" numaralı aktif daire açılır.
+    [Fact]
+    public async Task Search_finds_combined_unit_by_members_and_marks_passive_units()
+    {
+        await using var db = CreateDb();
+        var site = new Site { Name = "Site" };
+        var block = new Block { Site = site, Name = "A Blok" };
+        var one = new Unit { Block = block, UnitNo = "1", Active = false };
+        var two = new Unit { Block = block, UnitNo = "2", Active = false };
+        var combined = new Unit { Block = block, UnitNo = "1+2", IsCombined = true };
+        db.AddRange(site, block, one, two, combined);
+        await db.SaveChangesAsync();
+        db.CombinedUnitMembers.AddRange(
+            new CombinedUnitMember { CombinedUnitId = combined.Id, ComponentUnitId = one.Id },
+            new CombinedUnitMember { CombinedUnitId = combined.Id, ComponentUnitId = two.Id });
+        await db.SaveChangesAsync();
+        var tools = Tools(db);
+
+        var results = await tools.SearchAsync(Admin(), "A-2");
+
+        Assert.Equal([combined.Id, two.Id], results.Select(x => x.Id));
+        Assert.DoesNotContain("Pasif", results[0].Subtitle);
+        Assert.Contains("Pasif", results[1].Subtitle);
+        Assert.True((await tools.GetUnitAsync(Admin(), combined.Id)).Active);
+        Assert.False((await tools.GetUnitAsync(Admin(), two.Id)).Active);
+    }
+
     // Çıplak daire no gürültü yapmaz: "15" yalnız 15 numaralı daireyi ve 15 ile başlayanları getirir.
     [Fact]
     public async Task Search_ranks_exact_unit_number_before_prefix_and_skips_contains()
@@ -295,8 +342,8 @@ public class McpUnitToolsTests
 
         // A-5 de (300 devir borcu) listelenir; borcu olmayan B-115 listelenmez.
         Assert.Equal([seed.A150.Id, seed.A15.Id, seed.A5.Id], all.Rows.Select(x => x.UnitId));
-        Assert.Equal(3, all.Total);
-        Assert.Equal(9_000m + 4_000m + 300m, all.TotalRemaining);
+        Assert.Equal(3, all.Count);
+        Assert.Equal(9_000m + 4_000m + 300m, all.Total);
         Assert.Equal("2025-2026", all.Rows[0].OldestPeriod);
         Assert.Equal("2025-2026", all.Rows[1].OldestPeriod);
         Assert.Equal(4_000m, all.Rows[1].Remaining);
@@ -304,7 +351,8 @@ public class McpUnitToolsTests
 
         var limited = await tools.OverdueDuesAsync(user, limit: 1);
         Assert.Equal(seed.A150.Id, Assert.Single(limited.Rows).UnitId);
-        Assert.Equal(3, limited.Total);
+        Assert.Equal(3, limited.Count);
+        Assert.Equal(9_000m + 4_000m + 300m, limited.Total);
 
         var period = await tools.OverdueDuesAsync(user, period: "2026-2027");
         Assert.Equal(seed.A15.Id, period.Rows[0].UnitId);

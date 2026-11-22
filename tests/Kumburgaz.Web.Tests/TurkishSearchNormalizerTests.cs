@@ -20,6 +20,7 @@ public class TurkishSearchNormalizerTests
     [InlineData("a blok 5")]
     [InlineData("A5")]
     [InlineData("A Blok-5")]
+    [InlineData("A Blok 5")]
     public void Block_and_unit_number_variants_share_one_key(string value)
     {
         Assert.Equal("a5", TurkishSearchNormalizer.Normalize(value));

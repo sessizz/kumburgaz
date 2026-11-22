@@ -38,7 +38,7 @@ public class PermissionService(ApplicationDbContext db, IMemoryCache cache)
         }
 
         var map = LoadMap();
-        foreach (var role in user.FindAll(ClaimTypes.Role).Select(c => c.Value))
+        foreach (var role in GetRoles(user))
         {
             if (map.TryGetValue((role, module), out var p))
             {
@@ -51,6 +51,13 @@ public class PermissionService(ApplicationDbContext db, IMemoryCache cache)
 
         return false;
     }
+
+    // Çerez oturumu rolleri ClaimTypes.Role ile, OAuth token'ı kimliğin RoleClaimType'ı ("role") ile taşır.
+    private static IEnumerable<string> GetRoles(ClaimsPrincipal user)
+        => user.FindAll(ClaimTypes.Role)
+            .Concat(user.Identities.SelectMany(identity => identity.FindAll(identity.RoleClaimType)))
+            .Select(claim => claim.Value)
+            .Distinct();
 
     public bool CanView(ClaimsPrincipal user, string module) => HasAccess(user, module, needWrite: false);
 

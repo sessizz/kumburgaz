@@ -1,5 +1,6 @@
 using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Mcp;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using System.Globalization;
@@ -62,6 +63,7 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
 // claude.ai MCP bağlayıcısı için OAuth yetkilendirme sunucusu (OpenIddict).
 builder.Services.AddKumburgazOAuthServer(builder.Configuration);
 builder.Services.AddKumburgazOAuthRateLimits();
+builder.Services.AddKumburgazMcp(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
@@ -240,6 +242,7 @@ app.MapControllerRoute(
 
 app.MapRazorPages().WithStaticAssets();
 app.MapHealthChecks("/health");
+app.MapKumburgazMcp();
 
 app.Run();
 

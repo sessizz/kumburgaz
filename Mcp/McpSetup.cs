@@ -59,6 +59,7 @@ public static class McpSetup
             .AddAuthorizationFilters()
             .WithTools<CategoryTools>(ToolJsonOptions)
             .WithTools<UnitTools>(ToolJsonOptions)
+            .WithTools<FinanceTools>(ToolJsonOptions)
             .WithResources<McpGuideResource>();
 
         return services;

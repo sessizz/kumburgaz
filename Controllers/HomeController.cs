@@ -13,13 +13,13 @@ public class HomeController(
     ApplicationDbContext db,
     IExpenseForecastService expenseForecastService,
     BackupService backupService,
-    IDuesLedgerRowService ledgerService) : Controller
+    IDuesLedgerRowService ledgerService,
+    DashboardFiguresService figures) : Controller
 {
     public async Task<IActionResult> Index(string? period = null)
     {
         var todayUtc = DateTime.UtcNow.Date;
-        var monthStart = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var nextMonthStart = monthStart.AddMonths(1);
+        var monthStart = DashboardFiguresService.MonthStartUtc(todayUtc);
 
         var periods = await ledgerService.GetAvailablePeriodsAsync();
         var selectedPeriod = DuesController.ResolvePeriod(period, periods);
@@ -31,11 +31,11 @@ public class HomeController(
             .ToList();
 
         var totalGenerated = periodRows.Sum(x => x.Amount);
-        var overdueCarriedDebt = openingRows.Where(x => x.RemainingAmount > 0).Sum(x => x.RemainingAmount);
-        // Gecikmiş aidat borcu seçili dönemle sınırlı değildir: geçmiş bir dönemden kalan ödenmemiş
-        // borç, dönem değiştirilse bile hâlâ gerçek bir borçtur ve gizlenmemelidir.
-        var overdueDuesDebt = allDuesRows.Where(x => !x.IsPaid && x.IsOverdue).Sum(x => x.RemainingAmount);
-        var overdueDebt = overdueCarriedDebt + overdueDuesDebt;
+        // MCP site_summary ile ortak formül (DashboardFiguresService).
+        var overdue = DashboardFiguresService.OverdueDebtOf(duesRows);
+        var overdueCarriedDebt = overdue.CarriedDebt;
+        var overdueDuesDebt = overdue.DuesDebt;
+        var overdueDebt = overdue.Total;
         var overdueUnitCount = openingRows.Where(x => x.RemainingAmount > 0)
             .Concat(allDuesRows.Where(x => !x.IsPaid && x.IsOverdue))
             .Select(x => x.UnitId)
@@ -109,22 +109,11 @@ public class HomeController(
                     : (e.Type == CategoryTypeHelper.Gelir ? e.Amount : -e.Amount))
         }));
 
-        var monthCollections = await db.Collections
-            .Where(x => x.Date >= monthStart && x.Date < nextMonthStart)
-            .SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var monthCollectionCount = await db.Collections.CountAsync(x => x.Date >= monthStart && x.Date < nextMonthStart);
-        var monthOtherIncome = await db.LedgerTransactions
-            .Where(x => x.Date >= monthStart && x.Date < nextMonthStart &&
-                !x.IsTransfer &&
-                x.IncomeExpenseCategory != null &&
-                x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gelir)
-            .SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var monthExpense = await db.LedgerTransactions
-            .Where(x => x.Date >= monthStart && x.Date < nextMonthStart &&
-                !x.IsTransfer &&
-                x.IncomeExpenseCategory != null &&
-                x.IncomeExpenseCategory.Type == CategoryTypeHelper.Gider)
-            .SumAsync(x => (decimal?)x.Amount) ?? 0m;
+        var month = await figures.GetMonthFiguresAsync(monthStart);
+        var monthCollections = month.Collections;
+        var monthCollectionCount = month.CollectionCount;
+        var monthOtherIncome = month.OtherIncome;
+        var monthExpense = month.Expense;
 
         var forecast = await expenseForecastService.BuildAsync(monthStart);
         var expenseForecast = forecast.Items;

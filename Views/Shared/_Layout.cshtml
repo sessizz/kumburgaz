@@ -262,6 +262,10 @@
             {
                 <a class="dk-nav @(settingsControllers.Contains(currentController, StringComparer.OrdinalIgnoreCase) || string.Equals(currentController, "SystemUsers", StringComparison.OrdinalIgnoreCase) || string.Equals(currentController, "RolePermissions", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-controller="Settings" asp-action="Index"><span class="mi material-symbols-outlined">settings</span>Ayarlar</a>
             }
+            @if (showAyarlar || Kumburgaz.Web.Auth.OAuthConstants.EligibleRoles.Any(r => User.IsInRole(r)))
+            {
+                <a class="dk-nav @IsActive("ConnectedApps")" asp-controller="ConnectedApps" asp-action="Index"><span class="mi material-symbols-outlined">link</span>Bağlı uygulamalar</a>
+            }
         </nav>
 
     </aside>

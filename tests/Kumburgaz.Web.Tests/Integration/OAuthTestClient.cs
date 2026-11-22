@@ -198,6 +198,10 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
             root.GetProperty("expires_in").GetInt32());
     }
 
+    // Tarayıcıyı doğrudan giriş sayfasından oturum açtırır (çerez tarayıcıda kalır).
+    public static Task<HttpResponseMessage> LoginAsync(HttpClient browser, string userName, string password)
+        => LoginAsync(browser, "/Identity/Account/Login", userName, password);
+
     private static async Task<HttpResponseMessage> LoginAsync(HttpClient browser, string loginPath, string userName, string password)
     {
         var page = await browser.GetAsync(loginPath);

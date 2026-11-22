@@ -1,7 +1,5 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Data;
@@ -28,7 +26,7 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     [Fact]
     public async Task Mcp_without_token_returns_401_with_resource_metadata()
     {
-        var response = await PostInitializeAsync(_oauth.CreateBrowser());
+        var response = await _oauth.InitializeMcpAsync();
 
         AssertMcpChallenge(response);
     }
@@ -45,7 +43,7 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     [Fact]
     public async Task Mcp_with_invalid_token_returns_401_with_resource_metadata()
     {
-        var response = await PostInitializeAsync(_oauth.CreateBrowser(), "gecersiz-token");
+        var response = await _oauth.InitializeMcpAsync("gecersiz-token");
 
         AssertMcpChallenge(response);
     }
@@ -58,7 +56,7 @@ public class McpEndpointTests(KumburgazAppFactory factory)
         var browser = _oauth.CreateBrowser();
         await OAuthTestClient.LoginAsync(browser, userName, Password);
 
-        var response = await PostInitializeAsync(browser);
+        var response = await _oauth.InitializeMcpAsync(browser: browser);
 
         AssertMcpChallenge(response);
     }
@@ -96,7 +94,9 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     [InlineData(null, false)]
     public async Task Mcp_policy_requires_mcp_scope(string? scope, bool expected)
     {
+        var user = await _oauth.CreateUserAsync($"mcp-{Guid.NewGuid():N}", Password, AppRoles.MuhasebeGorevli);
         var identity = new ClaimsIdentity("Bearer", "name", "role");
+        identity.SetClaim(OpenIddictConstants.Claims.Subject, user.Id);
         if (scope is not null)
         {
             identity.SetScopes(scope);
@@ -108,6 +108,26 @@ public class McpEndpointTests(KumburgazAppFactory factory)
 
         Assert.Equal(expected, result.Succeeded);
     }
+
+    // Token geçerli olsa da kullanıcı artık uygun değilse erişim, token süresini beklemeden biter.
+    [Fact]
+    public Task Locked_out_user_with_valid_token_is_refused()
+        => AssertRefusedAfterAsync(userName => _oauth.LockOutAsync(userName));
+
+    [Fact]
+    public Task Deleted_user_with_valid_token_is_refused()
+        => AssertRefusedAfterAsync(userName => _oauth.WithUserAsync(
+            userName, (users, user) => users.DeleteAsync(user)));
+
+    [Fact]
+    public Task Staff_user_given_sakin_role_with_valid_token_is_refused()
+        => AssertRefusedAfterAsync(userName => _oauth.WithUserAsync(
+            userName, (users, user) => users.AddToRoleAsync(user, AppRoles.Sakin)));
+
+    [Fact]
+    public Task User_who_lost_staff_role_with_valid_token_is_refused()
+        => AssertRefusedAfterAsync(userName => _oauth.WithUserAsync(
+            userName, (users, user) => users.RemoveFromRoleAsync(user, AppRoles.MuhasebeGorevli)));
 
     [Fact]
     public async Task Authenticated_client_lists_tools_and_reads_instructions()
@@ -132,7 +152,7 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     {
         var tokens = await _oauth.GetTokensAsync(await CreateUserAsync(AppRoles.Personel), Password);
 
-        var response = await PostInitializeAsync(_oauth.CreateBrowser(), tokens.AccessToken);
+        var response = await _oauth.InitializeMcpAsync(tokens.AccessToken);
 
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.StatusCode == HttpStatusCode.OK, body);
@@ -265,22 +285,18 @@ public class McpEndpointTests(KumburgazAppFactory factory)
         return await McpClient.CreateAsync(transport);
     }
 
-    private static async Task<HttpResponseMessage> PostInitializeAsync(HttpClient browser, string? accessToken = null)
+    // Değişiklikten önce 200, sonra 403; aynı anda bağlı başka kullanıcı etkilenmez.
+    private async Task AssertRefusedAfterAsync(Func<string, Task> change)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
-        {
-            Content = new StringContent(
-                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}""",
-                Encoding.UTF8, "application/json")
-        };
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Accept.ParseAdd("text/event-stream");
-        if (accessToken is not null)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        }
+        var userName = await CreateUserAsync(AppRoles.MuhasebeGorevli);
+        var tokens = await _oauth.GetTokensAsync(userName, Password);
+        var otherTokens = await _oauth.GetTokensAsync(await CreateUserAsync(AppRoles.MuhasebeGorevli), Password);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
 
-        return await browser.SendAsync(request);
+        await change(userName);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(otherTokens.AccessToken)).StatusCode);
     }
 
     private static void AssertMcpChallenge(HttpResponseMessage response)

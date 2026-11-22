@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -61,6 +62,41 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         }
 
         return user;
+    }
+
+    // Kullanıcıyı bağlantı kurulduktan sonra değiştirir (kilit, rol, silme).
+    public async Task WithUserAsync(
+        string userName, Func<UserManager<ApplicationUser>, ApplicationUser, Task<IdentityResult>> change)
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await users.FindByNameAsync(userName) ?? throw new InvalidOperationException(userName);
+        AssertSucceeded(await change(users, user));
+    }
+
+    public Task LockOutAsync(string userName) => WithUserAsync(userName, async (users, user) =>
+    {
+        AssertSucceeded(await users.SetLockoutEnabledAsync(user, true));
+        return await users.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
+    });
+
+    // Bağlayıcının /mcp'ye ilk çağrısı. Token verilmezse kimliksizdir; browser verilirse onun çerezleri gider.
+    public async Task<HttpResponseMessage> InitializeMcpAsync(string? accessToken = null, HttpClient? browser = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = new StringContent(
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}""",
+                Encoding.UTF8, "application/json")
+        };
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        if (accessToken is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        }
+
+        return await (browser ?? CreateBrowser()).SendAsync(request);
     }
 
     public async Task<TokenResult> GetTokensAsync(string userName, string password, string? resource = null)

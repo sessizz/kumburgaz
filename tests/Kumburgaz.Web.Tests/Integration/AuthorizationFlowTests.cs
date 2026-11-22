@@ -3,7 +3,6 @@ using System.Security.Claims;
 using System.Text.Json;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation;
@@ -97,6 +96,37 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         Assert.Equal(Errors.AccessDenied, result.Error);
         Assert.Null(result.Code);
         Assert.False(result.ConsentShown);
+    }
+
+    // Sakin ekranda hiçbir masaüstü sayfasına giremez; personel rolü de olsa bağlayıcıyı kullanamaz.
+    [Fact]
+    public async Task Staff_user_with_sakin_role_is_denied()
+    {
+        var userName = NewUserName("personel-sakin");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli, AppRoles.Sakin);
+        var clientId = await _oauth.RegisterClientAsync();
+
+        var result = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+
+        Assert.Equal(Errors.AccessDenied, result.Error);
+        Assert.Null(result.Code);
+        Assert.False(result.ConsentShown);
+    }
+
+    [Fact]
+    public async Task Code_exchange_fails_after_staff_user_is_given_sakin_role()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+        var authorization = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+        Assert.NotNull(authorization.Code);
+
+        await _oauth.WithUserAsync(userName, (users, user) => users.AddToRoleAsync(user, AppRoles.Sakin));
+        var response = await _oauth.ExchangeCodeAsync(clientId, authorization.Code!, authorization.CodeVerifier);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(Errors.InvalidGrant, await ReadErrorAsync(response));
     }
 
     [Fact]
@@ -230,11 +260,25 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
         var tokens = await _oauth.GetTokensAsync(userName, Password);
 
-        await WithUserAsync(userName, async (users, user) =>
+        await _oauth.WithUserAsync(userName, async (users, user) =>
         {
             await users.RemoveFromRolesAsync(user, await users.GetRolesAsync(user));
-            await users.AddToRoleAsync(user, AppRoles.Sakin);
+            return await users.AddToRoleAsync(user, AppRoles.Sakin);
         });
+        var response = await _oauth.RefreshAsync(tokens.ClientId, tokens.RefreshToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(Errors.InvalidGrant, await ReadErrorAsync(response));
+    }
+
+    [Fact]
+    public async Task Refresh_fails_after_staff_user_is_given_sakin_role()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var tokens = await _oauth.GetTokensAsync(userName, Password);
+
+        await _oauth.WithUserAsync(userName, (users, user) => users.AddToRoleAsync(user, AppRoles.Sakin));
         var response = await _oauth.RefreshAsync(tokens.ClientId, tokens.RefreshToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -248,11 +292,7 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
         var tokens = await _oauth.GetTokensAsync(userName, Password);
 
-        await WithUserAsync(userName, async (users, user) =>
-        {
-            await users.SetLockoutEnabledAsync(user, true);
-            await users.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
-        });
+        await _oauth.LockOutAsync(userName);
         var response = await _oauth.RefreshAsync(tokens.ClientId, tokens.RefreshToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -300,14 +340,6 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         using var scope = factory.Services.CreateScope();
         var validation = scope.ServiceProvider.GetRequiredService<OpenIddictValidationService>();
         return await validation.ValidateAccessTokenAsync(accessToken);
-    }
-
-    private async Task WithUserAsync(string userName, Func<UserManager<ApplicationUser>, ApplicationUser, Task> change)
-    {
-        using var scope = factory.Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = await users.FindByNameAsync(userName) ?? throw new InvalidOperationException(userName);
-        await change(users, user);
     }
 
     private static async Task<string?> ReadErrorAsync(HttpResponseMessage response)

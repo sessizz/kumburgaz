@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Mcp.Tools;
+using Microsoft.AspNetCore.Authorization;
 using ModelContextProtocol;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.AspNetCore.Authentication;
@@ -43,7 +44,9 @@ public static class McpSetup
         services.AddAuthorizationBuilder().AddPolicy(OAuthConstants.McpPolicy, policy => policy
             .AddAuthenticationSchemes(McpAuthenticationDefaults.AuthenticationScheme)
             .RequireAuthenticatedUser()
-            .RequireAssertion(context => context.User.HasScope(OAuthConstants.Scope)));
+            .RequireAssertion(context => context.User.HasScope(OAuthConstants.Scope))
+            .AddRequirements(new ConnectorEligibilityRequirement()));
+        services.AddScoped<IAuthorizationHandler, ConnectorEligibilityHandler>();
 
         services.AddSingleton<McpLinks>();
 

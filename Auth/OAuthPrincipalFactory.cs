@@ -16,7 +16,10 @@ namespace Kumburgaz.Web.Auth;
 /// </summary>
 public class OAuthPrincipalFactory(UserManager<ApplicationUser> users, IConfiguration config)
 {
-    // Uygun değilse null: rolsüz, yalnız Sakin, kilitli.
+    // Kullanıcı bağlayıcıyı kullanabilir mi? Kuralın tek kaynağı: authorize, token, refresh ve her /mcp isteği.
+    public async Task<bool> IsEligibleAsync(ApplicationUser user) => await GetEligibleRolesAsync(user) is not null;
+
+    // Uygun değilse null (bkz. GetEligibleRolesAsync).
     public async Task<ClaimsPrincipal?> CreateAsync(ApplicationUser user, ImmutableArray<string> scopes, string? resource)
     {
         // Audience her zaman kanonik /mcp adresidir. OpenIddict kayıtlı olmayan resource'u zaten
@@ -27,13 +30,8 @@ public class OAuthPrincipalFactory(UserManager<ApplicationUser> users, IConfigur
             throw new ArgumentException($"Desteklenmeyen resource: {resource}", nameof(resource));
         }
 
-        if (await users.IsLockedOutAsync(user))
-        {
-            return null;
-        }
-
-        var roles = await users.GetRolesAsync(user);
-        if (!roles.Any(OAuthConstants.EligibleRoles.Contains))
+        var roles = await GetEligibleRolesAsync(user);
+        if (roles is null)
         {
             return null;
         }
@@ -55,5 +53,19 @@ public class OAuthPrincipalFactory(UserManager<ApplicationUser> users, IConfigur
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
 
         return new ClaimsPrincipal(identity);
+    }
+
+    // Uygun kullanıcının rolleri; kilitli, personel rolü olmayan ya da Sakin rolü taşıyan kullanıcıda null.
+    // Sakin, personel rolü de olsa ekranda hiçbir masaüstü sayfasına giremez (SakinAreaRestrictionFilter);
+    // Claude kullanıcının ekranda yapamadığını yapamaz.
+    private async Task<IList<string>?> GetEligibleRolesAsync(ApplicationUser user)
+    {
+        if (await users.IsLockedOutAsync(user))
+        {
+            return null;
+        }
+
+        var roles = await users.GetRolesAsync(user);
+        return roles.Contains(AppRoles.Sakin) || !roles.Any(OAuthConstants.EligibleRoles.Contains) ? null : roles;
     }
 }

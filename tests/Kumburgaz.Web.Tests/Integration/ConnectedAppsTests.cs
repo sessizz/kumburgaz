@@ -60,6 +60,27 @@ public class ConnectedAppsTests(KumburgazAppFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, refresh.StatusCode);
     }
 
+    // Ekran "uygulama oturumu hemen sona erer" der: eldeki access token süresi dolmadan geçersiz olmalı.
+    [Fact]
+    public async Task Revoked_connection_cannot_call_mcp()
+    {
+        var userName = NewUserName("muhasebe");
+        var otherName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        await _oauth.CreateUserAsync(otherName, Password, AppRoles.MuhasebeGorevli);
+        var tokens = await _oauth.GetTokensAsync(userName, Password);
+        var otherTokens = await _oauth.GetTokensAsync(otherName, Password);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
+
+        var browser = await LoginBrowserAsync(userName);
+        var (action, token) = ReadRevokeForm(await GetIndexHtmlAsync(browser));
+        Assert.Equal(HttpStatusCode.Redirect, (await PostRevokeAsync(browser, action, token)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
+        // Başka kullanıcının bağlantısı etkilenmedi.
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(otherTokens.AccessToken)).StatusCode);
+    }
+
     [Fact]
     public async Task User_cannot_revoke_someone_elses_connection()
     {

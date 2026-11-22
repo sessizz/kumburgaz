@@ -57,6 +57,9 @@ public static class OAuthServerSetup
                 options.UseLocalServer();
                 options.UseAspNetCore();
                 options.AddAudiences(config.GetMcpResource());
+                // İptal edilen bağlantının token'ı süresi dolmadan geçersiz olsun (bkz. ConnectedAppsController);
+                // aksi halde yalnız imza, süre ve audience'a bakılır.
+                options.EnableTokenEntryValidation();
             });
 
         // İmzalama/şifreleme anahtarları veritabanından (bkz. OAuthKeyStore).

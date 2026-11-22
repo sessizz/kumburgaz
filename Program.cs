@@ -82,6 +82,7 @@ builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IExpenseForecastService, ExpenseForecastService>();
 builder.Services.AddScoped<BalanceDetailedReportService>();
 builder.Services.AddScoped<CashBankDetailService>();
+builder.Services.AddScoped<LedgerEntryService>();
 builder.Services.AddScoped<ImportBatchService>();
 builder.Services.AddScoped<UnitLedgerService>();
 builder.Services.AddScoped<UnitStatementService>();

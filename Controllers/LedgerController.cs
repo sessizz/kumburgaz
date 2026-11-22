@@ -16,7 +16,8 @@ public class LedgerController(
     ImportBatchService importBatchService,
     ImageAttachmentService imageAttachmentService,
     DocumentFileService documentFileService,
-    CaptureSessionService captureSessions) : Controller
+    CaptureSessionService captureSessions,
+    LedgerEntryService ledgerEntryService) : Controller
 {
     public async Task<IActionResult> Index(int[] categoryIds, int? categoryId, DateTime? startDate, DateTime? endDate)
     {
@@ -124,21 +125,21 @@ public class LedgerController(
             return View(await BuildAsync(model));
         }
 
-        var entity = new LedgerTransaction
+        int ledgerId;
+        try
         {
-            Date = DateTimeHelper.EnsureUtc(model.Date),
-            IncomeExpenseCategoryId = model.IncomeExpenseCategoryId,
-            Amount = model.Amount,
-            PaymentChannel = ResolvePaymentChannel(model, out var cashBoxId, out var bankAccountId),
-            CashBoxId = cashBoxId,
-            BankAccountId = bankAccountId,
-            Description = model.Description
-        };
-        db.LedgerTransactions.Add(entity);
-        await db.SaveChangesAsync();
+            ledgerId = await ledgerEntryService.CreateAsync(new LedgerEntryRequest(
+                model.Date, model.IncomeExpenseCategoryId, model.Amount, model.AccountKey, model.Description));
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            ViewBag.CaptureToken = captureToken;
+            return View(await BuildAsync(model));
+        }
 
-        var attachmentErrors = await SaveAttachmentsAsync(entity.Id, Fotograflar);
-        await SaveCapturedAttachmentsAsync(entity.Id, captureToken);
+        var attachmentErrors = await SaveAttachmentsAsync(ledgerId, Fotograflar);
+        await SaveCapturedAttachmentsAsync(ledgerId, captureToken);
         if (attachmentErrors.Count > 0)
         {
             TempData["ActionError"] = "Kayıt oluşturuldu ama bazı dosyalar eklenemedi: " + string.Join(" ", attachmentErrors);

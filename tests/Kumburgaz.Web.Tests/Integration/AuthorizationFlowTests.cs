@@ -127,15 +127,35 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
     }
 
     // Onay formu authorize sorgusunu gizli alan olarak taşır; sorguya eklenen submit=accept "Reddet"i ezmemeli.
-    [Fact]
-    public async Task Submit_parameter_in_authorize_url_cannot_override_deny()
+    // ASP.NET Core sorgu/form anahtarları büyük-küçük harf duyarsızdır: "Submit" ve "SUBMIT" de aynı alandır.
+    [Theory]
+    [InlineData("submit")]
+    [InlineData("Submit")]
+    [InlineData("SUBMIT")]
+    public async Task Submit_parameter_in_authorize_url_cannot_override_deny(string key)
     {
         var userName = NewUserName("muhasebe");
         await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
         var clientId = await _oauth.RegisterClientAsync();
 
         var result = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password, deny: true,
-            customize: p => p["submit"] = "accept");
+            customize: p => p[key] = "accept");
+
+        Assert.True(result.ConsentShown);
+        Assert.Equal(Errors.AccessDenied, result.Error);
+        Assert.Null(result.Code);
+    }
+
+    // Onay POST'u tek bir "submit=accept" ister; birden çok değer (ör. kurcalanmış form) reddedilir.
+    [Fact]
+    public async Task Consent_post_with_multiple_submit_values_is_denied()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+
+        var result = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password, deny: true,
+            extraConsentFields: [new("Submit", "accept")]);
 
         Assert.True(result.ConsentShown);
         Assert.Equal(Errors.AccessDenied, result.Error);

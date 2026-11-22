@@ -126,9 +126,11 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
 
     // Tarayıcıyı authorize isteğinden istemcinin dönüş adresine kadar götürür:
     // gerekirse giriş yapar, onay ekranı çıkarsa izin verir (deny: true ise reddeder).
+    // extraConsentFields: onay POST'una tıklanan düğmeden önce eklenen alanlar (kurcalanmış form).
     public async Task<AuthorizationResult> AuthorizeAsync(
         HttpClient browser, string clientId, string userName, string password, string? resource = null, bool deny = false,
-        Action<Dictionary<string, string?>>? customize = null)
+        Action<Dictionary<string, string?>>? customize = null,
+        IEnumerable<KeyValuePair<string, string>>? extraConsentFields = null)
     {
         var (url, verifier) = CreateAuthorizeRequest(clientId, resource, customize);
         string? consentHtml = null;
@@ -143,6 +145,7 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
                 consentHtml = html;
 
                 var form = ReadHiddenInputs(html);
+                form.AddRange(extraConsentFields ?? []);
                 form.Add(new("submit", deny ? "deny" : "accept"));
                 var action = Attribute(Regex.Match(html, "<form\\b[^>]*>", RegexOptions.IgnoreCase).Value, "action");
                 Assert.Equal("/connect/authorize", action);

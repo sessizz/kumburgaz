@@ -65,12 +65,13 @@ public class AuthorizationController(
 
     [HttpPost("~/connect/authorize")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Consent([FromForm] string? submit)
+    public async Task<IActionResult> Consent()
     {
         var request = HttpContext.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException("OAuth yetkilendirme isteği okunamadı.");
 
-        if (!string.Equals(submit, "accept", StringComparison.Ordinal))
+        // Yalnız tek bir "submit=accept" onaydır; eksik, farklı ya da birden çok değer (kurcalanmış form) reddir.
+        if (Request.Form["submit"] is not ["accept"])
         {
             return ForbidWithError(Errors.AccessDenied, DeniedMessage);
         }
@@ -153,8 +154,10 @@ public class AuthorizationController(
 
     // Onay formunun kendi alanları OAuth parametresi olarak taşınmaz: authorize adresine eklenen
     // "submit=accept" gizli alana dönüşüp kullanıcının "Reddet" seçimini ezmesin.
+    // Sorgu/form anahtarları büyük-küçük harf duyarsızdır ("Submit" de aynı alandır).
     private static bool IsConsentFormField(string key)
-        => key is "submit" or "__RequestVerificationToken";
+        => string.Equals(key, "submit", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "__RequestVerificationToken", StringComparison.OrdinalIgnoreCase);
 
     // OpenIddict hatayı authorize'da istemcinin dönüş adresine, token'da 400 JSON olarak yazar.
     private ForbidResult ForbidWithError(string error, string description)

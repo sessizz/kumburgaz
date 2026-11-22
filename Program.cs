@@ -61,6 +61,7 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
 
 // claude.ai MCP bağlayıcısı için OAuth yetkilendirme sunucusu (OpenIddict).
 builder.Services.AddKumburgazOAuthServer(builder.Configuration);
+builder.Services.AddKumburgazOAuthRateLimits();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
@@ -218,6 +219,8 @@ app.Use(async (context, next) =>
 });
 
 app.UseRouting();
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -15,6 +15,8 @@ public class McpLinksTests(KumburgazAppFactory factory)
     public void Record_links_point_to_application_pages()
     {
         Assert.Equal(AppUrl("Units", "Detail", 12), _links.Unit(12));
+        Assert.Equal(AppUrl("Accounts", "Detail", 9), _links.Account(9));
+        Assert.Equal("https://localhost/Accounts/Detail/9", _links.Account(9));
         Assert.Equal(AppUrl("Collections", "Edit", 34), _links.Collection(34));
         Assert.Equal(AppUrl("Ledger", "Edit", 56), _links.Ledger(56));
         Assert.Equal("https://localhost/Units/Detail/12", _links.Unit(12));

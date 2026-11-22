@@ -14,4 +14,13 @@ public static class McpAccess
             throw new McpException($"Bu işlem için yetkiniz yok ({module}).");
         }
     }
+
+    // Modüllerden en az birine yetkisi olan geçer (ör. Daireler ya da Tahsilatlar).
+    public static void RequireAny(ClaimsPrincipal user, PermissionService permissions, string[] modules, bool write)
+    {
+        if (!modules.Any(module => permissions.HasAccess(user, module, write)))
+        {
+            throw new McpException($"Bu işlem için yetkiniz yok ({string.Join(" veya ", modules)}).");
+        }
+    }
 }

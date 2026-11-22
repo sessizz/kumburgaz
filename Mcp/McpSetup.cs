@@ -58,6 +58,7 @@ public static class McpSetup
             .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
             .AddAuthorizationFilters()
             .WithTools<CategoryTools>(ToolJsonOptions)
+            .WithTools<UnitTools>(ToolJsonOptions)
             .WithResources<McpGuideResource>();
 
         return services;

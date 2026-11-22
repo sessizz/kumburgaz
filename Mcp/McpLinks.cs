@@ -10,6 +10,8 @@ public sealed class McpLinks(IConfiguration config)
 
     public string Unit(int id) => Build($"Units/Detail/{id}");
 
+    public string Account(int id) => Build($"Accounts/Detail/{id}");
+
     public string Collection(int id) => Build($"Collections/Edit/{id}");
 
     public string Ledger(int id) => Build($"Ledger/Edit/{id}");

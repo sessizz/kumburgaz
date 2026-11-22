@@ -569,7 +569,14 @@ public class UnitsController(
             var ownerName = ReadFirstValue(row, headers, "ownername", "malikadi");
             var active = ParseBool(ReadFirstValue(row, headers, "active", "aktif"), true);
             var isCombined = ParseBool(ReadFirstValue(row, headers, "iscombined", "birlesik"), false);
-            var openingBalance = ParseDecimal(ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir"));
+            var rawOpeningBalance = ReadFirstValue(row, headers, "openingbalance", "devirbakiyesi", "devir");
+            if (!TryParseOptionalDecimal(rawOpeningBalance, out var openingBalance))
+            {
+                // Eskiden okunamayan değer sessizce 0 yazılıyor, dairenin devir bakiyesi siliniyordu.
+                TempData["ImportError"] = $"Satir {lineNo}: Devir bakiyesi okunamadı ({rawOpeningBalance}).";
+                return RedirectToAction(nameof(Index));
+            }
+
             var openingBalanceDate = ParseNullableDate(ReadFirstValue(row, headers, "openingbalancedate", "devirtarihi", "devirbakiyesitarihi"));
 
             Unit unit;
@@ -1174,14 +1181,11 @@ public class UnitsController(
         return null;
     }
 
-    private static decimal ParseDecimal(string value)
+    // Boş değer 0 sayılır; dolu ama okunamayan değer hatadır.
+    private static bool TryParseOptionalDecimal(string value, out decimal result)
     {
-        if (string.IsNullOrWhiteSpace(value)) return 0m;
-        var normalized = value.Trim().Replace(',', '.');
-        return decimal.TryParse(normalized, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture, out var result)
-            ? result
-            : 0m;
+        result = 0m;
+        return string.IsNullOrWhiteSpace(value) || FlexibleDecimalParser.TryParse(value, out result);
     }
 
     private static bool ParseBool(string value, bool fallback)

@@ -1011,7 +1011,7 @@ public class ReportsController(
         {
             await db.SaveChangesAsync();
             TempData["Success"] = "Borç kaydı güncellendi.";
-            return Redirect(model.ReturnUrl ?? Url.Action(nameof(DuesDebt))!);
+            return this.RedirectToLocal(model.ReturnUrl, Url.Action(nameof(DuesDebt))!);
         }
         catch (DbUpdateException)
         {
@@ -1039,19 +1039,19 @@ public class ReportsController(
         if (installment is null)
         {
             TempData["Error"] = "Borç kaydı bulunamadı.";
-            return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
+            return this.RedirectToLocal(returnUrl, Url.Action(nameof(DuesDebt))!);
         }
 
         if (installment.Allocations.Count > 0)
         {
             TempData["Error"] = "Tahsilat uygulanmış borç kaydı silinemez.";
-            return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
+            return this.RedirectToLocal(returnUrl, Url.Action(nameof(DuesDebt))!);
         }
 
         db.DuesInstallments.Remove(installment);
         await db.SaveChangesAsync();
         TempData["Success"] = "Borç kaydı silindi.";
-        return Redirect(returnUrl ?? Url.Action(nameof(DuesDebt))!);
+        return this.RedirectToLocal(returnUrl, Url.Action(nameof(DuesDebt))!);
     }
 
     private static void ApplyAgingBucket(DebtAgingRow row, decimal amount, DateTime dueDate, DateTime asOf)

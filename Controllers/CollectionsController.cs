@@ -83,25 +83,24 @@ public class CollectionsController(
     {
         try
         {
-            // Türkçe virgüllü tutarı destekle
-            var rawAmount = (amount ?? "0").Trim().Replace(',', '.');
-            if (!decimal.TryParse(rawAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedAmount) || parsedAmount <= 0)
+            // Türkçe ("1.234,56") ve noktalı ("1234.56") tutarları destekle
+            if (!FlexibleDecimalParser.TryParse(amount, out var parsedAmount) || parsedAmount <= 0)
             {
                 TempData["ActionError"] = "Geçerli bir tutar giriniz.";
-                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+                return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
             }
 
             if (isReceipt && string.IsNullOrWhiteSpace(referenceNo))
             {
                 TempData["ActionError"] = "Makbuz için makbuz no giriniz.";
-                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+                return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
             }
 
             var billingGroupId = await ResolveUnitBillingGroupIdAsync(unitId);
             if (billingGroupId is null)
             {
                 TempData["ActionError"] = "Bu daire için aktif bir aidat grubu bulunamadı.";
-                return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+                return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
             }
 
             int? targetInstallmentId;
@@ -156,7 +155,7 @@ public class CollectionsController(
             TempData["ActionError"] = ex.Message;
         }
 
-        return Redirect(returnUrl ?? Url.Action("Detail", "Units", new { id = unitId })!);
+        return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
     }
 
     private async Task<int?> ResolveUnitBillingGroupIdAsync(int unitId)
@@ -262,10 +261,11 @@ public class CollectionsController(
         if (!collection.IsReceipt)
         {
             TempData["ActionError"] = "Bu tahsilat için makbuz oluşturulmamış.";
-            return Redirect(returnUrl ?? Url.Action("Index", "Dues")!);
+            return this.RedirectToLocal(returnUrl, Url.Action("Index", "Dues")!);
         }
 
-        ViewBag.ReturnUrl = returnUrl;
+        // Görünüm bunu href'e yazıyor; yalnız yerel yollar (javascript:/dış site değil).
+        ViewBag.ReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : null;
         return View(collection);
     }
 
@@ -654,11 +654,10 @@ public class CollectionsController(
             || DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
     }
 
+    // ExportCsv tutarları InvariantCulture ("2500.75") yazar; önce tr-TR denemek bunu
+    // 250075 olarak okuyordu. FlexibleDecimalParser iki biçimi de doğru ayırt eder.
     private static bool TryParseAmount(string value, out decimal amount)
-    {
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.GetCultureInfo("tr-TR"), out amount)
-            || decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
-    }
+        => FlexibleDecimalParser.TryParse(value, out amount);
 
     private static bool TryParsePaymentChannel(string value, out PaymentChannel channel)
     {

@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
+using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Processing;
 
 namespace Kumburgaz.Web.Services;
@@ -25,6 +29,20 @@ public sealed class ImageAttachmentService
 
     public sealed record CompressedImage(byte[] Content, string ContentType, string FileName);
 
+    // Yalnız kabul ettiğimiz biçimlerin çözücüleri yüklenir. Varsayılan yapılandırma
+    // içeriğe bakıp TIFF/BMP/TGA vb. çözücüleri de çalıştırır; ImageSharp 3.1.x'in TIFF
+    // çözücüsünde bilinen bellek taşması açıkları var (GHSA-v76p-62qx-wwq2,
+    // GHSA-wmxv-xphr-5c9g); düzeltilmiş 3.2+ sürümleri Release derlemede Six Labors
+    // lisans anahtarı istiyor.
+    private static readonly DecoderOptions DecoderOptions = new()
+    {
+        Configuration = new Configuration(
+            new JpegConfigurationModule(),
+            new PngConfigurationModule(),
+            new WebpConfigurationModule(),
+            new GifConfigurationModule())
+    };
+
     public async Task<CompressedImage> CompressAsync(IFormFile file, CancellationToken ct = default)
     {
         if (file.Length <= 0)
@@ -38,7 +56,17 @@ public sealed class ImageAttachmentService
         }
 
         await using var input = file.OpenReadStream();
-        using var image = await Image.LoadAsync(input, ct);
+        Image image;
+        try
+        {
+            image = await Image.LoadAsync(DecoderOptions, input, ct);
+        }
+        catch (ImageFormatException)
+        {
+            throw new InvalidOperationException("Desteklenmeyen veya bozuk resim dosyası (JPEG, PNG, WebP veya GIF olmalı).");
+        }
+
+        using var _ = image;
 
         image.Mutate(x => x.AutoOrient().Resize(new ResizeOptions
         {

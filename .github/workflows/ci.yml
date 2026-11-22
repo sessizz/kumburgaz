@@ -27,3 +27,6 @@ jobs:
 
       - name: Build
         run: dotnet build Kumburgaz.Web.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Kumburgaz.Web.Tests/Kumburgaz.Web.Tests.csproj --configuration Release

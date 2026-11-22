@@ -42,6 +42,8 @@ public class OAuthKeyStoreTests
         await using var scope = provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         Assert.Equal(2, await db.OAuthKeys.CountAsync());
+        // Korunmuş özel anahtar denetim kaydına kopyalanmaz.
+        Assert.Equal(0, await db.AuditLogs.CountAsync());
     }
 
     private static OpenIddictServerOptions Load(IServiceProvider provider, IDataProtectionProvider dataProtection)

@@ -419,7 +419,7 @@ public class ApplicationDbContext(
         var logs = new List<PendingAuditLog>();
 
         foreach (var entry in ChangeTracker.Entries()
-                     .Where(x => x.Entity is not AuditLog)
+                     .Where(x => !IsExcludedFromAudit(x))
                      .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
         {
             if (entry.State == EntityState.Modified && !entry.Properties.Any(x => x.IsModified))
@@ -470,6 +470,13 @@ public class ApplicationDbContext(
 
         return logs;
     }
+
+    // OAuth anahtarları (korunmuş özel anahtar), OpenIddict istemci/yetki/token satırları
+    // (istemci sırrı, token içeriği) ve MCP tekrar koruması sonuçları denetim kaydına
+    // kopyalanmaz; bunlar iş verisi değil, her token yenilemede de satır üretirdi.
+    private static bool IsExcludedFromAudit(EntityEntry entry)
+        => entry.Entity is AuditLog or OAuthKey or McpIdempotencyKey
+            || entry.Metadata.ClrType.Namespace?.StartsWith("OpenIddict.", StringComparison.Ordinal) == true;
 
     private static string? SerializeValues(EntityEntry entry, bool original)
     {

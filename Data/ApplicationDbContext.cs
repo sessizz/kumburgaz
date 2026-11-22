@@ -50,6 +50,8 @@ public class ApplicationDbContext(
     public DbSet<ImportBatchRow> ImportBatchRows => Set<ImportBatchRow>();
     public DbSet<ConsistencyCheckResult> ConsistencyCheckResults => Set<ConsistencyCheckResult>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<OAuthKey> OAuthKeys => Set<OAuthKey>();
+    public DbSet<McpIdempotencyKey> McpIdempotencyKeys => Set<McpIdempotencyKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -348,6 +350,13 @@ public class ApplicationDbContext(
         builder.Entity<RolePermission>()
             .HasIndex(x => new { x.RoleName, x.Module })
             .IsUnique();
+
+        // McpIdempotencyKey: AspNetUsers'a soft referans (FK yok); 24 saatten eski satırlar
+        // CreatedAt üzerinden temizlenir.
+        builder.Entity<McpIdempotencyKey>()
+            .HasKey(x => new { x.UserId, x.Tool, x.Key });
+        builder.Entity<McpIdempotencyKey>()
+            .HasIndex(x => x.CreatedAt);
 
         Seed(builder);
     }

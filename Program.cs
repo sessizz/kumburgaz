@@ -1,3 +1,4 @@
+using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
@@ -8,6 +9,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OpenIddict.Server;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +31,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     {
         options.UseNpgsql(connectionString);
     }
+
+    // OpenIddict istemci/yetki/token tabloları aynı veritabanında.
+    options.UseOpenIddict();
 });
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -52,6 +58,9 @@ builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
     })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
+
+// claude.ai MCP bağlayıcısı için OAuth yetkilendirme sunucusu (OpenIddict).
+builder.Services.AddKumburgazOAuthServer(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
@@ -182,6 +191,10 @@ using (var scope = app.Services.CreateScope())
     // fazlasini gercek CollectionAllocation satirlarina cevirir (bkz. AddDevirOpeningBalanceAllocation
     // migration'i). Idempotent - zaten uzlasmis veride hicbir etkisi olmaz.
     await CollectionAdvanceAllocator.ApplyAsync(db);
+
+    // OAuth imzalama/şifreleme anahtarlarını açılışta yükle (yoksa üret, bkz. OAuthKeyStore):
+    // anahtar ya da veritabanı sorunu ilk istekte değil burada görünsün.
+    _ = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<OpenIddictServerOptions>>().CurrentValue;
 }
 
 app.UseHttpsRedirection();

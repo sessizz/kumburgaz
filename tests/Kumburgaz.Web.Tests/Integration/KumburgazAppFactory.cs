@@ -8,17 +8,24 @@ namespace Kumburgaz.Web.Tests.Integration;
 
 /// <summary>
 /// Uygulamayı gerçek Program.cs ile, geçici bir SQLite dosyası üzerinde ayağa kaldırır.
-/// Program bağlantı dizesini builder.Build()'den önce okuduğu için ortam değişkeniyle verilir.
+/// Program bağlantı dizesini ve OAuth issuer'ını builder.Build()'den önce okuduğu için
+/// ortam değişkeniyle verilir. OpenIddict HTTPS dışı isteği reddettiğinden OAuth testleri
+/// istemciyi BaseAddress = https://localhost ile kurar.
 /// </summary>
 public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
 {
+    public const string Issuer = "https://localhost/";
+
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"kumburgaz-it-{Guid.NewGuid():N}.db");
     private readonly string? _previousConnectionString;
+    private readonly string? _previousIssuer;
 
     public KumburgazAppFactory()
     {
         _previousConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        _previousIssuer = Environment.GetEnvironmentVariable("OAuth__Issuer");
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", $"Data Source={_dbPath}");
+        Environment.SetEnvironmentVariable("OAuth__Issuer", Issuer);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -35,6 +42,7 @@ public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
         }
 
         Environment.SetEnvironmentVariable("ConnectionStrings__DefaultConnection", _previousConnectionString);
+        Environment.SetEnvironmentVariable("OAuth__Issuer", _previousIssuer);
         // Program.cs süreç geneli kültürü tr-TR yapar; diğer testleri etkilemesin.
         CultureInfo.DefaultThreadCurrentCulture = null;
         CultureInfo.DefaultThreadCurrentUICulture = null;

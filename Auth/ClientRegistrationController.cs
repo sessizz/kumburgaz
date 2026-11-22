@@ -13,7 +13,7 @@ namespace Kumburgaz.Web.Auth;
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting(OAuthRateLimits.RegisterPolicy)]
-public class ClientRegistrationController(IOpenIddictApplicationManager applications) : Controller
+public class ClientRegistrationController(IOpenIddictApplicationManager applications, IConfiguration config) : Controller
 {
     private const string AuthMethodNone = "none";
     private const string AuthMethodPost = "client_secret_post";
@@ -65,6 +65,9 @@ public class ClientRegistrationController(IOpenIddictApplicationManager applicat
             Requirements = { Requirements.Features.ProofKeyForCodeExchange }
         };
         foreach (var uri in uris) descriptor.RedirectUris.Add(uri);
+        // İstemci yalnız /mcp kaynağı için token isteyebilir (RFC 8707 resource).
+        foreach (var resource in config.GetAcceptedMcpResources())
+            descriptor.Permissions.Add(Permissions.Prefixes.Resource + resource);
 
         await applications.CreateAsync(descriptor, ct);
 

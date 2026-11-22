@@ -9,6 +9,7 @@ namespace Kumburgaz.Web.Services;
 /// Sakin rolündeki kullanıcıların masaüstü (Mobile/Identity dışı) controller'lara erişimini
 /// gerçek bir sunucu sınırı ile engeller. GET istekleri /m'e yönlendirilir, yazma istekleri 403 alır.
 /// Böylece masaüstü controller'lara ayrıca veri kapsamı eklemek gerekmez.
+/// <see cref="SkipSakinRestrictionAttribute"/> taşıyan uçlar (OAuth yetkilendirme) kendi kontrolünü yapar.
 /// </summary>
 public sealed class SakinAreaRestrictionFilter : IAsyncAuthorizationFilter
 {
@@ -16,6 +17,11 @@ public sealed class SakinAreaRestrictionFilter : IAsyncAuthorizationFilter
     {
         var user = context.HttpContext.User;
         if (user.Identity?.IsAuthenticated != true || !user.IsInRole(AppRoles.Sakin))
+        {
+            return Task.CompletedTask;
+        }
+
+        if (context.ActionDescriptor.EndpointMetadata.OfType<SkipSakinRestrictionAttribute>().Any())
         {
             return Task.CompletedTask;
         }

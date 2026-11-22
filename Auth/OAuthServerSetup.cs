@@ -34,6 +34,9 @@ public static class OAuthServerSetup
                 // AllowAuthorizationCodeFlow "plain" yöntemini de açar; yalnız S256 kabul edilir.
                 options.Configure(server => server.CodeChallengeMethods.Remove(CodeChallengeMethods.Plain));
                 options.RegisterScopes(OAuthConstants.Scope);
+                // RFC 8707: claude.ai authorize/token isteğinde resource=.../mcp gönderir. OpenIddict
+                // kayıtlı olmayan resource'u invalid_target ile reddeder; istemci izinleri de DCR'de verilir.
+                options.RegisterResources(config.GetAcceptedMcpResources());
 
                 options.SetAccessTokenLifetime(OAuthConstants.AccessTokenLifetime);
                 options.SetRefreshTokenLifetime(OAuthConstants.RefreshTokenLifetime);
@@ -53,13 +56,25 @@ public static class OAuthServerSetup
             {
                 options.UseLocalServer();
                 options.UseAspNetCore();
-                options.AddAudiences(new Uri(issuer, "mcp").AbsoluteUri);
+                options.AddAudiences(config.GetMcpResource());
             });
 
         // İmzalama/şifreleme anahtarları veritabanından (bkz. OAuthKeyStore).
         services.ConfigureOptions<OAuthKeyStore>();
+        services.AddScoped<OAuthPrincipalFactory>();
 
         return services;
+    }
+
+    // /mcp'nin kanonik kaynak adresi; access token'ın audience'ı her zaman budur.
+    public static string GetMcpResource(this IConfiguration config)
+        => new Uri(config.GetOAuthIssuer(), "mcp").AbsoluteUri;
+
+    // İstemcinin "resource" olarak gönderebileceği değerler: kanonik adres ve sonunda "/" olan hali.
+    public static string[] GetAcceptedMcpResources(this IConfiguration config)
+    {
+        var resource = config.GetMcpResource();
+        return [resource, resource + "/"];
     }
 
     // OAuth:Issuer (varsayılan canlı adres), her zaman "/" ile biter; uç adresleri buna göre çözülür.

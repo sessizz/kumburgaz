@@ -1,0 +1,35 @@
+@model Kumburgaz.Web.Auth.ConsentViewModel
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Bağlantı İzni";
+}
+
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div class="p-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-1">Bağlantı İzni</h2>
+        <p class="text-sm text-gray-400 mb-6"><strong class="text-gray-700">@Model.ClientName</strong> hesabınıza bağlanmak istiyor.</p>
+
+        <div class="alert text-sm py-3 mb-4">
+            <span class="material-symbols-outlined">shield_person</span>
+            <span>Claude, sizin yetkilerinizle verileri okuyabilecek ve sizin onayınızla tahsilat/gelir/gider kaydı açabilecek.</span>
+        </div>
+
+        <p class="text-sm text-gray-500 mb-6">Giriş yapan kullanıcı: <strong class="text-gray-700">@Model.UserName</strong></p>
+
+        <form method="post" action="~/connect/authorize" asp-antiforgery="true" class="space-y-3">
+            @* OpenIddict onay POST'unda yetkilendirme isteğini formdan yeniden okur ve doğrular. *@
+            @foreach (var parameter in Model.Parameters)
+            {
+                <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+            }
+
+            <button class="btn btn-primary w-full" type="submit" name="submit" value="accept">
+                <span class="material-symbols-outlined ms-sm">check</span>
+                İzin Ver
+            </button>
+            <button class="btn btn-ghost w-full" type="submit" name="submit" value="deny">
+                Reddet
+            </button>
+        </form>
+    </div>
+</div>

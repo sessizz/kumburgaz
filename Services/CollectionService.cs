@@ -91,7 +91,67 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
         }
     }
 
-    private async Task<int> SaveCollectionAndReallocateAsync(int? collectionId, CollectionCreateViewModel model)
+    public async Task<CollectionAllocationPlan> PlanAllocationAsync(CollectionCreateViewModel model)
+    {
+        var (targetInstallment, billingGroupId, representativeUnitId) = await ResolveTargetAsync(model);
+        return await PlanAsync(billingGroupId, representativeUnitId, targetInstallment, model.Amount);
+    }
+
+    public async Task<CollectionCreateViewModel> BuildForUnitAsync(int unitId, decimal amount, DateTime date, string? accountKey,
+        string? period, bool isReceipt, string? referenceNo, string? note)
+    {
+        var billingGroupId = await db.BillingGroupUnits.AsNoTracking()
+            .Where(x => x.UnitId == unitId && x.BillingGroup != null && x.BillingGroup.Active)
+            .OrderByDescending(x => x.StartPeriod)
+            .Select(x => (int?)x.BillingGroupId)
+            .FirstOrDefaultAsync();
+        if (billingGroupId is null)
+        {
+            throw new InvalidOperationException("Bu daire için aktif bir aidat grubu bulunamadı.");
+        }
+
+        int? targetInstallmentId;
+        if (string.Equals(period, "devir", StringComparison.OrdinalIgnoreCase))
+        {
+            // Genel/serbest tahsilat: devir borcu varsa once o kapatilir.
+            targetInstallmentId = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(period))
+        {
+            var periodInstallment = await db.DuesInstallments.AsNoTracking()
+                .Where(x => x.UnitId == unitId && x.RemainingAmount > 0 && x.Period == period)
+                .OrderBy(x => x.DueDate)
+                .FirstOrDefaultAsync();
+            targetInstallmentId = periodInstallment?.Id;
+        }
+        else
+        {
+            // Donem belirtilmediyse (geriye donuk uyumluluk): dairenin en eski acik taksiti.
+            var oldestInstallment = await db.DuesInstallments.AsNoTracking()
+                .Where(x => x.UnitId == unitId && x.RemainingAmount > 0)
+                .OrderBy(x => x.AccrualDate)
+                .ThenBy(x => x.DueDate)
+                .FirstOrDefaultAsync();
+            targetInstallmentId = oldestInstallment?.Id;
+        }
+
+        return new CollectionCreateViewModel
+        {
+            BillingGroupId = billingGroupId.Value,
+            PreferredUnitId = unitId,
+            DuesInstallmentId = targetInstallmentId,
+            Date = date,
+            Amount = amount,
+            PaymentChannel = FinancialAccountHelper.TryParse(accountKey, out var ch, out _, out _) ? ch : PaymentChannel.Bank,
+            AccountKey = accountKey,
+            IsReceipt = isReceipt,
+            ReferenceNo = referenceNo,
+            Note = note
+        };
+    }
+
+    private async Task<(DuesInstallment? TargetInstallment, int BillingGroupId, int RepresentativeUnitId)> ResolveTargetAsync(
+        CollectionCreateViewModel model)
     {
         if (model.Amount <= 0)
         {
@@ -120,13 +180,90 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             throw new InvalidOperationException("Tahsilat icin aidat borcu seciniz.");
         }
 
+        var representativeUnitId = targetInstallment?.UnitId ?? model.PreferredUnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
+        return (targetInstallment, billingGroupId, representativeUnitId);
+    }
+
+    // Dagitim hesabinin tek kaynagi: hem onizleme hem kayit bunu kullanir. Hicbir sey yazmaz.
+    private async Task<CollectionAllocationPlan> PlanAsync(
+        int billingGroupId, int representativeUnitId, DuesInstallment? targetInstallment, decimal amount)
+    {
+        var openInstallmentsQuery = db.DuesInstallments
+            .AsNoTracking()
+            .Include(x => x.BillingGroup)
+            .ThenInclude(x => x!.DuesType)
+            .Where(x => x.BillingGroupId == billingGroupId
+                        && x.RemainingAmount > 0
+                        && (x.UnitId == representativeUnitId || x.UnitId == null));
+
+        if (targetInstallment is not null)
+        {
+            // Belirli bir taksit secildiyse odeme sadece o taksite uygulanir; tutar taksidi asarsa
+            // fazlasi avans olarak kalir, diger donemlerin borclarina sizmaz.
+            openInstallmentsQuery = openInstallmentsQuery.Where(x => x.Id == targetInstallment.Id);
+        }
+
+        var openInstallments = await openInstallmentsQuery
+            .OrderBy(x => x.Period)
+            .ThenBy(x => x.DueDate)
+            .ThenBy(x => x.Id)
+            .ToListAsync();
+
+        var lines = new List<AllocationLine>();
+        var remaining = amount;
+
+        // Belirli bir taksit secilmediyse (genel/serbest tahsilat), daireye ait devreden borcu
+        // once kapatir; kalan varsa aidat taksitlerine dagitilir. Bu tahsisat kalici bir
+        // CollectionAllocation olarak yazilir (UnitId dolu, DuesInstallmentId bos) - "devir
+        // kapandi" bilgisi artik tahmine degil, gercek bir kayda dayanir (bkz. DuesLedgerRowService
+        // .GetOpeningDebtRemainingByUnitAsync, tum devir-kalan hesaplarinin tek kaynagi).
+        if (targetInstallment is null)
+        {
+            var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(x => x.Id == representativeUnitId);
+            if (unit is not null && unit.OpeningBalance < 0m)
+            {
+                var alreadyAppliedToDevir = await db.CollectionAllocations
+                    .Where(x => x.UnitId == representativeUnitId && x.DuesInstallmentId == null)
+                    .SumAsync(x => (decimal?)x.AppliedAmount) ?? 0m;
+                var devirLeft = Math.Max(0m, -unit.OpeningBalance - alreadyAppliedToDevir);
+                var appliedToDevir = Math.Min(remaining, devirLeft);
+                if (appliedToDevir > 0)
+                {
+                    lines.Add(new AllocationLine(null, "Devir borcu", appliedToDevir, devirLeft - appliedToDevir));
+                    remaining -= appliedToDevir;
+                }
+            }
+        }
+
+        foreach (var installment in openInstallments)
+        {
+            if (remaining <= 0)
+            {
+                break;
+            }
+
+            var applied = Math.Min(remaining, installment.RemainingAmount);
+            var duesTypeName = installment.BillingGroup?.DuesType?.Name;
+            var label = string.IsNullOrWhiteSpace(duesTypeName)
+                ? installment.Period
+                : $"{installment.Period} {duesTypeName}";
+            lines.Add(new AllocationLine(installment.Id, label, applied, installment.RemainingAmount - applied));
+            remaining -= applied;
+        }
+
+        return new CollectionAllocationPlan(billingGroupId, representativeUnitId, lines, Math.Max(0m, remaining));
+    }
+
+    private async Task<int> SaveCollectionAndReallocateAsync(int? collectionId, CollectionCreateViewModel model)
+    {
+        var (targetInstallment, billingGroupId, representativeUnitId) = await ResolveTargetAsync(model);
+
         var hasAccount = FinancialAccountHelper.TryParse(model.AccountKey, out var paymentChannel, out var cashBoxId, out var bankAccountId);
         if (!hasAccount)
         {
             paymentChannel = model.PaymentChannel;
         }
 
-        var representativeUnitId = targetInstallment?.UnitId ?? model.PreferredUnitId ?? await ResolveRepresentativeUnitIdAsync(billingGroupId);
         var utcDate = DateTimeHelper.EnsureUtc(model.Date);
 
         var useTransaction = !db.Database.ProviderName!.Contains("InMemory", StringComparison.OrdinalIgnoreCase)
@@ -197,63 +334,32 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             await db.SaveChangesAsync();
         }
 
-        var openInstallmentsQuery = db.DuesInstallments
-            .Where(x => x.BillingGroupId == billingGroupId
-                        && x.RemainingAmount > 0
-                        && (x.UnitId == representativeUnitId || x.UnitId == null));
+        // Geri alma (duzenleme yolunda) yukarida veritabanina yazildi; plan guncel durumu gorur.
+        var plan = await PlanAsync(billingGroupId, representativeUnitId, targetInstallment, model.Amount);
 
-        if (targetInstallment is not null)
+        var plannedInstallmentIds = plan.Lines
+            .Where(x => x.DuesInstallmentId.HasValue)
+            .Select(x => x.DuesInstallmentId!.Value)
+            .ToList();
+        var installmentsToUpdate = await db.DuesInstallments
+            .Where(x => plannedInstallmentIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id);
+
+        foreach (var line in plan.Lines)
         {
-            // Belirli bir taksit secildiyse odeme sadece o taksite uygulanir; tutar taksidi asarsa
-            // fazlasi avans olarak kalir, diger donemlerin borclarina sizmaz.
-            openInstallmentsQuery = openInstallmentsQuery.Where(x => x.Id == targetInstallment.Id);
-        }
-
-        var openInstallments = await openInstallmentsQuery
-            .OrderBy(x => x.Period)
-            .ThenBy(x => x.DueDate)
-            .ThenBy(x => x.Id)
-            .ToListAsync();
-
-        var remaining = model.Amount;
-
-        // Belirli bir taksit secilmediyse (genel/serbest tahsilat), daireye ait devreden borcu
-        // once kapatir; kalan varsa aidat taksitlerine dagitilir. Bu tahsisat kalici bir
-        // CollectionAllocation olarak yazilir (UnitId dolu, DuesInstallmentId bos) - "devir
-        // kapandi" bilgisi artik tahmine degil, gercek bir kayda dayanir (bkz. DuesLedgerRowService
-        // .GetOpeningDebtRemainingByUnitAsync, tum devir-kalan hesaplarinin tek kaynagi).
-        if (targetInstallment is null)
-        {
-            var unit = await db.Units.AsNoTracking().FirstOrDefaultAsync(x => x.Id == representativeUnitId);
-            if (unit is not null && unit.OpeningBalance < 0m)
+            if (line.DuesInstallmentId is null)
             {
-                var alreadyAppliedToDevir = await db.CollectionAllocations
-                    .Where(x => x.UnitId == representativeUnitId && x.DuesInstallmentId == null)
-                    .SumAsync(x => (decimal?)x.AppliedAmount) ?? 0m;
-                var devirLeft = Math.Max(0m, -unit.OpeningBalance - alreadyAppliedToDevir);
-                var appliedToDevir = Math.Min(remaining, devirLeft);
-                if (appliedToDevir > 0)
+                db.CollectionAllocations.Add(new CollectionAllocation
                 {
-                    db.CollectionAllocations.Add(new CollectionAllocation
-                    {
-                        CollectionId = collection.Id,
-                        UnitId = representativeUnitId,
-                        AppliedAmount = appliedToDevir
-                    });
-                    remaining -= appliedToDevir;
-                }
-            }
-        }
-
-        foreach (var installment in openInstallments)
-        {
-            if (remaining <= 0)
-            {
-                break;
+                    CollectionId = collection.Id,
+                    UnitId = representativeUnitId,
+                    AppliedAmount = line.Applied
+                });
+                continue;
             }
 
-            var applied = Math.Min(remaining, installment.RemainingAmount);
-            installment.RemainingAmount -= applied;
+            var installment = installmentsToUpdate[line.DuesInstallmentId.Value];
+            installment.RemainingAmount = line.RemainingAfter;
             installment.Status = installment.RemainingAmount <= 0
                 ? InstallmentStatus.Paid
                 : installment.RemainingAmount < installment.Amount
@@ -264,10 +370,8 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             {
                 CollectionId = collection.Id,
                 DuesInstallmentId = installment.Id,
-                AppliedAmount = applied
+                AppliedAmount = line.Applied
             });
-
-            remaining -= applied;
         }
 
         await db.SaveChangesAsync();

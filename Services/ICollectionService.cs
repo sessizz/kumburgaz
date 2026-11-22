@@ -9,4 +9,22 @@ public interface ICollectionService
     Task<int> CreateAsync(CollectionCreateViewModel model);
     Task UpdateAsync(int id, CollectionCreateViewModel model);
     Task DeleteAsync(int id);
+
+    /// <summary>
+    /// Tahsilatın hangi borçlara ne kadar mahsup edileceğini hesaplar. Salt okunurdur;
+    /// CreateAsync/UpdateAsync aynı hesabı kullanır, böylece önizleme ile kayıt ayrışmaz.
+    /// </summary>
+    Task<CollectionAllocationPlan> PlanAllocationAsync(CollectionCreateViewModel model);
+
+    /// <summary>
+    /// Daire bazlı tahsilat modeli kurar: aidat grubunu ve dönem/devir/en eski taksit seçimini çözer.
+    /// Aktif aidat grubu yoksa InvalidOperationException atar.
+    /// </summary>
+    Task<CollectionCreateViewModel> BuildForUnitAsync(int unitId, decimal amount, DateTime date, string? accountKey,
+        string? period, bool isReceipt, string? referenceNo, string? note);
 }
+
+/// <summary>Label: "Devir borcu" ya da "{Period} {DuesTypeName}".</summary>
+public sealed record AllocationLine(int? DuesInstallmentId, string Label, decimal Applied, decimal RemainingAfter);
+
+public sealed record CollectionAllocationPlan(int BillingGroupId, int UnitId, IReadOnlyList<AllocationLine> Lines, decimal Advance);

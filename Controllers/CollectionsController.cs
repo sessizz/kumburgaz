@@ -96,51 +96,8 @@ public class CollectionsController(
                 return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
             }
 
-            var billingGroupId = await ResolveUnitBillingGroupIdAsync(unitId);
-            if (billingGroupId is null)
-            {
-                TempData["ActionError"] = "Bu daire için aktif bir aidat grubu bulunamadı.";
-                return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
-            }
-
-            int? targetInstallmentId;
-            if (string.Equals(period, "devir", StringComparison.OrdinalIgnoreCase))
-            {
-                // Genel/serbest tahsilat: devir borcu varsa CollectionService önce onu kapatır.
-                targetInstallmentId = null;
-            }
-            else if (!string.IsNullOrWhiteSpace(period))
-            {
-                var periodInstallment = await db.DuesInstallments.AsNoTracking()
-                    .Where(x => x.UnitId == unitId && x.RemainingAmount > 0 && x.Period == period)
-                    .OrderBy(x => x.DueDate)
-                    .FirstOrDefaultAsync();
-                targetInstallmentId = periodInstallment?.Id;
-            }
-            else
-            {
-                // Dönem belirtilmediyse (geriye dönük uyumluluk): dairenin en eski açık taksiti.
-                var oldestInstallment = await db.DuesInstallments.AsNoTracking()
-                    .Where(x => x.UnitId == unitId && x.RemainingAmount > 0)
-                    .OrderBy(x => x.AccrualDate)
-                    .ThenBy(x => x.DueDate)
-                    .FirstOrDefaultAsync();
-                targetInstallmentId = oldestInstallment?.Id;
-            }
-
-            var model = new CollectionCreateViewModel
-            {
-                BillingGroupId = billingGroupId.Value,
-                PreferredUnitId = unitId,
-                DuesInstallmentId = targetInstallmentId,
-                Date = date,
-                Amount = parsedAmount,
-                PaymentChannel = FinancialAccountHelper.TryParse(accountKey, out var ch, out _, out _) ? ch : PaymentChannel.Bank,
-                AccountKey = accountKey,
-                IsReceipt = isReceipt,
-                ReferenceNo = referenceNo,
-                Note = note
-            };
+            var model = await collectionService.BuildForUnitAsync(
+                unitId, parsedAmount, date, accountKey, period, isReceipt, referenceNo, note);
 
             var collectionId = await collectionService.CreateAsync(model);
             TempData["ActionSuccess"] = $"{parsedAmount:N2} TL tahsilat kaydedildi.";
@@ -156,15 +113,6 @@ public class CollectionsController(
         }
 
         return this.RedirectToLocal(returnUrl, Url.Action("Detail", "Units", new { id = unitId })!);
-    }
-
-    private async Task<int?> ResolveUnitBillingGroupIdAsync(int unitId)
-    {
-        var assignment = await db.BillingGroupUnits.AsNoTracking()
-            .Where(x => x.UnitId == unitId && x.BillingGroup != null && x.BillingGroup.Active)
-            .OrderByDescending(x => x.StartPeriod)
-            .FirstOrDefaultAsync();
-        return assignment?.BillingGroupId;
     }
 
     [HttpPost]

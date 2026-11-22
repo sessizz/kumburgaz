@@ -16,7 +16,7 @@ public sealed record SiteSummary(
     decimal CashTotal,
     decimal BankTotal,
     List<AccountBalance> Accounts,
-    decimal DuesDebtTotal,
+    decimal? DuesDebtTotal,
     decimal OverdueDebtTotal,
     decimal CollectionsThisMonth,
     decimal ExpensesThisMonth,
@@ -59,20 +59,27 @@ public class FinanceTools(
         + "Bu ay = UTC takvim ayı, Panel ile aynı. duesDebtTotal: Daire Borç/Alacak raporundaki toplam borç. "
         + "overdueDebtTotal: Panel'deki vadesi geçmiş borç (devir borcu + vadesi geçen aidat). "
         + "collectionsThisMonth: aidat tahsilatları. incomeThisMonth: aidat tahsilatları HARİÇ diğer gelirler (Panel'deki \"diğer gelir\"). "
-        + "expensesThisMonth: gider toplamı.")]
+        + "expensesThisMonth: gider toplamı. "
+        + "accounts (hesap bazlı döküm) yalnız Kasa/Banka görüntüleme yetkisi olana dolar, yoksa boş liste gelir; "
+        + "duesDebtTotal yalnız Raporlar yetkisi olana gelir, yoksa null.")]
     public async Task<SiteSummary> SiteSummaryAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
         McpAccess.Require(user, permissions, AppModules.Panel, write: false);
 
         var balances = await CashBankBalanceHelper.BuildAsync(db);
-        var duesDebt = DuesDebtSummaryHelper.Build(await reporting.GetDuesDebtReportAsync(new())).TotalDebt;
+        // Panel yalnız toplamı gösterir; hesap dökümü KasaBanka, aidat borcu raporu Raporlar verisidir.
+        decimal? duesDebt = permissions.CanView(user, AppModules.Raporlar)
+            ? DuesDebtSummaryHelper.Build(await reporting.GetDuesDebtReportAsync(new())).TotalDebt
+            : null;
         var overdue = await figures.GetOverdueDebtAsync();
         var month = await figures.GetMonthFiguresAsync(DashboardFiguresService.MonthStartUtc(DateTime.UtcNow));
 
         return new SiteSummary(
             balances.Where(x => x.Type == "cash").Sum(x => x.Balance),
             balances.Where(x => x.Type == "bank").Sum(x => x.Balance),
-            balances.Select(x => new AccountBalance(Key(x), x.Name, x.Balance)).ToList(),
+            permissions.CanView(user, AppModules.KasaBanka)
+                ? balances.Select(x => new AccountBalance(Key(x), x.Name, x.Balance)).ToList()
+                : [],
             duesDebt,
             overdue.Total,
             month.Collections,
@@ -157,7 +164,8 @@ public class FinanceTools(
     [McpServerTool(Name = "cash_bank_transactions", Title = "Kasa/banka hareketleri", ReadOnly = true)]
     [Description("Bir kasa/banka hesabının hareketlerini en yeni önce, yürüyen bakiyeyle listeler (tahsilat, gelir/gider ve transferler). "
         + "from/to dahil takvim günleridir (YYYY-AA-GG). inflow/outflow: giriş/çıkış (TL); balance: o harekete kadarki hesap bakiyesi (tüm geçmişi kapsar). "
-        + "opening: hesabın açılış bakiyesi (aralıktan bağımsız). closing: seçilen bitiş gününün sonundaki bakiye (to verilmezse güncel bakiye). "
+        + "opening: aralığın ilk hareketinden hemen önceki bakiye (from verilmezse hesabın açılış bakiyesi). closing: seçilen bitiş gününün sonundaki bakiye (to verilmezse güncel bakiye); "
+        + "opening + girişler - çıkışlar = closing. "
         + "count: eşleşen hareket sayısı (limit'ten bağımsız).")]
     public async Task<CashBankTransactionsResult> CashBankTransactionsAsync(
         ClaimsPrincipal user,
@@ -188,6 +196,11 @@ public class FinanceTools(
             ? detail.Balance
             : ordered.Where(x => x.Kind == TxKind.Acilis || x.Date < toExclusive).Select(x => x.RunningBalance).LastOrDefault();
 
+        // opening: aralığın ilk satırından hemen önceki bakiye; from yoksa hesabın açılış bakiyesi.
+        var opening = fromDate is null
+            ? detail.OpeningBalance
+            : ordered.Where(x => x.Kind == TxKind.Acilis || x.Date < fromDate).Select(x => x.RunningBalance).LastOrDefault();
+
         var matching = ordered
             .Where(x => x.Kind != TxKind.Acilis
                         && (fromDate is null || x.Date >= fromDate)
@@ -199,7 +212,7 @@ public class FinanceTools(
         var key = cashBoxId.HasValue ? FinancialAccountHelper.CashKey(cashBoxId.Value) : FinancialAccountHelper.BankKey(bankAccountId!.Value);
         return new CashBankTransactionsResult(
             string.IsNullOrWhiteSpace(detail.Branch) || detail.Kind != "bank" ? detail.Name : $"{detail.Name} - {detail.Branch}",
-            detail.OpeningBalance,
+            opening,
             closing,
             matching.Count,
             matching.Take(McpInput.ClampLimit(limit))

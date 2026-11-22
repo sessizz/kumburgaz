@@ -44,6 +44,31 @@ public class McpFinanceToolsTests
         await using var db = CreateDb();
         var seed = await SeedAsync(db);
         var monthStart = DashboardFiguresService.MonthStartUtc(DateTime.UtcNow);
+        var nextMonthStart = monthStart.AddMonths(1);
+        var lastDay = nextMonthStart.AddDays(-1).AddHours(23);
+        // İkinci daire: tahsilatı yok; devir borcu 200 + vadesi geçmiş aidat 400 = 600 (A-5'in borcu tahsilatlarla kapanır).
+        var block = await db.Blocks.FirstAsync();
+        var debtor = new Unit { BlockId = block.Id, UnitNo = "7", OpeningBalance = -200m, OpeningBalanceDate = Utc(2025, 7, 1) };
+        db.Units.Add(debtor);
+        await db.SaveChangesAsync();
+        db.BillingGroupUnits.Add(new BillingGroupUnit { BillingGroupId = seed.GroupId, UnitId = debtor.Id, StartPeriod = "2025-2026" });
+        db.DuesInstallments.Add(new DuesInstallment
+        {
+            UnitId = debtor.Id, BillingGroupId = seed.GroupId, Period = "2025-2026",
+            AccrualDate = Utc(2025, 8, 1), DueDate = Utc(2025, 9, 1), Amount = 400m, RemainingAmount = 400m,
+            Status = InstallmentStatus.Open
+        });
+        // Ay penceresi: nextMonthStart hariç, ayın son günü dahil.
+        db.Collections.Add(new Collection
+        {
+            UnitId = seed.UnitId, BillingGroupId = seed.GroupId, Date = nextMonthStart, Amount = 50m,
+            PaymentChannel = PaymentChannel.Cash, CashBoxId = seed.CashId
+        });
+        db.Collections.Add(new Collection
+        {
+            UnitId = seed.UnitId, BillingGroupId = seed.GroupId, Date = lastDay, Amount = 25m,
+            PaymentChannel = PaymentChannel.Cash, CashBoxId = seed.CashId
+        });
         db.Collections.Add(new Collection
         {
             UnitId = seed.UnitId, BillingGroupId = seed.GroupId, Date = monthStart, Amount = 1_000m,
@@ -58,24 +83,60 @@ public class McpFinanceToolsTests
             Ledger(seed.IncomeCategoryId, monthStart, 200m, seed.CashId),
             Ledger(seed.ExpenseCategoryId, monthStart, 5_000m, seed.CashId),
             Ledger(seed.ExpenseCategoryId, monthStart.AddMonths(-1), 999m, seed.CashId),
+            Ledger(seed.ExpenseCategoryId, lastDay, 10m, seed.CashId),
+            Ledger(seed.ExpenseCategoryId, nextMonthStart, 77m, seed.CashId),
+            Ledger(seed.IncomeCategoryId, nextMonthStart, 9m, seed.CashId),
             new LedgerTransaction { Date = monthStart, IsTransfer = true, Amount = 300m, CashBoxId = seed.CashId });
         await db.SaveChangesAsync();
 
         var summary = await Tools(db).SiteSummaryAsync(Admin());
         var vm = (DashboardViewModel)((ViewResult)await Home(db).Index()).Model!;
 
-        Assert.True(summary.OverdueDebtTotal > 0m);
-        Assert.Equal(vm.OverdueDebt, summary.OverdueDebtTotal);
+        // Devir borcu 500 (B-7: 200, A-5: 300) + vadesi geçmiş aidat 400 (B-7); Panel ile araç aynı literal değeri vermeli.
+        Assert.Equal(900m, vm.OverdueDebt);
+        Assert.Equal(500m, vm.OverdueCarriedDebt);
+        Assert.Equal(400m, vm.OverdueDuesDebt);
+        Assert.Equal(900m, summary.OverdueDebtTotal);
+        Assert.Equal(600m, summary.DuesDebtTotal);
         Assert.Equal(vm.MonthCollections, summary.CollectionsThisMonth);
-        Assert.Equal(1_000m, summary.CollectionsThisMonth);
+        Assert.Equal(1_025m, summary.CollectionsThisMonth);
         Assert.Equal(vm.CashBankBalance, summary.CashTotal + summary.BankTotal);
         Assert.Equal(vm.Cashflow[^1].Expense, summary.ExpensesThisMonth);
-        Assert.Equal(5_000m, summary.ExpensesThisMonth);
+        Assert.Equal(5_010m, summary.ExpensesThisMonth);
         // Panel "diğer gelir"i yalnız "Bu ay nakit eksi" uyarısında gösterir: tahsilat + diğer gelir.
         Assert.Equal(200m, summary.IncomeThisMonth);
         Assert.Contains($"{summary.CollectionsThisMonth + summary.IncomeThisMonth:N2}", vm.Alerts.Single(x => x.Title == "Bu ay nakit eksi").Message);
-        var duesDebt = DuesDebtSummaryHelper.Build(await new ReportingService(db, Ledger(db), new DuesLedgerRowService(db)).GetDuesDebtReportAsync(new())).TotalDebt;
-        Assert.Equal(duesDebt, summary.DuesDebtTotal);
+    }
+
+    // Panel ekranı yalnız kasa/banka toplamını gösterir; hesap bazlı döküm KasaBanka, aidat borcu Raporlar yetkisi ister.
+    [Fact]
+    public async Task Site_summary_hides_accounts_without_kasabanka_and_dues_debt_without_raporlar()
+    {
+        await using var db = CreateDb();
+        await SeedAsync(db);
+        var user = User(AppRoles.Personel);
+
+        var panelOnly = await Tools(db, AppRoles.Personel, AppModules.Panel).SiteSummaryAsync(user);
+        Assert.Empty(panelOnly.Accounts);
+        Assert.False(panelOnly.DuesDebtTotal.HasValue);
+        Assert.Equal(450m, panelOnly.CashTotal);
+
+        await using var db2 = CreateDb();
+        await SeedAsync(db2);
+        var withKasa = await Tools(db2, AppRoles.Personel, AppModules.Panel, AppModules.KasaBanka).SiteSummaryAsync(user);
+        Assert.Equal(2, withKasa.Accounts.Count);
+        Assert.False(withKasa.DuesDebtTotal.HasValue);
+
+        await using var db3 = CreateDb();
+        await SeedAsync(db3);
+        var withReports = await Tools(db3, AppRoles.Personel, AppModules.Panel, AppModules.Raporlar).SiteSummaryAsync(user);
+        Assert.Empty(withReports.Accounts);
+        // Devir 300 + aidat 1000 - tahsilatlar 1100.
+        Assert.Equal(200m, withReports.DuesDebtTotal);
+
+        var admin = await Tools(db3).SiteSummaryAsync(Admin());
+        Assert.Equal(2, admin.Accounts.Count);
+        Assert.True(admin.DuesDebtTotal.HasValue);
     }
 
     [Fact]
@@ -175,6 +236,7 @@ public class McpFinanceToolsTests
 
         Assert.Equal(balances.Single(x => x.Type == "cash").Balance, result.Closing);
         Assert.Equal(100m, result.Opening);
+        Assert.Equal(result.Closing, result.Opening + result.Rows.Sum(x => x.Inflow) - result.Rows.Sum(x => x.Outflow));
         Assert.Equal("Ana Kasa", result.Account);
         Assert.Equal(5, result.Count);
         // En yeni önce; yürüyen bakiye tüm geçmişi kapsar.
@@ -201,13 +263,21 @@ public class McpFinanceToolsTests
         var emptyRange = await tools.CashBankTransactionsAsync(Admin(), $"cash:{seed.CashId}", from: "2025-03-26", to: "2025-04-04");
 
         Assert.Equal(400m, mid.Closing);
-        Assert.Equal(100m, mid.Opening);
+        // opening: aralığın ilk satırından hemen önceki bakiye (03-15'ten önce: 100 + 300 + 500).
+        Assert.Equal(900m, mid.Opening);
         Assert.Equal(["2025-03-25", "2025-03-20"], mid.Rows.Select(x => x.Date));
         // to günü bütün gün dahil: 14:00 UTC'deki tahsilat da sayılır.
         Assert.Equal(900m, toFirstDay.Closing);
         Assert.Equal(2, toFirstDay.Count);
         Assert.Empty(emptyRange.Rows);
         Assert.Equal(400m, emptyRange.Closing);
+        Assert.Equal(400m, emptyRange.Opening);
+        // from yoksa opening hesabın açılış bakiyesidir.
+        Assert.Equal(100m, toFirstDay.Opening);
+        foreach (var r in new[] { mid, toFirstDay, emptyRange })
+        {
+            Assert.Equal(r.Closing, r.Opening + r.Rows.Sum(x => x.Inflow) - r.Rows.Sum(x => x.Outflow));
+        }
     }
 
     [Fact]
@@ -244,16 +314,21 @@ public class McpFinanceToolsTests
         var incomes = await tools.LedgerAsync(Admin(), kind: "income");
 
         // Transfer (kategorisiz ve kategorili) listeye girmez.
-        Assert.Equal(["2025-03-20", "2025-02-01"], expenses.Rows.Select(x => x.Date));
+        // Kategorili transfer (03-22) ve "expense" tipli kategori (03-13) bu sınıflandırmayı sınar.
+        Assert.Equal(["2025-03-20", "2025-03-13", "2025-02-01"], expenses.Rows.Select(x => x.Date));
         Assert.All(expenses.Rows, x => Assert.Equal("expense", x.Kind));
-        Assert.Equal(expenses.Rows.Select(x => x.Id), byCategory.Rows.Select(x => x.Id));
-        Assert.Equal(1_200m, expenses.Total);
+        Assert.DoesNotContain(expenses.Rows, x => x.Amount == 77m);
+        Assert.Equal(byCategory.Rows.Select(x => x.Id), expenses.Rows.Where(x => x.Category == "Elektrik").Select(x => x.Id));
+        Assert.Equal(1_210m, expenses.Total);
         Assert.Equal("Elektrik", expenses.Rows[0].Category);
         Assert.Equal(200m, expenses.Rows[0].Amount);
         Assert.Equal("Ana Kasa", expenses.Rows[0].Account);
         Assert.Equal($"https://localhost/Ledger/Edit/{expenses.Rows[0].Id}", expenses.Rows[0].Link);
-        Assert.Equal(["2025-04-05"], incomes.Rows.Select(x => x.Date));
-        Assert.Equal("income", incomes.Rows[0].Kind);
+        // "income" tipli kategori de gelirdir (CategoryTypeHelper.Normalize).
+        Assert.Equal(["2025-04-05", "2025-03-12"], incomes.Rows.Select(x => x.Date));
+        Assert.All(incomes.Rows, x => Assert.Equal("income", x.Kind));
+        Assert.Equal("Faiz", incomes.Rows[1].Category);
+        Assert.Equal(70m, incomes.Total);
     }
 
     [Fact]
@@ -267,8 +342,8 @@ public class McpFinanceToolsTests
         var limited = await tools.LedgerAsync(Admin(), limit: 1);
         var toDay = await tools.LedgerAsync(Admin(), from: "2025-03-20", to: "2025-03-20");
 
-        Assert.Equal(3, all.Count);
-        Assert.Equal(1_250m, all.Total);
+        Assert.Equal(5, all.Count);
+        Assert.Equal(1_280m, all.Total);
         Assert.Single(limited.Rows);
         Assert.Equal(all.Count, limited.Count);
         Assert.Equal(all.Total, limited.Total);
@@ -290,26 +365,41 @@ public class McpFinanceToolsTests
         Assert.Equal("from, to'dan sonra olamaz.", range.Message);
     }
 
-    // Personel yetki matrisinde yalnız Panel ve Raporlar var; her araç kendi modülünü ister.
-    [Fact]
-    public async Task Each_tool_requires_its_own_module()
+    // Her modül tek başına yalnız kendi araçlarını açar.
+    [Theory]
+    [InlineData(AppModules.Panel, "site_summary")]
+    [InlineData(AppModules.Tahsilatlar, "collections")]
+    [InlineData(AppModules.KasaBanka, "cash_bank_accounts,cash_bank_transactions")]
+    [InlineData(AppModules.Muhasebe, "ledger")]
+    [InlineData(AppModules.Daireler, "")]
+    public async Task Each_module_alone_unlocks_exactly_its_tools(string module, string allowedTools)
     {
         await using var db = CreateDb();
         var seed = await SeedAsync(db);
-        // Yalnız "Daireler" yetkisi olan kullanıcı hiçbirini kullanamaz.
-        var tools = Tools(db, AppRoles.Personel, AppModules.Daireler);
+        var tools = Tools(db, AppRoles.Personel, module);
         var user = User(AppRoles.Personel);
+        var allowed = allowedTools.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
 
-        await DeniedAsync(() => tools.SiteSummaryAsync(user));
-        await DeniedAsync(() => tools.CollectionsAsync(user));
-        await DeniedAsync(() => tools.CashBankAccountsAsync(user));
-        await DeniedAsync(() => tools.CashBankTransactionsAsync(user, $"cash:{seed.CashId}"));
-        await DeniedAsync(() => tools.LedgerAsync(user));
+        var calls = new Dictionary<string, Func<Task>>
+        {
+            ["site_summary"] = () => tools.SiteSummaryAsync(user),
+            ["collections"] = () => tools.CollectionsAsync(user),
+            ["cash_bank_accounts"] = () => tools.CashBankAccountsAsync(user),
+            ["cash_bank_transactions"] = () => tools.CashBankTransactionsAsync(user, $"cash:{seed.CashId}"),
+            ["ledger"] = () => tools.LedgerAsync(user)
+        };
 
-        // Yetki yalnız ilgili modülü açar.
-        var panelOnly = Tools(db, AppRoles.Personel, AppModules.Panel);
-        Assert.NotNull(await panelOnly.SiteSummaryAsync(user));
-        await DeniedAsync(() => panelOnly.CollectionsAsync(user));
+        foreach (var (name, call) in calls)
+        {
+            if (allowed.Contains(name))
+            {
+                await call();
+            }
+            else
+            {
+                await DeniedAsync(call);
+            }
+        }
     }
 
     private static async Task DeniedAsync(Func<Task> call)
@@ -336,7 +426,10 @@ public class McpFinanceToolsTests
         var bank = new BankAccount { Name = "İş Bankası", Branch = "Merkez", OpeningBalance = 0m, OpeningBalanceDate = Utc(2025, 1, 1) };
         var expense = new IncomeExpenseCategory { Name = "Elektrik", Type = CategoryTypeHelper.Gider, Active = true };
         var income = new IncomeExpenseCategory { Name = "Kira", Type = CategoryTypeHelper.Gelir, Active = true };
-        db.AddRange(site, block, unit, duesType, group, cash, bank, expense, income);
+        // Küçük harfli İngilizce tipler de Normalize ile sınıflanır.
+        var incomeEn = new IncomeExpenseCategory { Name = "Faiz", Type = "income", Active = true };
+        var expenseEn = new IncomeExpenseCategory { Name = "Su", Type = "expense", Active = true };
+        db.AddRange(site, block, unit, duesType, group, cash, bank, expense, income, incomeEn, expenseEn);
         db.BillingGroupUnits.Add(new BillingGroupUnit { BillingGroup = group, Unit = unit, StartPeriod = "2025-2026" });
         await db.SaveChangesAsync();
 
@@ -368,6 +461,14 @@ public class McpFinanceToolsTests
             Ledger(expense.Id, Utc(2025, 3, 20), 200m, cash.Id),
             Ledger(expense.Id, Utc(2025, 2, 1), 1_000m, null, bank.Id),
             Ledger(income.Id, Utc(2025, 4, 5), 50m, cash.Id),
+            Ledger(incomeEn.Id, Utc(2025, 3, 12), 20m, null, bank.Id),
+            Ledger(expenseEn.Id, Utc(2025, 3, 13), 10m, null, bank.Id),
+            // Kategorili transfer: kategori gider olsa da defterde görünmez.
+            new LedgerTransaction
+            {
+                Date = Utc(2025, 3, 22), IsTransfer = true, TransferIsIncoming = true, Amount = 77m,
+                IncomeExpenseCategoryId = expense.Id, PaymentChannel = PaymentChannel.Bank, BankAccountId = bank.Id
+            },
             new LedgerTransaction { Date = Utc(2025, 3, 25), IsTransfer = true, TransferIsIncoming = false, Amount = 300m, CashBoxId = cash.Id });
         await db.SaveChangesAsync();
         return new Seed(unit.Id, group.Id, cash.Id, bank.Id, expense.Id, income.Id, early.Id, late.Id, bankCollection.Id);

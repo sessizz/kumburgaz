@@ -72,6 +72,10 @@ public class McpFinanceToolsEndpointTests(KumburgazAppFactory factory)
         var ledger = await client.CallToolAsync("ledger", new Dictionary<string, object?>());
 
         Assert.True(summary.IsError is not true, Text(summary));
+        // Personel'in Panel ve Raporlar yetkisi var, KasaBanka yok: hesap dökümü boş, aidat borcu dolu.
+        using var json = JsonDocument.Parse(Text(summary));
+        Assert.Equal(0, json.RootElement.GetProperty("accounts").GetArrayLength());
+        Assert.Equal(JsonValueKind.Number, json.RootElement.GetProperty("duesDebtTotal").ValueKind);
         Assert.True(ledger.IsError);
         Assert.Contains("yetkiniz yok", Text(ledger));
     }

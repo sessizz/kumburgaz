@@ -682,10 +682,12 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
+        var accountKey = BuildAccountKey(model.Kind, model.Id);
+        await using var transaction = await orderService.BeginWriteAsync((accountKey, model.Date));
         DateTime orderedDate;
         try
         {
-            orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+            orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
         }
         catch (InvalidOperationException ex)
         {
@@ -710,11 +712,12 @@ public class CashBankController(
                     Date = orderedDate,
                     Amount = model.Amount,
                     PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
-                    AccountKey = BuildAccountKey(model.Kind, model.Id),
+                    AccountKey = accountKey,
                     ReferenceNo = model.ReferenceNo,
                     IsReceipt = model.IsReceipt,
                     Note = model.Note
                 });
+                if (transaction is not null) await transaction.CommitAsync();
                 TempData["ActionSuccess"] = "Aidat tahsilatı kaydedildi.";
 
                 if (model.IsReceipt)
@@ -769,6 +772,7 @@ public class CashBankController(
                 : model.Description
         });
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         TempData["ActionSuccess"] = "Gelir kaydedildi.";
         return RedirectToDetail(model.Kind, model.Id);
     }
@@ -796,6 +800,7 @@ public class CashBankController(
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
         try
         {
+            await using var transaction = await orderService.BeginWriteAsync((accountKey, model.Date));
             var orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
             var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
             {
@@ -809,6 +814,7 @@ public class CashBankController(
                 IsReceipt = model.IsReceipt,
                 Note = model.Note
             });
+            if (transaction is not null) await transaction.CommitAsync();
             TempData["ActionSuccess"] = "Tahsilat kaydedildi.";
 
             if (model.IsReceipt)
@@ -850,8 +856,17 @@ public class CashBankController(
         if (existingCollection is null) return NotFound();
         try
         {
-            var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
-                BuildAccountKey(model.Kind, model.Id), model.Date, existingCollection.Date);
+            var accountKey = BuildAccountKey(model.Kind, model.Id);
+            var original = TransactionOrderService.Location(
+                existingCollection.CashBoxId, existingCollection.BankAccountId, existingCollection.Date);
+            await using var transaction = await orderService.BeginWriteAsync(original, (accountKey, model.Date));
+            var current = await db.Collections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == transactionId);
+            if (current is null || TransactionOrderService.Location(current.CashBoxId, current.BankAccountId, current.Date) != original)
+            {
+                throw new InvalidOperationException(TransactionOrderService.InvalidOrderMessage);
+            }
+
+            var orderedDate = await orderService.ResolveEditedTransactionDateAsync(accountKey, model.Date, current.Date);
             await collectionService.UpdateAsync(transactionId, new CollectionCreateViewModel
             {
                 BillingGroupId = model.BillingGroupId,
@@ -859,11 +874,12 @@ public class CashBankController(
                 Date = orderedDate,
                 Amount = model.Amount,
                 PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
-                AccountKey = BuildAccountKey(model.Kind, model.Id),
+                AccountKey = accountKey,
                 ReferenceNo = model.ReferenceNo,
                 IsReceipt = model.IsReceipt,
                 Note = model.Note
             });
+            if (transaction is not null) await transaction.CommitAsync();
             TempData["ActionSuccess"] = "Tahsilat güncellendi.";
         }
         catch (Exception ex)
@@ -908,10 +924,12 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
+        var accountKey = BuildAccountKey(model.Kind, model.Id);
+        await using var transaction = await orderService.BeginWriteAsync((accountKey, model.Date));
         DateTime orderedDate;
         try
         {
-            orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+            orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
         }
         catch (InvalidOperationException ex)
         {
@@ -933,6 +951,7 @@ public class CashBankController(
         });
 
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         TempData["ActionSuccess"] = model.IsBankFee ? "Banka masrafı kaydedildi." : "Ödeme kaydedildi.";
         return RedirectToDetail(model.Kind, model.Id);
     }
@@ -956,10 +975,21 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
+        var existing = await db.LedgerTransactions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == transactionId);
+        if (existing is null) return NotFound();
+
+        var accountKey = BuildAccountKey(model.Kind, model.Id);
+        var original = TransactionOrderService.Location(existing.CashBoxId, existing.BankAccountId, existing.Date);
+        await using var transaction = await orderService.BeginWriteAsync(original, (accountKey, model.Date));
         var entity = await db.LedgerTransactions
             .Include(x => x.IncomeExpenseCategory)
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (entity is null) return NotFound();
+        if (TransactionOrderService.Location(entity.CashBoxId, entity.BankAccountId, entity.Date) != original)
+        {
+            TempData["ActionError"] = TransactionOrderService.InvalidOrderMessage;
+            return RedirectToDetail(model.Kind, model.Id);
+        }
 
         var expectedCategoryType = entity.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir
             ? CategoryTypeHelper.Gelir
@@ -979,7 +1009,7 @@ public class CashBankController(
         try
         {
             orderedDate = await orderService.ResolveEditedTransactionDateAsync(
-                BuildAccountKey(model.Kind, model.Id), model.Date, entity.Date);
+                accountKey, model.Date, entity.Date);
         }
         catch (InvalidOperationException ex)
         {
@@ -998,6 +1028,7 @@ public class CashBankController(
             : model.Description;
 
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         TempData["ActionSuccess"] = expectedCategoryType == CategoryTypeHelper.Gelir
             ? "Gelir güncellendi."
             : model.IsBankFee ? "Banka masrafı güncellendi." : "Ödeme güncellendi.";
@@ -1057,6 +1088,7 @@ public class CashBankController(
         }
 
         var source = await db.LedgerTransactions
+            .AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (source is null) return NotFound();

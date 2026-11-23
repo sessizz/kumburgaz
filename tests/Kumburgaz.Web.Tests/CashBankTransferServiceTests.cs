@@ -1,6 +1,8 @@
 using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Mcp;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -60,6 +62,33 @@ public class CashBankTransferServiceTests
         var legs = await db.LedgerTransactions.AsNoTracking().ToListAsync();
         Assert.Equal(2, legs.Count);
         Assert.All(legs, leg => Assert.Equal("Para transferi", leg.Description));
+    }
+
+    [Fact]
+    public async Task Live_transfer_uses_the_idempotency_transaction_for_slot_and_commit()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var request = await SeedAccountsAsync(db);
+        var service = CreateService(db);
+        var store = new McpIdempotencyStore(db);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.RunOnceAsync<TransferResult>("user", "record_transfer", "repeatable-key", "preview", "fingerprint", async () =>
+            {
+                await service.CreateAsync(request);
+                throw new InvalidOperationException("Sonuç kaydedilemedi.");
+            }));
+
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+        Assert.Empty(await db.McpIdempotencyKeys.ToListAsync());
+        var result = await store.RunOnceAsync("user", "record_transfer", "repeatable-key", "preview", "fingerprint",
+            () => service.CreateAsync(request));
+        Assert.Equal(result, await store.TryReplayAsync<TransferResult>("user", "record_transfer", "repeatable-key", "fingerprint"));
+        Assert.Equal(2, await db.LedgerTransactions.CountAsync());
     }
 
     [Fact]

@@ -28,7 +28,7 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         }
 
         // 2. Tüm işlemleri çek (uygulama tarafında birleştir)
-        var collectionsRaw = await db.Collections
+        var collectionsRaw = await VisibleCollections(db)
             .AsNoTracking()
             .Include(x => x.Unit).ThenInclude(u => u!.Block)
             .Include(x => x.BillingGroup)
@@ -269,6 +269,9 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
 
         return vm;
     }
+
+    internal static IQueryable<Collection> VisibleCollections(ApplicationDbContext db) =>
+        db.Collections.Where(x => !x.Unit!.IsDeleted && !x.Unit.Block!.IsDeleted && !x.BillingGroup!.IsDeleted);
 
     private async Task ApplyRowOptionsAsync(CashBankDetailViewModel vm, List<LedgerTransaction> ledgerRaw)
     {

@@ -14,6 +14,103 @@ public class TransactionReorderTests
     private static readonly DateOnly Date = DateOnly.FromDateTime(Day);
 
     [Fact]
+    public async Task Reorder_and_next_slot_exclude_adjacent_midnight_on_pre_2000_days()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var day = new DateTime(1999, 12, 30, 0, 0, 0, DateTimeKind.Utc);
+        var cash = new CashBox { Name = "Kasa" };
+        var previous = new LedgerTransaction { CashBox = cash, Date = day.AddTicks(-10) };
+        var target = new LedgerTransaction { CashBox = cash, Date = day.AddTicks(80) };
+        var next = new LedgerTransaction { CashBox = cash, Date = day.AddDays(1) };
+        db.AddRange(previous, target, next);
+        await db.SaveChangesAsync();
+        var key = FinancialAccountHelper.CashKey(cash.Id);
+        var order = new TransactionOrderService(db);
+
+        Assert.Equal(day.AddTicks(90), await order.NextSlotAsync(key, day));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => order.ReorderDayAsync(key, DateOnly.FromDateTime(day),
+            [new("ledger", target.Id), new("ledger", next.Id)]));
+        await order.ReorderDayAsync(key, DateOnly.FromDateTime(day), [new("ledger", target.Id)]);
+
+        var rows = await db.LedgerTransactions.AsNoTracking().ToDictionaryAsync(row => row.Id, row => row.Date);
+        Assert.Equal(day.AddTicks(-10), rows[previous.Id]);
+        Assert.Equal(day.AddTicks(10), rows[target.Id]);
+        Assert.Equal(day.AddDays(1), rows[next.Id]);
+        Assert.Equal(day.AddTicks(20), await order.NextSlotAsync(key, day));
+        Assert.Equal(day.AddDays(1).AddTicks(10), await order.NextSlotAsync(key, day.AddDays(1)));
+    }
+
+    [Fact]
+    public async Task Reorder_and_next_slot_support_the_last_calendar_day()
+    {
+        await using var db = CreateDb();
+        var day = DateTime.MaxValue.Date;
+        var cash = new CashBox { Name = "Kasa" };
+        var row = new LedgerTransaction { CashBox = cash, Date = day.AddTicks(50) };
+        db.Add(row);
+        await db.SaveChangesAsync();
+        var key = FinancialAccountHelper.CashKey(cash.Id);
+        var order = new TransactionOrderService(db);
+
+        await order.ReorderDayAsync(key, DateOnly.MaxValue, [new("ledger", row.Id)]);
+
+        Assert.Equal(day.AddTicks(10), (await db.LedgerTransactions.AsNoTracking().SingleAsync()).Date);
+        Assert.Equal(day.AddTicks(20), await order.NextSlotAsync(key, day));
+    }
+
+    [Theory]
+    [InlineData("unit")]
+    [InlineData("group")]
+    [InlineData("block")]
+    public async Task Reorder_excludes_a_restored_collection_hidden_from_detail_by_a_deleted_principal(string deleted)
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var cash = new CashBox { Name = "Kasa" };
+        var block = new Block { Name = "A", Site = new Site { Name = "Site" } };
+        var unit = new Unit { Block = block, UnitNo = "1" };
+        var group = new BillingGroup { Name = "Aidat", DuesType = new DuesType { Name = "Aidat" } };
+        var hidden = new Models.Collection
+        {
+            CashBox = cash, Date = Day.AddTicks(80), Unit = unit, BillingGroup = group, IsDeleted = true
+        };
+        var visible = new LedgerTransaction { CashBox = cash, Date = Day.AddTicks(90) };
+        db.AddRange(hidden, visible);
+        await db.SaveChangesAsync();
+
+        unit.IsDeleted = deleted == "unit";
+        group.IsDeleted = deleted == "group";
+        block.IsDeleted = deleted == "block";
+        await db.SaveChangesAsync();
+        hidden.IsDeleted = false;
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var detail = await new CashBankDetailService(db, new DuesLedgerRowService(db))
+            .BuildAsync("cash", cash.Id, new CashBankDetailQuery());
+        var reference = Assert.Single(detail!.Groups.SelectMany(dayGroup => dayGroup.Items));
+        Assert.Equal("ledger", reference.Source);
+        var order = new TransactionOrderService(db);
+        var key = FinancialAccountHelper.CashKey(cash.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            order.ReorderDayAsync(key, Date, [new(reference.Source, reference.Id), new("collection", hidden.Id)]));
+        await order.ReorderDayAsync(key, Date, [new(reference.Source, reference.Id)]);
+
+        Assert.Equal(Day.AddTicks(10), (await db.LedgerTransactions.AsNoTracking().SingleAsync()).Date);
+        Assert.Equal(Day.AddTicks(80), (await db.Collections.AsNoTracking().SingleAsync()).Date);
+        // Canlı sıra ve eski CSV hesapları gizli kaydın mevcut saatini korur.
+        Assert.Equal(Day.AddTicks(90), await order.NextSlotAsync(key, Day));
+        Assert.Equal(8L, (await order.BuildExistingTransactionDateOffsetsAsync(key))[Day]);
+    }
+
+    [Fact]
     public async Task Reorder_changes_running_balance_order_but_not_the_day()
     {
         await using var db = CreateDb();

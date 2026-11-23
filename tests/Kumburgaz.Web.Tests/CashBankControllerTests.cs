@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Kumburgaz.Web.Controllers;
 using Kumburgaz.Web.Data;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Primitives;
 using Xunit;
 
@@ -462,6 +464,61 @@ public class CashBankControllerTests
         Assert.Equal(day.AddTicks(incomeTicks), income.Date);
     }
 
+    [Fact]
+    public async Task In_flight_collection_append_excludes_reorder_until_its_slot_is_persisted()
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = $"ordering-{Guid.NewGuid():N}", Mode = SqliteOpenMode.Memory,
+            Cache = SqliteCacheMode.Shared, Pooling = false, DefaultTimeout = 1
+        }.ToString();
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connectionString).Options;
+        await using var reorderDb = new ApplicationDbContext(options);
+        await reorderDb.Database.EnsureCreatedAsync();
+        var day = Utc(2026, 11, 23);
+        var (bank, installment) = await SeedDuesAsync(reorderDb);
+        var first = new LedgerTransaction { BankAccount = bank, Date = day.AddTicks(10) };
+        var second = new LedgerTransaction { BankAccount = bank, Date = day.AddTicks(10) };
+        reorderDb.AddRange(first, second);
+        await reorderDb.SaveChangesAsync();
+        reorderDb.ChangeTracker.Clear();
+
+        var pause = new PauseCollectionTargetQuery();
+        await using var appendDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connectionString).AddInterceptors(pause).Options);
+        var controller = CreateController(appendDb, new Dictionary<string, StringValues> { ["Amount"] = "100" });
+        var append = controller.CreateCollection(new CashBankCollectionFormViewModel
+        {
+            Kind = "bank", Id = bank.Id, Date = day, BillingGroupId = installment.BillingGroupId,
+            DuesInstallmentId = installment.Id
+        });
+
+        var order = new TransactionOrderService(reorderDb);
+        var key = FinancialAccountHelper.BankKey(bank.Id);
+        var date = DateOnly.FromDateTime(day);
+        TxRef[] staleRows = [new("ledger", second.Id), new("ledger", first.Id)];
+        try
+        {
+            await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var blocked = await Assert.ThrowsAsync<SqliteException>(() => order.ReorderDayAsync(key, date, staleRows));
+            Assert.True(blocked.SqliteErrorCode is 5 or 6, blocked.Message);
+        }
+        finally
+        {
+            pause.Resume.TrySetResult();
+            await append;
+        }
+
+        Assert.Null(controller.TempData["ActionError"]);
+        var collection = await reorderDb.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal(day.AddTicks(20), collection.Date);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => order.ReorderDayAsync(key, date, staleRows));
+        await order.ReorderDayAsync(key, date, [.. staleRows, new("collection", collection.Id)]);
+        Assert.Equal(day.AddTicks(30), (await reorderDb.Collections.AsNoTracking().SingleAsync()).Date);
+    }
+
     [Theory]
     [InlineData("2026-11-23T12:00:00+03:00")]
     [InlineData("2026-11-23T23:30:00-05:00")]
@@ -757,6 +814,25 @@ public class CashBankControllerTests
         public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
         public void SaveTempData(HttpContext context, IDictionary<string, object> values)
         {
+        }
+    }
+
+    private sealed class PauseCollectionTargetQuery : DbCommandInterceptor
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            // CollectionService hedefi sıra okunduktan sonra, tahsilat yazılmadan önce çözer.
+            if (command.CommandText.Contains("FROM \"DuesInstallments\"", StringComparison.Ordinal) && Entered.TrySetResult())
+            {
+                await Resume.Task.WaitAsync(cancellationToken);
+            }
+
+            return result;
         }
     }
 }

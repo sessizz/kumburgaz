@@ -34,14 +34,19 @@ public static class TransferPairing
         return pairs.Count;
     }
 
-    public static async Task<LedgerTransaction?> FindPairAsync(ApplicationDbContext db, LedgerTransaction leg, CancellationToken ct = default)
+    public static Task<LedgerTransaction?> FindPairAsync(ApplicationDbContext db, LedgerTransaction leg, CancellationToken ct = default)
+        => FindPairAsync(db, leg, track: true, ct);
+
+    internal static async Task<LedgerTransaction?> FindPairAsync(
+        ApplicationDbContext db, LedgerTransaction leg, bool track, CancellationToken ct = default)
     {
         if (!IsLegacyTransferLeg(leg))
         {
             return null;
         }
 
-        var candidates = db.LedgerTransactions
+        var rows = track ? db.LedgerTransactions.AsTracking() : db.LedgerTransactions.AsNoTracking();
+        var candidates = rows
             .Include(x => x.IncomeExpenseCategory)
             .Where(x => x.Id != leg.Id);
         if (leg.TransferGroupId is Guid groupId)

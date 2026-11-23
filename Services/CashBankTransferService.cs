@@ -26,6 +26,8 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
     private async Task<TransferResult> CreateAsync(TransferRequest request, bool useImportedDate)
     {
         var (from, to) = await ResolveAccountsAsync(request, activeOnly: true);
+        await using var transaction = useImportedDate ? null
+            : await order.BeginWriteAsync((from.Key, request.Date), (to.Key, request.Date));
         var date = useImportedDate ? request.Date : await order.NextSlotAsync(from.Key, request.Date);
         var description = FormatDescription(from, to, request.Description);
         var groupId = Guid.NewGuid();
@@ -36,20 +38,35 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
         ApplyLeg(incoming, to, true, request.Amount, date, description);
         db.LedgerTransactions.AddRange(outgoing, incoming);
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
         return new TransferResult(outgoing.Id, incoming.Id, groupId);
     }
 
     public async Task UpdateAsync(int legId, TransferRequest request)
     {
-        var leg = await db.LedgerTransactions.Include(x => x.IncomeExpenseCategory)
-            .FirstOrDefaultAsync(x => x.Id == legId);
-        var pair = leg is null ? null : await TransferPairing.FindPairAsync(db, leg);
-        if (leg is null || pair is null)
+        var query = db.LedgerTransactions.Include(x => x.IncomeExpenseCategory).Where(x => x.Id == legId);
+        var originalLeg = await query.AsNoTracking().FirstOrDefaultAsync();
+        var originalPair = originalLeg is null ? null : await TransferPairing.FindPairAsync(db, originalLeg, track: false);
+        if (originalLeg is null || originalPair is null)
         {
             throw new InvalidOperationException("Transferin karşı satırı bulunamadı.");
         }
 
         var (from, to) = await ResolveAccountsAsync(request, activeOnly: false);
+        var originalLocation = TransactionOrderService.Location(originalLeg.CashBoxId, originalLeg.BankAccountId, originalLeg.Date);
+        var pairLocation = TransactionOrderService.Location(originalPair.CashBoxId, originalPair.BankAccountId, originalPair.Date);
+        await using var transaction = await order.BeginWriteAsync(
+            originalLocation, pairLocation, (from.Key, request.Date), (to.Key, request.Date));
+
+        var leg = await query.FirstOrDefaultAsync();
+        var pair = leg is null ? null : await TransferPairing.FindPairAsync(db, leg);
+        if (leg is null || pair is null || pair.Id != originalPair.Id
+            || TransactionOrderService.Location(leg.CashBoxId, leg.BankAccountId, leg.Date) != originalLocation
+            || TransactionOrderService.Location(pair.CashBoxId, pair.BankAccountId, pair.Date) != pairLocation)
+        {
+            throw new InvalidOperationException(TransactionOrderService.InvalidOrderMessage);
+        }
+
         var editingIncoming = TransferPairing.IsIncoming(leg);
         var (outgoing, incoming) = editingIncoming ? (pair, leg) : (leg, pair);
         var outgoingDate = outgoing.Date;
@@ -66,6 +83,7 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
         ApplyLeg(outgoing, from, false, request.Amount, outgoingDate, description);
         ApplyLeg(incoming, to, true, request.Amount, incomingDate, description);
         await db.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
     }
 
     private static bool BelongsTo(LedgerTransaction leg, ActiveFinancialAccount account) =>

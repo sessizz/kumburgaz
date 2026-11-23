@@ -2,6 +2,7 @@ using System.Data;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace Kumburgaz.Web.Services;
@@ -19,18 +20,20 @@ public class TransactionOrderService(ApplicationDbContext db)
     {
         try
         {
-            // Satır kümesi, aktarım eşleri, saatler ve denetim kayıtları aynı işlemde kalır.
-            await using var transaction = db.Database.IsRelational()
-                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
-                : null;
+            var (start, end) = DayBounds(day);
+            await using var transaction = await BeginWriteAsync((accountKey, start));
             var account = await RequireAccountAsync(accountKey);
-            var start = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-            var end = start.AddTicks(TimeSpan.TicksPerDay - 1);
-            var (accountCollections, accountLedger) = AccountRows(account);
-            var collections = await accountCollections.Where(x => x.Date >= start && x.Date <= end)
-                .ToDictionaryAsync(x => x.Id);
-            var ledger = await accountLedger.Where(x => x.Date >= start && x.Date <= end)
-                .Include(x => x.IncomeExpenseCategory).ToDictionaryAsync(x => x.Id);
+            var (accountCollections, accountLedger) = AccountRows(account, CashBankDetailService.VisibleCollections(db));
+            accountCollections = accountCollections.Where(x => x.Date >= start);
+            accountLedger = accountLedger.Where(x => x.Date >= start);
+            if (end is DateTime nextDay)
+            {
+                accountCollections = accountCollections.Where(x => x.Date < nextDay);
+                accountLedger = accountLedger.Where(x => x.Date < nextDay);
+            }
+
+            var collections = await accountCollections.ToDictionaryAsync(x => x.Id);
+            var ledger = await accountLedger.Include(x => x.IncomeExpenseCategory).ToDictionaryAsync(x => x.Id);
 
             var expected = collections.Keys.Select(id => new TxRef("collection", id))
                 .Concat(ledger.Keys.Select(id => new TxRef("ledger", id))).ToHashSet();
@@ -74,6 +77,63 @@ public class TransactionOrderService(ApplicationDbContext db)
         }
     }
 
+    // Sıra okuması ve kayıt aynı işlemde kalır. Çağıranın işlemi varsa kilit onun sonuna kadar tutulur.
+    internal async Task<IDbContextTransaction?> BeginWriteAsync(params (string? AccountKey, DateTime Day)[] locations)
+    {
+        if (!db.Database.IsRelational())
+        {
+            return null;
+        }
+
+        var postgres = db.Database.IsNpgsql();
+        var current = db.Database.CurrentTransaction;
+        // PostgreSQL'de kilit bekleyen sorgudan sonraki SELECT güncel işlem anlık görüntüsünü alır.
+        var owned = current is not null ? null : postgres
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted)
+            : await db.Database.BeginTransactionAsync();
+        try
+        {
+            if (postgres)
+            {
+                if (current is not null && current.GetDbTransaction().IsolationLevel != IsolationLevel.ReadCommitted)
+                {
+                    throw new InvalidOperationException(InvalidOrderMessage);
+                }
+
+                var keys = new SortedSet<long>();
+                foreach (var (accountKey, day) in locations)
+                {
+                    if (FinancialAccountHelper.TryParse(accountKey, out _, out var cashId, out var bankId))
+                    {
+                        var account = cashId ?? -(long)bankId!.Value;
+                        // 0x4B öneki bu kilitleri ayırır; gün ve işaretli hesap kimliği çakışmaz.
+                        keys.Add(0x4B00000000000000L | ((long)DateOnly.FromDateTime(day).DayNumber << 32)
+                            | (account & uint.MaxValue));
+                    }
+                }
+
+                foreach (var key in keys)
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})");
+                }
+            }
+
+            return owned;
+        }
+        catch
+        {
+            if (owned is not null)
+            {
+                await owned.DisposeAsync();
+            }
+
+            throw;
+        }
+    }
+
+    internal static (string? AccountKey, DateTime Day) Location(int? cashId, int? bankId, DateTime date) =>
+        (FinancialAccountHelper.BuildKey(cashId, bankId), date.Date);
+
     public async Task<DateTime> NextSlotAsync(string accountKey, DateTime date)
     {
         var account = await RequireAccountAsync(accountKey);
@@ -109,31 +169,39 @@ public class TransactionOrderService(ApplicationDbContext db)
 
     private async Task<DateTime> NextSlotAsync(ActiveFinancialAccount account, DateTime date)
     {
-        var day = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
-        var dayEnd = day.AddTicks(TimeSpan.TicksPerDay - 1);
-        var latest = await AccountDates(account)
-            .Where(value => value >= day && value <= dayEnd)
-            .OrderByDescending(value => value)
-            .FirstOrDefaultAsync();
+        var (day, end) = DayBounds(DateOnly.FromDateTime(date));
+        var dates = AccountDates(account).Where(value => value >= day);
+        if (end is DateTime nextDay)
+        {
+            dates = dates.Where(value => value < nextDay);
+        }
+
+        var latest = await dates.OrderByDescending(value => value).FirstOrDefaultAsync();
         return ApplySlot(day, GetSlot(latest) + 1);
+    }
+
+    private static (DateTime Start, DateTime? End) DayBounds(DateOnly day)
+    {
+        var start = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        return (start, day == DateOnly.MaxValue ? null : start.AddDays(1));
     }
 
     private IQueryable<DateTime> AccountDates(ActiveFinancialAccount account)
     {
-        var (collections, ledger) = AccountRows(account);
+        var (collections, ledger) = AccountRows(account, db.Collections);
         return collections.AsNoTracking().Select(x => x.Date).Concat(ledger.AsNoTracking().Select(x => x.Date));
     }
 
     private (IQueryable<Collection> Collections, IQueryable<LedgerTransaction> Ledger) AccountRows(
-        ActiveFinancialAccount account)
+        ActiveFinancialAccount account, IQueryable<Collection> collections)
     {
         if (account.CashBoxId.HasValue)
         {
-            return (db.Collections.Where(x => x.CashBoxId == account.CashBoxId),
+            return (collections.Where(x => x.CashBoxId == account.CashBoxId),
                 db.LedgerTransactions.Where(x => x.CashBoxId == account.CashBoxId));
         }
 
-        return (db.Collections.Where(x => x.BankAccountId == account.BankAccountId),
+        return (collections.Where(x => x.BankAccountId == account.BankAccountId),
             db.LedgerTransactions.Where(x => x.BankAccountId == account.BankAccountId));
     }
 

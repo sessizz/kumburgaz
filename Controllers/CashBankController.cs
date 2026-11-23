@@ -305,8 +305,8 @@ public class CashBankController(
                     var (fromKey, toKey) = item.Row.TransferToCurrentAccount
                         ? (counterKey, accountKey)
                         : (accountKey, counterKey);
-                    await transferService.CreateAsync(new TransferRequest(fromKey, toKey, item.Amount, item.Date,
-                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description), item.Date);
+                    await transferService.CreateImportedAsync(new TransferRequest(fromKey, toKey, item.Amount, item.Date,
+                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description));
                     await importBatchService.AddRowAsync(
                         batch,
                         item.Row.LineNo,
@@ -343,7 +343,7 @@ public class CashBankController(
 
                 var ledgerTransaction = new LedgerTransaction
                 {
-                    Date = item.Date,
+                    Date = DateTimeHelper.EnsureUtc(item.Date),
                     IncomeExpenseCategoryId = item.CategoryId!.Value,
                     IsTransfer = false,
                     TransferIsIncoming = false,
@@ -1297,7 +1297,8 @@ public class CashBankController(
             offsets.TryGetValue(day, out var offset);
             var nextSlot = offset + 1;
             offsets[day] = nextSlot;
-            orderedRows.Add(row with { Date = TransactionOrderService.ApplySlot(day, nextSlot) });
+            // CSV keeps the parsed date kind until write time and may carry past midnight.
+            orderedRows.Add(row with { Date = day.AddTicks(nextSlot * TransactionOrderService.TickStep) });
         }
 
         return orderedRows;

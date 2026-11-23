@@ -59,6 +59,26 @@ public class TransactionOrderServiceTests
         Assert.Equal(existingDate, await order.ResolveEditedTransactionDateAsync(key, Day, existingDate));
     }
 
+    [Fact]
+    public async Task Next_slot_rejects_carry_into_the_next_day()
+    {
+        await using var db = CreateDb();
+        var bank = new BankAccount { Name = "Banka" };
+        db.LedgerTransactions.Add(new LedgerTransaction
+        {
+            BankAccount = bank,
+            PaymentChannel = PaymentChannel.Bank,
+            Date = Day.AddDays(1).AddTicks(-10)
+        });
+        await db.SaveChangesAsync();
+        var order = new TransactionOrderService(db);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            order.NextSlotAsync(FinancialAccountHelper.BankKey(bank.Id), Day));
+
+        Assert.Equal("Bu gün için yeni işlem sırası ayrılamadı.", error.Message);
+    }
+
     private static ApplicationDbContext CreateDb() =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

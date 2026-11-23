@@ -1,3 +1,4 @@
+using System.Globalization;
 using Kumburgaz.Web.Controllers;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
@@ -395,8 +396,9 @@ public class CashBankControllerTests
     [Theory]
     [InlineData(true, 10, 20)]
     [InlineData(false, 40, 30)]
+    [InlineData(true, TimeSpan.TicksPerDay, TimeSpan.TicksPerDay + 10, true)]
     public async Task Import_orders_income_and_incoming_transfer_in_file_order(
-        bool transferFirst, int transferTicks, int incomeTicks)
+        bool transferFirst, long transferTicks, long incomeTicks, bool carryAtMidnight = false)
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -407,12 +409,13 @@ public class CashBankControllerTests
         var cash = new CashBox { Name = "Kasa", OpeningBalanceDate = day };
         var bank = new BankAccount { Name = "Banka", OpeningBalanceDate = day };
         var category = new IncomeExpenseCategory { Name = "Faiz", Type = CategoryTypeHelper.Gelir };
+        var seedCashSlot = transferFirst && !carryAtMidnight;
         db.AddRange(cash, bank, category, new LedgerTransaction
         {
-            CashBox = transferFirst ? cash : null,
-            BankAccount = transferFirst ? null : bank,
-            PaymentChannel = transferFirst ? PaymentChannel.Cash : PaymentChannel.Bank,
-            Date = day.AddTicks(20)
+            CashBox = seedCashSlot ? cash : null,
+            BankAccount = seedCashSlot ? null : bank,
+            PaymentChannel = seedCashSlot ? PaymentChannel.Cash : PaymentChannel.Bank,
+            Date = day.AddTicks(carryAtMidnight ? TimeSpan.TicksPerDay - 10 : 20)
         });
         await db.SaveChangesAsync();
         var controller = CreateController(db, new Dictionary<string, StringValues>());
@@ -431,7 +434,7 @@ public class CashBankControllerTests
         {
             LineNo = transferFirst ? 3 : 2,
             Type = "income",
-            Date = "2026-11-23",
+            Date = carryAtMidnight ? "2026-11-24" : "2026-11-23",
             Amount = "10,00",
             ExpenseCategoryId = category.Id
         };
@@ -459,20 +462,97 @@ public class CashBankControllerTests
         Assert.Equal(day.AddTicks(incomeTicks), income.Date);
     }
 
-    [Fact]
-    public async Task Update_transfer_reports_original_same_account_message()
+    [Theory]
+    [InlineData("2026-11-23T12:00:00+03:00")]
+    [InlineData("2026-11-23T23:30:00-05:00")]
+    public async Task Import_allocates_offset_bearing_dates_from_local_midnight_before_converting_to_utc(string date)
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var (bank, installment) = await SeedDuesAsync(db);
+        var cash = new CashBox { Name = "Kasa" };
+        var category = new IncomeExpenseCategory { Name = "Faiz", Type = CategoryTypeHelper.Gelir };
+        db.AddRange(cash, category);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues>());
+
+        var result = await controller.CommitImport(new CashBankImportPreviewViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            Rows =
+            [
+                new() { LineNo = 2, Date = date, Type = "collection", Amount = "10,00", DuesInstallmentId = installment.Id },
+                new() { LineNo = 3, Date = date, Type = "income", Amount = "20,00", ExpenseCategoryId = category.Id },
+                new()
+                {
+                    LineNo = 4, Date = date, Type = "transfer", Amount = "100,00",
+                    ToAccountKey = FinancialAccountHelper.CashKey(cash.Id), TransferToCurrentAccount = true
+                }
+            ]
+        });
+
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        var utcMidnight = DateTimeOffset.Parse(date, CultureInfo.InvariantCulture)
+            .LocalDateTime.Date.ToUniversalTime();
+        var collection = await db.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal(utcMidnight.AddTicks(10), collection.Date);
+        var ledger = await db.LedgerTransactions.AsNoTracking().ToListAsync();
+        var income = Assert.Single(ledger, row => row.IncomeExpenseCategoryId == category.Id);
+        Assert.Equal(utcMidnight.AddTicks(20), income.Date);
+        var transfers = ledger.Where(row => row.IsTransfer).ToList();
+        Assert.Equal(2, transfers.Count);
+        Assert.All(transfers, row => Assert.Equal(utcMidnight.AddTicks(30), row.Date));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Create_transfer_reports_original_same_account_message_for_missing_or_inactive_account(bool exists)
+    {
+        await using var db = CreateDb();
+        const int accountId = 42;
+        if (exists)
+        {
+            db.BankAccounts.Add(new BankAccount { Id = accountId, Name = "Banka", Active = false });
+            await db.SaveChangesAsync();
+        }
+
+        var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
+        var result = await controller.CreateTransfer(new CashBankTransferFormViewModel
+        {
+            Kind = "bank",
+            Id = accountId,
+            Date = Utc(2026, 11, 23),
+            ToAccountKey = $"BANK:{accountId}"
+        });
+
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        Assert.Equal("Kaynak ve hedef hesap aynı olamaz.", controller.TempData["ActionError"]);
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Update_transfer_reports_original_same_account_message(bool missingAccount)
     {
         await using var db = CreateDb();
         var (incoming, outgoing) = await SeedDescriptionOnlyTransferAsync(db);
-        var key = FinancialAccountHelper.BankKey(incoming.BankAccountId!.Value);
+        var accountId = incoming.BankAccountId!.Value + (missingAccount ? 1 : 0);
         var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
 
         var result = await controller.UpdateTransferTransaction(incoming.Id, new CashBankTransferFormViewModel
         {
             Kind = "bank",
-            Id = incoming.BankAccountId.Value,
+            Id = accountId,
             Date = incoming.Date,
-            ToAccountKey = key
+            ToAccountKey = $"BANK:0{accountId}"
         });
 
         var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);

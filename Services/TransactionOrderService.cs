@@ -30,7 +30,7 @@ public class TransactionOrderService(ApplicationDbContext db)
         return dates.GroupBy(date => date.Date).ToDictionary(group => group.Key, group => group.Max(GetSlot));
     }
 
-    internal static DateTime ApplySlot(DateTime date, long slot)
+    private static DateTime ApplySlot(DateTime date, long slot)
     {
         var offset = slot * TickStep;
         if (offset >= TimeSpan.TicksPerDay)

@@ -19,10 +19,14 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
             DateTime.SpecifyKind(request.Date.Date, DateTimeKind.Utc), FormatDescription(from, to, request.Description));
     }
 
-    public async Task<TransferResult> CreateAsync(TransferRequest request, DateTime? orderedDate = null)
+    public Task<TransferResult> CreateAsync(TransferRequest request) => CreateAsync(request, useImportedDate: false);
+
+    internal Task<TransferResult> CreateImportedAsync(TransferRequest request) => CreateAsync(request, useImportedDate: true);
+
+    private async Task<TransferResult> CreateAsync(TransferRequest request, bool useImportedDate)
     {
         var (from, to) = await ResolveAccountsAsync(request, activeOnly: true);
-        var date = orderedDate ?? await order.NextSlotAsync(from.Key, request.Date);
+        var date = useImportedDate ? request.Date : await order.NextSlotAsync(from.Key, request.Date);
         var description = FormatDescription(from, to, request.Description);
         var groupId = Guid.NewGuid();
         var outgoing = new LedgerTransaction { TransferGroupId = groupId };
@@ -64,16 +68,18 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
             throw new InvalidOperationException("Tutar sıfırdan büyük olmalı.");
         }
 
+        if (FinancialAccountHelper.TryParse(request.FromAccountKey, out _, out var fromCashId, out var fromBankId)
+            && FinancialAccountHelper.TryParse(request.ToAccountKey, out _, out var toCashId, out var toBankId)
+            && fromCashId == toCashId && fromBankId == toBankId)
+        {
+            throw new InvalidOperationException(SameAccountMessage);
+        }
+
         var from = await FinancialAccountHelper.FindAsync(db, request.FromAccountKey, activeOnly);
         var to = await FinancialAccountHelper.FindAsync(db, request.ToAccountKey, activeOnly);
         if (from is null || to is null)
         {
             throw new InvalidOperationException("Geçerli bir kasa/banka hesabı seçiniz.");
-        }
-
-        if (from.Key == to.Key)
-        {
-            throw new InvalidOperationException(SameAccountMessage);
         }
 
         return (from, to);

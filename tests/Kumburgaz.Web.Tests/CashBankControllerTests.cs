@@ -4,6 +4,7 @@ using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Primitives;
 using Xunit;
@@ -392,6 +393,71 @@ public class CashBankControllerTests
     }
 
     [Fact]
+    public async Task Import_incoming_transfer_uses_source_slot_before_ordering_following_row()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var day = Utc(2026, 11, 23);
+        var cash = new CashBox { Name = "Kasa", OpeningBalanceDate = day };
+        var bank = new BankAccount { Name = "Banka", OpeningBalanceDate = day };
+        var category = new IncomeExpenseCategory { Name = "Faiz", Type = CategoryTypeHelper.Gelir };
+        db.AddRange(cash, bank, category, new LedgerTransaction
+        {
+            CashBox = cash,
+            PaymentChannel = PaymentChannel.Cash,
+            Date = day.AddTicks(20)
+        });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues>());
+
+        var result = await controller.CommitImport(new CashBankImportPreviewViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            Rows =
+            [
+                new()
+                {
+                    LineNo = 2,
+                    Type = "transfer",
+                    Date = "2026-11-23",
+                    Amount = "100,00",
+                    ToAccountKey = FinancialAccountHelper.CashKey(cash.Id),
+                    TransferToCurrentAccount = true,
+                    Description = "ATM"
+                },
+                new()
+                {
+                    LineNo = 3,
+                    Type = "income",
+                    Date = "2026-11-23",
+                    Amount = "10,00",
+                    ExpenseCategoryId = category.Id
+                }
+            ]
+        });
+
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        var legs = await db.LedgerTransactions.AsNoTracking().Where(leg => leg.IsTransfer).ToListAsync();
+        var outgoing = Assert.Single(legs, leg => !leg.TransferIsIncoming);
+        var incoming = Assert.Single(legs, leg => leg.TransferIsIncoming);
+        Assert.Equal(cash.Id, outgoing.CashBoxId);
+        Assert.Equal(bank.Id, incoming.BankAccountId);
+        Assert.NotNull(outgoing.TransferGroupId);
+        Assert.Equal(outgoing.TransferGroupId, incoming.TransferGroupId);
+        Assert.Equal(day.AddTicks(30), outgoing.Date);
+        Assert.Equal(outgoing.Date, incoming.Date);
+        Assert.Equal("Bankaya yatır: ATM", incoming.Description);
+        var income = await db.LedgerTransactions.AsNoTracking()
+            .SingleAsync(leg => leg.IncomeExpenseCategoryId == category.Id);
+        Assert.Equal(day.AddTicks(40), income.Date);
+    }
+
+    [Fact]
     public async Task Update_transfer_preserves_direction_of_category_only_incoming_leg()
     {
         await using var db = CreateDb();
@@ -515,11 +581,14 @@ public class CashBankControllerTests
         httpContext.Request.ContentType = "application/x-www-form-urlencoded";
         httpContext.Request.Form = new FormCollection(formValues);
 
+        var orderService = new TransactionOrderService(db);
         var controller = new CashBankController(
             db,
             new CashBankDetailService(db, new DuesLedgerRowService(db)),
             new CollectionService(db),
-            new ImportBatchService(db, new HttpContextAccessor { HttpContext = httpContext }))
+            new ImportBatchService(db, new HttpContextAccessor { HttpContext = httpContext }),
+            orderService,
+            new CashBankTransferService(db, orderService))
         {
             ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext
             {

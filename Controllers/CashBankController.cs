@@ -15,11 +15,10 @@ public class CashBankController(
     ApplicationDbContext db,
     CashBankDetailService detailService,
     ICollectionService collectionService,
-    ImportBatchService importBatchService) : Controller
+    ImportBatchService importBatchService,
+    TransactionOrderService orderService,
+    CashBankTransferService transferService) : Controller
 {
-    // PostgreSQL timestamp precision is microseconds, so ordering offsets must be at least 10 ticks.
-    private const long TransactionOrderTickStep = 10L;
-
     public async Task<IActionResult> Index(string? q = null)
     {
         var query = q?.Trim();
@@ -284,7 +283,6 @@ public class CashBankController(
             return ImportPreviewWithErrors(model, detail, errors, "CSV import edilmedi. Hatalı satırları düzeltin.");
         }
 
-        importRows = ApplyImportOrder(importRows, await BuildExistingTransactionDateOffsetsAsync(model.Kind, model.Id));
         var saved = importRows.Count;
         var batch = await importBatchService.CreateAsync("cashbank", model.Kind, model.Id, null);
         await using var transaction = await db.Database.BeginTransactionAsync();
@@ -292,13 +290,32 @@ public class CashBankController(
         {
             foreach (var item in importRows)
             {
+                if (item.Row.Type == "transfer")
+                {
+                    var counterKey = item.Row.ToAccountKey!;
+                    var (fromKey, toKey) = item.Row.TransferToCurrentAccount
+                        ? (counterKey, accountKey)
+                        : (accountKey, counterKey);
+                    await transferService.CreateAsync(new TransferRequest(fromKey, toKey, item.Amount, item.Date,
+                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description));
+                    await importBatchService.AddRowAsync(
+                        batch,
+                        item.Row.LineNo,
+                        item.Row,
+                        item.NormalizedKey,
+                        ImportRowStatus.Committed,
+                        createdEntityName: nameof(LedgerTransaction));
+                    continue;
+                }
+
+                var orderedDate = await orderService.NextSlotAsync(accountKey, item.Date);
                 if (item.Installment is not null)
                 {
                     var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
                     {
                         BillingGroupId = item.Installment.BillingGroupId,
                         DuesInstallmentId = item.Installment.Id,
-                        Date = item.Date,
+                        Date = orderedDate,
                         Amount = item.Amount,
                         PaymentChannel = paymentChannel,
                         AccountKey = accountKey,
@@ -316,29 +333,9 @@ public class CashBankController(
                     continue;
                 }
 
-                if (item.Row.Type == "transfer")
-                {
-                    await AddTransferRowsAsync(
-                        model.Kind,
-                        model.Id,
-                        item.Row.ToAccountKey!,
-                        item.Row.TransferToCurrentAccount,
-                        item.Date,
-                        item.Amount,
-                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description);
-                    await importBatchService.AddRowAsync(
-                        batch,
-                        item.Row.LineNo,
-                        item.Row,
-                        item.NormalizedKey,
-                        ImportRowStatus.Committed,
-                        createdEntityName: nameof(LedgerTransaction));
-                    continue;
-                }
-
                 var ledgerTransaction = new LedgerTransaction
                 {
-                    Date = DateTimeHelper.EnsureUtc(item.Date),
+                    Date = orderedDate,
                     IncomeExpenseCategoryId = item.CategoryId!.Value,
                     IsTransfer = false,
                     TransferIsIncoming = false,
@@ -644,7 +641,7 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
+        var orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
         if (model.IncomeSource == "dues")
         {
             if (!model.DuesInstallmentId.HasValue || model.BillingGroupId <= 0)
@@ -746,7 +743,7 @@ public class CashBankController(
 
         var accountKey = BuildAccountKey(model.Kind, model.Id);
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
+        var orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
 
         try
         {
@@ -801,7 +798,8 @@ public class CashBankController(
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (existingCollection is null) return NotFound();
-        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, existingCollection.Date);
+        var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
+            BuildAccountKey(model.Kind, model.Id), model.Date, existingCollection.Date);
 
         try
         {
@@ -861,7 +859,7 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
+        var orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = DateTimeHelper.EnsureUtc(orderedDate),
@@ -918,7 +916,8 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, entity.Date);
+        var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
+            BuildAccountKey(model.Kind, model.Id), model.Date, entity.Date);
         entity.Date = DateTimeHelper.EnsureUtc(orderedDate);
         entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
         entity.Amount = model.Amount;
@@ -949,54 +948,23 @@ public class CashBankController(
             model.Amount = parsedAmount;
         }
 
-        if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var toChannel, out var toCashBoxId, out var toBankAccountId))
+        if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out _, out _, out _))
         {
             TempData["ActionError"] = "Transfer bilgilerini kontrol edin.";
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var fromKey = BuildAccountKey(model.Kind, model.Id);
-        if (string.Equals(fromKey, model.ToAccountKey, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            TempData["ActionError"] = "Kaynak ve hedef hesap aynı olamaz.";
-            return RedirectToDetail(model.Kind, model.Id);
+            await transferService.CreateAsync(new TransferRequest(
+                BuildAccountKey(model.Kind, model.Id), model.ToAccountKey!, model.Amount, model.Date, model.Description));
+            TempData["ActionSuccess"] = "Transfer kaydedildi.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ActionError"] = ex.Message;
         }
 
-        var descriptionPrefix = model.Kind == "cash" && toChannel == PaymentChannel.Bank ? "Bankaya yatır" : "Para transferi";
-        var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
-        var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
-        var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
-        var transferGroupId = Guid.NewGuid();
-
-        db.LedgerTransactions.Add(new LedgerTransaction
-        {
-            Date = utcDate,
-            IncomeExpenseCategoryId = null,
-            IsTransfer = true,
-            TransferGroupId = transferGroupId,
-            TransferIsIncoming = false,
-            Amount = model.Amount,
-            PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
-            CashBoxId = model.Kind == "cash" ? model.Id : null,
-            BankAccountId = model.Kind == "bank" ? model.Id : null,
-            Description = description
-        });
-        db.LedgerTransactions.Add(new LedgerTransaction
-        {
-            Date = utcDate,
-            IncomeExpenseCategoryId = null,
-            IsTransfer = true,
-            TransferGroupId = transferGroupId,
-            TransferIsIncoming = true,
-            Amount = model.Amount,
-            PaymentChannel = toChannel,
-            CashBoxId = toCashBoxId,
-            BankAccountId = toBankAccountId,
-            Description = description
-        });
-
-        await db.SaveChangesAsync();
-        TempData["ActionSuccess"] = "Transfer kaydedildi.";
         return RedirectToDetail(model.Kind, model.Id);
     }
 
@@ -1013,7 +981,7 @@ public class CashBankController(
             model.Amount = parsedAmount;
         }
 
-        if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out var counterChannel, out var counterCashBoxId, out var counterBankAccountId))
+        if (!ModelState.IsValid || !FinancialAccountHelper.TryParse(model.ToAccountKey, out _, out _, out _))
         {
             TempData["ActionError"] = "Transfer bilgilerini kontrol edin.";
             return RedirectToDetail(model.Kind, model.Id);
@@ -1024,61 +992,21 @@ public class CashBankController(
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (source is null) return NotFound();
 
-        var pair = await TransferPairing.FindPairAsync(db, source);
-        if (pair is null)
+        var accountKey = BuildAccountKey(model.Kind, model.Id);
+        var (fromKey, toKey) = TransferPairing.IsIncoming(source)
+            ? (model.ToAccountKey!, accountKey)
+            : (accountKey, model.ToAccountKey!);
+        try
         {
-            TempData["ActionError"] = "Transferin karşı satırı bulunamadı.";
-            return RedirectToDetail(model.Kind, model.Id);
+            await transferService.UpdateAsync(transactionId, new TransferRequest(
+                fromKey, toKey, model.Amount, model.Date, model.Description));
+            TempData["ActionSuccess"] = "Transfer güncellendi.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ActionError"] = ex.Message;
         }
 
-        var currentCashBoxId = model.Kind == "cash" ? model.Id : (int?)null;
-        var currentBankAccountId = model.Kind == "bank" ? model.Id : (int?)null;
-        var currentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        var editingIncomingRow = TransferPairing.IsIncoming(source);
-
-        var fromCashBoxId = editingIncomingRow ? counterCashBoxId : currentCashBoxId;
-        var fromBankAccountId = editingIncomingRow ? counterBankAccountId : currentBankAccountId;
-        var fromChannel = editingIncomingRow ? counterChannel : currentChannel;
-        var toCashBoxId = editingIncomingRow ? currentCashBoxId : counterCashBoxId;
-        var toBankAccountId = editingIncomingRow ? currentBankAccountId : counterBankAccountId;
-        var toChannel = editingIncomingRow ? currentChannel : counterChannel;
-
-        if (fromCashBoxId == toCashBoxId && fromBankAccountId == toBankAccountId)
-        {
-            TempData["ActionError"] = "Kaynak ve karşı hesap aynı olamaz.";
-            return RedirectToDetail(model.Kind, model.Id);
-        }
-
-        var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatır" : "Para transferi";
-        var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
-        var orderedDate = await ResolveEditedTransactionDateAsync(model.Kind, model.Id, model.Date, source.Date);
-        var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
-
-        var expenseRow = editingIncomingRow ? pair : source;
-        var incomeRow = editingIncomingRow ? source : pair;
-
-        expenseRow.Date = utcDate;
-        expenseRow.IncomeExpenseCategoryId = null;
-        expenseRow.IsTransfer = true;
-        expenseRow.TransferIsIncoming = false;
-        expenseRow.Amount = model.Amount;
-        expenseRow.PaymentChannel = fromChannel;
-        expenseRow.CashBoxId = fromCashBoxId;
-        expenseRow.BankAccountId = fromBankAccountId;
-        expenseRow.Description = description;
-
-        incomeRow.Date = utcDate;
-        incomeRow.IncomeExpenseCategoryId = null;
-        incomeRow.IsTransfer = true;
-        incomeRow.TransferIsIncoming = true;
-        incomeRow.Amount = model.Amount;
-        incomeRow.PaymentChannel = toChannel;
-        incomeRow.CashBoxId = toCashBoxId;
-        incomeRow.BankAccountId = toBankAccountId;
-        incomeRow.Description = description;
-
-        await db.SaveChangesAsync();
-        TempData["ActionSuccess"] = "Transfer güncellendi.";
         return RedirectToDetail(model.Kind, model.Id);
     }
 
@@ -1123,66 +1051,6 @@ public class CashBankController(
     private static string BuildAccountKey(string kind, int id)
     {
         return kind == "bank" ? FinancialAccountHelper.BankKey(id) : FinancialAccountHelper.CashKey(id);
-    }
-
-    private async Task AddTransferRowsAsync(
-        string currentKind,
-        int currentId,
-        string counterAccountKey,
-        bool transferToCurrentAccount,
-        DateTime date,
-        decimal amount,
-        string? descriptionText)
-    {
-        if (!FinancialAccountHelper.TryParse(counterAccountKey, out var counterChannel, out var counterCashBoxId, out var counterBankAccountId))
-        {
-            throw new InvalidOperationException("Transfer hesabi bulunamadi.");
-        }
-
-        var currentChannel = currentKind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        int? currentCashBoxId = currentKind == "cash" ? currentId : null;
-        int? currentBankAccountId = currentKind == "bank" ? currentId : null;
-
-        var fromChannel = transferToCurrentAccount ? counterChannel : currentChannel;
-        var fromCashBoxId = transferToCurrentAccount ? counterCashBoxId : currentCashBoxId;
-        var fromBankAccountId = transferToCurrentAccount ? counterBankAccountId : currentBankAccountId;
-        var toChannel = transferToCurrentAccount ? currentChannel : counterChannel;
-        var toCashBoxId = transferToCurrentAccount ? currentCashBoxId : counterCashBoxId;
-        var toBankAccountId = transferToCurrentAccount ? currentBankAccountId : counterBankAccountId;
-
-        var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatir" : "Para transferi";
-        var description = $"{descriptionPrefix}: {descriptionText}".Trim().TrimEnd(':');
-        var utcDate = DateTimeHelper.EnsureUtc(date);
-        var transferGroupId = Guid.NewGuid();
-
-        db.LedgerTransactions.Add(new LedgerTransaction
-        {
-            Date = utcDate,
-            IncomeExpenseCategoryId = null,
-            IsTransfer = true,
-            TransferGroupId = transferGroupId,
-            TransferIsIncoming = false,
-            Amount = amount,
-            PaymentChannel = fromChannel,
-            CashBoxId = fromCashBoxId,
-            BankAccountId = fromBankAccountId,
-            Description = description
-        });
-        db.LedgerTransactions.Add(new LedgerTransaction
-        {
-            Date = utcDate,
-            IncomeExpenseCategoryId = null,
-            IsTransfer = true,
-            TransferGroupId = transferGroupId,
-            TransferIsIncoming = true,
-            Amount = amount,
-            PaymentChannel = toChannel,
-            CashBoxId = toCashBoxId,
-            BankAccountId = toBankAccountId,
-            Description = description
-        });
-
-        await db.SaveChangesAsync();
     }
 
     private static (string Source, int Id)? ParseSelectedTransaction(string value)
@@ -1376,75 +1244,6 @@ public class CashBankController(
         var suffix = parts.Count > 0 ? string.Join(" ", parts) : $"{errors.Count} hata var.";
         TempData["ActionError"] = $"{message} {suffix}";
         return View("ImportPreview", model);
-    }
-
-    private async Task<Dictionary<DateTime, long>> BuildExistingTransactionDateOffsetsAsync(string kind, int id)
-    {
-        var collectionQuery = db.Collections.AsNoTracking();
-        var ledgerQuery = db.LedgerTransactions.AsNoTracking();
-
-        if (kind == "cash")
-        {
-            collectionQuery = collectionQuery.Where(x => x.CashBoxId == id);
-            ledgerQuery = ledgerQuery.Where(x => x.CashBoxId == id);
-        }
-        else
-        {
-            collectionQuery = collectionQuery.Where(x => x.BankAccountId == id);
-            ledgerQuery = ledgerQuery.Where(x => x.BankAccountId == id);
-        }
-
-        var collectionDates = await collectionQuery.Select(x => x.Date).ToListAsync();
-        var ledgerDates = await ledgerQuery.Select(x => x.Date).ToListAsync();
-
-        return collectionDates
-            .Concat(ledgerDates)
-            .GroupBy(x => x.Date.Date)
-            .ToDictionary(g => g.Key, g => g.Max(GetTransactionOrderSlot));
-    }
-
-    private static List<CashBankImportOperation> ApplyImportOrder(
-        List<CashBankImportOperation> rows,
-        Dictionary<DateTime, long> existingOffsets)
-    {
-        var offsets = new Dictionary<DateTime, long>(existingOffsets);
-        var orderedRows = new List<CashBankImportOperation>(rows.Count);
-
-        foreach (var row in rows)
-        {
-            var day = row.Date.Date;
-            offsets.TryGetValue(day, out var nextOffset);
-            nextOffset++;
-            offsets[day] = nextOffset;
-            orderedRows.Add(row with { Date = ApplyTransactionOrderSlot(day, nextOffset) });
-        }
-
-        return orderedRows;
-    }
-
-    private async Task<DateTime> BuildNextTransactionDateAsync(string kind, int id, DateTime date)
-    {
-        var offsets = await BuildExistingTransactionDateOffsetsAsync(kind, id);
-        var day = date.Date;
-        offsets.TryGetValue(day, out var currentOffset);
-        return ApplyTransactionOrderSlot(day, currentOffset + 1);
-    }
-
-    private async Task<DateTime> ResolveEditedTransactionDateAsync(string kind, int id, DateTime submittedDate, DateTime existingDate)
-    {
-        return submittedDate.Date == existingDate.Date
-            ? existingDate
-            : await BuildNextTransactionDateAsync(kind, id, submittedDate);
-    }
-
-    private static long GetTransactionOrderSlot(DateTime date)
-    {
-        return date.TimeOfDay.Ticks / TransactionOrderTickStep;
-    }
-
-    private static DateTime ApplyTransactionOrderSlot(DateTime day, long slot)
-    {
-        return day.Date.AddTicks(slot * TransactionOrderTickStep);
     }
 
     private sealed record CashBankImportOperation(

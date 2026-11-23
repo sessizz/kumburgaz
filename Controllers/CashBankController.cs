@@ -1034,7 +1034,7 @@ public class CashBankController(
         var currentCashBoxId = model.Kind == "cash" ? model.Id : (int?)null;
         var currentBankAccountId = model.Kind == "bank" ? model.Id : (int?)null;
         var currentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        var editingIncomingRow = source.TransferIsIncoming;
+        var editingIncomingRow = TransferPairing.IsIncoming(source);
 
         var fromCashBoxId = editingIncomingRow ? counterCashBoxId : currentCashBoxId;
         var fromBankAccountId = editingIncomingRow ? counterBankAccountId : currentBankAccountId;

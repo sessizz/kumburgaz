@@ -391,6 +391,52 @@ public class CashBankControllerTests
         Assert.Equal("Gelir bilgilerini kontrol edin.", controller.TempData["ActionError"]);
     }
 
+    [Fact]
+    public async Task Update_transfer_preserves_direction_of_category_only_incoming_leg()
+    {
+        await using var db = CreateDb();
+        var cash = new CashBox { Name = "Kasa" };
+        var bank = new BankAccount { Name = "Banka" };
+        var date = Utc(2026, 7, 24);
+        var groupId = Guid.NewGuid();
+        var incoming = new LedgerTransaction
+        {
+            Amount = 100m,
+            Date = date,
+            BankAccount = bank,
+            PaymentChannel = PaymentChannel.Bank,
+            IncomeExpenseCategory = new() { Name = "Transfer geliri", Type = CategoryTypeHelper.Gelir },
+            TransferGroupId = groupId
+        };
+        var outgoing = new LedgerTransaction
+        {
+            Amount = 100m,
+            Date = date,
+            CashBox = cash,
+            PaymentChannel = PaymentChannel.Cash,
+            IsTransfer = true,
+            TransferGroupId = groupId
+        };
+        db.AddRange(incoming, outgoing);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
+
+        await controller.UpdateTransferTransaction(incoming.Id, new CashBankTransferFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id,
+            Date = date,
+            ToAccountKey = $"cash:{cash.Id}"
+        });
+
+        Assert.Equal(200m, incoming.Amount);
+        Assert.True(incoming.TransferIsIncoming);
+        Assert.Equal(bank.Id, incoming.BankAccountId);
+        Assert.Equal(200m, outgoing.Amount);
+        Assert.False(outgoing.TransferIsIncoming);
+        Assert.Equal(cash.Id, outgoing.CashBoxId);
+    }
+
     private static CashBankController CreateController(
         ApplicationDbContext db,
         Dictionary<string, StringValues> formValues)

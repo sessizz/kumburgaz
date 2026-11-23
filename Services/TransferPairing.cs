@@ -36,34 +36,67 @@ public static class TransferPairing
 
     public static async Task<LedgerTransaction?> FindPairAsync(ApplicationDbContext db, LedgerTransaction leg, CancellationToken ct = default)
     {
-        var candidates = db.LedgerTransactions.Where(x => x.Id != leg.Id);
+        if (!IsTransferLedger(leg))
+        {
+            return null;
+        }
+
+        var candidates = db.LedgerTransactions
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => x.Id != leg.Id);
         if (leg.TransferGroupId is Guid groupId)
         {
-            return await candidates
-                .Where(x => x.TransferGroupId == groupId)
-                .OrderBy(x => x.Id)
-                .FirstOrDefaultAsync(ct);
+            var groupMembers = await candidates.Where(x => x.TransferGroupId == groupId).ToListAsync(ct);
+            return FindOppositeLeg(leg, groupMembers);
         }
 
         var key = LegacyKey(leg);
         var legacyCandidates = await candidates
-            .Include(x => x.IncomeExpenseCategory)
             .Where(x => x.TransferGroupId == null && x.Date == key.Date && x.Amount == key.Amount && x.Description == key.Description)
             .ToListAsync(ct);
-        return FindLegacyPair(leg, legacyCandidates.Where(IsTransferLedger));
+        return FindOppositeLeg(leg, legacyCandidates);
     }
 
-    internal static bool IsTransferLedger(LedgerTransaction tx)
+    internal static async Task<Dictionary<int, LedgerTransaction>> FindPairsAsync(
+        ApplicationDbContext db, IEnumerable<LedgerTransaction> legs)
     {
-        var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
-        var description = tx.Description ?? string.Empty;
-        return tx.IsTransfer
-            || category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase)
-            || description.Equals("Para transferi", StringComparison.OrdinalIgnoreCase)
-            || description.Equals("Bankaya yatır", StringComparison.OrdinalIgnoreCase);
+        var transfers = legs.Where(IsTransferLedger).ToList();
+        var pairs = new Dictionary<int, LedgerTransaction>();
+        if (transfers.Count == 0)
+        {
+            return pairs;
+        }
+
+        var groupIds = transfers.Where(x => x.TransferGroupId.HasValue).Select(x => x.TransferGroupId).Distinct().ToArray();
+        var legacyDates = transfers.Where(x => x.TransferGroupId == null).Select(x => x.Date).Distinct().ToArray();
+        var candidates = await db.LedgerTransactions
+            .AsNoTracking()
+            .Include(x => x.IncomeExpenseCategory)
+            .Where(x => groupIds.Contains(x.TransferGroupId) || (x.TransferGroupId == null && legacyDates.Contains(x.Date)))
+            .ToListAsync();
+        var groupedCandidates = candidates.Where(x => x.TransferGroupId.HasValue).ToLookup(x => x.TransferGroupId);
+        var legacyCandidates = candidates.Where(x => x.TransferGroupId == null).ToLookup(LegacyKey);
+
+        foreach (var leg in transfers)
+        {
+            var matches = leg.TransferGroupId.HasValue
+                ? groupedCandidates[leg.TransferGroupId]
+                : legacyCandidates[LegacyKey(leg)];
+            var pair = FindOppositeLeg(leg, matches);
+            if (pair is not null)
+            {
+                pairs.Add(leg.Id, pair);
+            }
+        }
+
+        return pairs;
     }
+
+    internal static bool IsTransferLedger(LedgerTransaction leg) =>
+        leg.IsTransfer || leg.IncomeExpenseCategory?.Name.Contains("Transfer", StringComparison.OrdinalIgnoreCase) == true;
+
+    internal static bool IsIncoming(LedgerTransaction leg) =>
+        leg.IsTransfer ? leg.TransferIsIncoming : leg.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
 
     internal static IEnumerable<LedgerTransaction> FindUnmatchedGroups(IReadOnlyList<LedgerTransaction> transfers)
     {
@@ -100,7 +133,7 @@ public static class TransferPairing
                 continue;
             }
 
-            var pair = FindLegacyPair(leg, byKey[LegacyKey(leg)].Where(x => !pairedIds.Contains(x.Id)));
+            var pair = FindOppositeLeg(leg, byKey[LegacyKey(leg)].Where(x => !pairedIds.Contains(x.Id)));
             if (pair is null)
             {
                 continue;
@@ -117,16 +150,11 @@ public static class TransferPairing
     private static (DateTime Date, decimal Amount, string? Description) LegacyKey(LedgerTransaction leg) =>
         (leg.Date, leg.Amount, leg.Description);
 
-    private static bool IsIncoming(LedgerTransaction leg) =>
-        leg.IsTransfer ? leg.TransferIsIncoming : leg.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
-
-    private static LedgerTransaction? FindLegacyPair(LedgerTransaction leg, IEnumerable<LedgerTransaction> candidates)
+    private static LedgerTransaction? FindOppositeLeg(LedgerTransaction leg, IEnumerable<LedgerTransaction> candidates)
     {
         var incoming = IsIncoming(leg);
         return candidates
-            .Where(x => x.Id != leg.Id && x.TransferIsIncoming != incoming)
-            .OrderBy(x => Math.Abs((long)x.Id - leg.Id))
-            .ThenBy(x => x.Id)
-            .FirstOrDefault();
+            .Where(x => x.Id != leg.Id && IsTransferLedger(x) && IsIncoming(x) != incoming)
+            .MinBy(x => (leg.TransferGroupId.HasValue ? x.Id : Math.Abs((long)x.Id - leg.Id), x.Id));
     }
 }

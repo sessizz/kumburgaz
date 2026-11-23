@@ -86,7 +86,12 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         {
             var catType = l.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
             var kind2 = catType == "Gelir" ? TxKind.Girdi : TxKind.Cikis;
-            var isTransfer = TransferPairing.IsTransferLedger(l);
+            var isTransferLeg = TransferPairing.IsTransferLedger(l);
+            var hasLegacyTransferDescription = !isTransferLeg
+                && (l.Description?.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase) == true
+                    || l.Description?.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase) == true);
+            var isTransfer = isTransferLeg || hasLegacyTransferDescription;
+            var isIncoming = hasLegacyTransferDescription ? l.TransferIsIncoming : TransferPairing.IsIncoming(l);
             allRows.Add(new TxRow
             {
                 Id = l.Id,
@@ -97,7 +102,7 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
                 Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? (isTransfer ? "Para transferi" : "Gider"),
                 Subline = l.IncomeExpenseCategory?.Name,
                 Kind = isTransfer ? TxKind.Transfer : kind2,
-                Amount = SignedLedgerAmount(l),
+                Amount = isIncoming ? l.Amount : -l.Amount,
                 Date = l.Date
             });
         }
@@ -272,8 +277,10 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
 
     private async Task ApplyRowOptionsAsync(CashBankDetailViewModel vm, List<LedgerTransaction> ledgerRaw)
     {
-        var ledgerById = ledgerRaw.ToDictionary(x => x.Id);
-        foreach (var row in vm.Groups.SelectMany(x => x.Items))
+        var rows = vm.Groups.SelectMany(x => x.Items).ToList();
+        var transferIds = rows.Where(x => x.Kind == TxKind.Transfer && x.Source == "ledger").Select(x => x.Id).ToHashSet();
+        var counterparts = await TransferPairing.FindPairsAsync(db, ledgerRaw.Where(x => transferIds.Contains(x.Id)));
+        foreach (var row in rows)
         {
             row.DuesOptions = vm.DuesOptions;
             row.DuesInstallmentOptions = vm.DuesInstallmentOptions;
@@ -291,28 +298,11 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
                 row.DuesInstallmentId = fallback?.Id;
             }
 
-            if (row.Kind != TxKind.Transfer || row.Source != "ledger")
+            if (row.Kind == TxKind.Transfer && row.Source == "ledger" && counterparts.TryGetValue(row.Id, out var pair))
             {
-                continue;
+                row.ToAccountKey = FinancialAccountHelper.BuildKey(pair.CashBoxId, pair.BankAccountId);
             }
-
-            var pair = ledgerById.TryGetValue(row.Id, out var sourceLedger)
-                ? await TransferPairing.FindPairAsync(db, sourceLedger)
-                : null;
-            row.ToAccountKey = pair is null
-                ? null
-                : FinancialAccountHelper.BuildKey(pair.CashBoxId, pair.BankAccountId);
         }
-    }
-
-    private static decimal SignedLedgerAmount(LedgerTransaction tx)
-    {
-        if (TransferPairing.IsTransferLedger(tx))
-        {
-            return tx.TransferIsIncoming ? tx.Amount : -tx.Amount;
-        }
-
-        return tx.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir ? tx.Amount : -tx.Amount;
     }
 
     private async Task<DetailOptions> BuildDetailOptionsAsync(string currentAccountKey, HashSet<int> alwaysIncludeInstallmentIds)

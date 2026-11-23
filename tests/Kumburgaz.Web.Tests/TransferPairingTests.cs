@@ -129,6 +129,83 @@ public class TransferPairingTests
         Assert.Equal(nearest.Id, pair?.Id);
     }
 
+    [Theory]
+    [InlineData("Para transferi")]
+    [InlineData("Para transferi: Açıklama")]
+    public async Task Backfill_and_lookup_ignore_description_only_decoys(string description)
+    {
+        await using var db = CreateDb();
+        var source = CreateLeg(1, incoming: false);
+        var decoy = CreateLeg(2, incoming: true);
+        var legitimate = CreateLeg(3, incoming: true);
+        source.Description = decoy.Description = legitimate.Description = description;
+        decoy.IsTransfer = false;
+        decoy.IncomeExpenseCategory = new() { Name = "Diğer gelirler", Type = CategoryTypeHelper.Gelir };
+        db.AddRange(source, decoy, legitimate);
+        await db.SaveChangesAsync();
+
+        var pair = await TransferPairing.FindPairAsync(db, source);
+        var count = await TransferPairing.BackfillAsync(db, NullLogger.Instance);
+
+        Assert.Null(decoy.TransferGroupId);
+        Assert.Equal(legitimate.Id, pair?.Id);
+        Assert.Equal(1, count);
+        Assert.NotNull(source.TransferGroupId);
+        Assert.Equal(source.TransferGroupId, legitimate.TransferGroupId);
+    }
+
+    [Fact]
+    public async Task Backfill_uses_category_direction_for_both_legs()
+    {
+        await using var db = CreateDb();
+        var incoming = CreateCategoryLeg(1, CategoryTypeHelper.Gelir, rawIncoming: false);
+        var sameDirection = CreateCategoryLeg(2, CategoryTypeHelper.Gelir, rawIncoming: false);
+        var outgoing = CreateCategoryLeg(3, CategoryTypeHelper.Gider, rawIncoming: true);
+        db.AddRange(incoming, sameDirection, outgoing);
+        await db.SaveChangesAsync();
+
+        var count = await TransferPairing.BackfillAsync(db, NullLogger.Instance);
+
+        Assert.Equal(1, count);
+        Assert.Null(sameDirection.TransferGroupId);
+        Assert.NotNull(outgoing.TransferGroupId);
+        Assert.Equal(outgoing.TransferGroupId, incoming.TransferGroupId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Legacy_lookup_uses_category_direction_from_either_side(bool fromIncoming)
+    {
+        await using var db = CreateDb();
+        var incoming = CreateCategoryLeg(1, CategoryTypeHelper.Gelir, rawIncoming: false);
+        var outgoing = CreateCategoryLeg(2, CategoryTypeHelper.Gider, rawIncoming: true);
+        db.AddRange(incoming, outgoing);
+        await db.SaveChangesAsync();
+        var source = fromIncoming ? incoming : outgoing;
+        var expected = fromIncoming ? outgoing : incoming;
+
+        var pair = await TransferPairing.FindPairAsync(db, source);
+
+        Assert.Equal(expected.Id, pair?.Id);
+    }
+
+    [Fact]
+    public async Task Group_lookup_rejects_a_same_direction_category_leg()
+    {
+        await using var db = CreateDb();
+        var incoming = CreateCategoryLeg(1, CategoryTypeHelper.Gelir, rawIncoming: false);
+        var sameDirection = CreateLeg(2, incoming: true);
+        var legacyOutgoing = CreateLeg(3, incoming: false);
+        incoming.TransferGroupId = sameDirection.TransferGroupId = Guid.NewGuid();
+        db.AddRange(incoming, sameDirection, legacyOutgoing);
+        await db.SaveChangesAsync();
+
+        var pair = await TransferPairing.FindPairAsync(db, incoming);
+
+        Assert.Null(pair);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -147,4 +224,12 @@ public class TransferPairingTests
         IsTransfer = true,
         TransferIsIncoming = incoming
     };
+
+    private static LedgerTransaction CreateCategoryLeg(int id, string categoryType, bool rawIncoming)
+    {
+        var leg = CreateLeg(id, rawIncoming);
+        leg.IsTransfer = false;
+        leg.IncomeExpenseCategory = new() { Name = "Hesaplar arası transfer", Type = categoryType };
+        return leg;
+    }
 }

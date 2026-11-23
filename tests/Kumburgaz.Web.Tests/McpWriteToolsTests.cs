@@ -157,6 +157,7 @@ public class McpWriteToolsTests
         var repeated = await ConfirmAsync(tools, seed, Tokens.Expired(used), OtherKey);
 
         Assert.Equal(first.Id, repeated.Id);
+        Assert.Equal(first.Id, (await ConfirmAsync(tools, seed, Tokens.Expired(used), Key)).Id);
         await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, Tokens.Expired(unused), OtherKey));
         await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, Tokens.Expired(used), OtherKey, amount: "75"));
         await RejectedAsync(PreviewRequired, () => ConfirmAsync(

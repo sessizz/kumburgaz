@@ -30,7 +30,8 @@ public class ConnectedAppsController(
             ? authorizations.ListAsync(null, null, ct)
             : authorizations.FindBySubjectAsync(userId ?? "", ct);
 
-        await foreach (var authorization in source)
+        // Önce belleğe: ListAsync satırları akıtır ve Npgsql, okuyucu açıkken döngüdeki sorguları reddeder.
+        foreach (var authorization in await source.ToListAsync(ct))
         {
             if (await authorizations.GetTypeAsync(authorization, ct) != AuthorizationTypes.Permanent) continue;
 

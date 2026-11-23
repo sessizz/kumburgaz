@@ -1,7 +1,11 @@
 using System.Globalization;
+using Kumburgaz.Web.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Kumburgaz.Web.Tests.Integration;
@@ -20,6 +24,9 @@ public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
     private readonly string? _previousConnectionString;
     private readonly string? _previousIssuer;
 
+    // SQLite'ın hoş gördüğü, Npgsql'in reddettiği iç içe sorguları bütün entegrasyon testlerinde yakalar.
+    public OpenReaderGuard OpenReaderGuard { get; } = new();
+
     public KumburgazAppFactory()
     {
         _previousConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
@@ -31,6 +38,8 @@ public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
+        builder.ConfigureTestServices(services =>
+            services.ConfigureDbContext<ApplicationDbContext>(options => options.AddInterceptors(OpenReaderGuard)));
     }
 
     protected override void Dispose(bool disposing)
@@ -50,6 +59,13 @@ public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
         foreach (var path in new[] { _dbPath, _dbPath + "-wal", _dbPath + "-shm" })
         {
             try { File.Delete(path); } catch (IOException) { }
+        }
+
+        // Uygulamanın yakalayıp yuttuğu ihlaller de (ör. arka plan servisi) koşuyu düşürür.
+        if (OpenReaderGuard.Violations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Okuyucu açıkken başlatılan komutlar: " + string.Join(Environment.NewLine, OpenReaderGuard.Violations.Distinct()));
         }
     }
 }

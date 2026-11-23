@@ -121,4 +121,76 @@ public class ConnectedAppsTests(KumburgazAppFactory factory)
         Assert.Contains(clientName, html);
         Assert.Contains("Aktif", html);
     }
+
+    // Yönetici bütün kullanıcıların bağlantılarını sahibinin adıyla görür; diğer kullanıcılar yalnız kendininkini.
+    [Fact]
+    public async Task Admin_sees_all_users_connections_with_owner_names()
+    {
+        var first = await ConnectUserAsync("muhasebe");
+        var second = await ConnectUserAsync("muhasebe");
+        var admin = await LoginAdminAsync();
+
+        var html = await GetIndexHtmlAsync(admin);
+
+        Assert.Contains(first.ClientName, ReadRow(html, first.UserName));
+        Assert.Contains(second.ClientName, ReadRow(html, second.UserName));
+
+        var ownHtml = await GetIndexHtmlAsync(await LoginBrowserAsync(first.UserName));
+        Assert.Contains(first.ClientName, ownHtml);
+        Assert.DoesNotContain(second.ClientName, ownHtml);
+    }
+
+    [Fact]
+    public async Task Admin_can_revoke_another_users_connection()
+    {
+        var target = await ConnectUserAsync("muhasebe");
+        var other = await ConnectUserAsync("muhasebe");
+        var admin = await LoginAdminAsync();
+
+        var (action, token) = ReadRevokeForm(ReadRow(await GetIndexHtmlAsync(admin), target.UserName));
+        var response = await PostRevokeAsync(admin, action, token);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _oauth.RefreshAsync(target.Tokens.ClientId, target.Tokens.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _oauth.InitializeMcpAsync(target.Tokens.AccessToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(other.Tokens.AccessToken)).StatusCode);
+        Assert.Contains("İptal edildi", WebUtility.HtmlDecode(ReadRow(await GetIndexHtmlAsync(admin), target.UserName)));
+    }
+
+    [Fact]
+    public async Task Revoking_unknown_connection_returns_404()
+    {
+        await ConnectUserAsync("muhasebe");
+        var admin = await LoginAdminAsync();
+        var (_, token) = ReadRevokeForm(await GetIndexHtmlAsync(admin));
+
+        var response = await PostRevokeAsync(admin, $"/ConnectedApps/Revoke/{Guid.NewGuid()}", token);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private sealed record Connection(string UserName, string ClientName, TokenResult Tokens);
+
+    private async Task<Connection> ConnectUserAsync(string prefix)
+    {
+        var userName = NewUserName(prefix);
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientName = $"Baglayici-{Guid.NewGuid():N}";
+        var clientId = await _oauth.RegisterClientAsync(clientName);
+        var authorization = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+        var tokens = await OAuthTestClient.ReadTokensAsync(
+            clientId, await _oauth.ExchangeCodeAsync(clientId, authorization.Code!, authorization.CodeVerifier));
+        return new Connection(userName, clientName, tokens);
+    }
+
+    private async Task<HttpClient> LoginAdminAsync()
+    {
+        var userName = NewUserName("yonetici");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.SistemYonetici);
+        return await LoginBrowserAsync(userName);
+    }
+
+    // Kullanıcının bağlantı satırı (tr).
+    private static string ReadRow(string html, string userName)
+        => Assert.Single(html.Split("<tr"), x => x.Contains(userName, StringComparison.Ordinal));
 }

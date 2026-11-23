@@ -76,9 +76,24 @@ public class McpUnitToolsTests
 
         Assert.Equal([combined.Id, two.Id], results.Select(x => x.Id));
         Assert.DoesNotContain("Pasif", results[0].Subtitle);
-        Assert.Contains("Pasif", results[1].Subtitle);
+        Assert.Contains("Pasif (birleştirilmiş daire)", results[1].Subtitle);
         Assert.True((await tools.GetUnitAsync(Admin(), combined.Id)).Active);
         Assert.False((await tools.GetUnitAsync(Admin(), two.Id)).Active);
+    }
+
+    // Elle pasife alınan daire birleştirilmiş değildir.
+    [Fact]
+    public async Task Search_marks_manually_deactivated_unit_as_plain_passive()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        seed.A5.Active = false;
+        await db.SaveChangesAsync();
+
+        var result = Assert.Single(await Tools(db).SearchAsync(Admin(), "A-5"), x => x.Id == seed.A5.Id);
+
+        Assert.StartsWith("Pasif, ", result.Subtitle);
+        Assert.DoesNotContain("birleştirilmiş", result.Subtitle);
     }
 
     // Çıplak daire no gürültü yapmaz: "15" yalnız 15 numaralı daireyi ve 15 ile başlayanları getirir.
@@ -204,12 +219,42 @@ public class McpUnitToolsTests
         var user = User(AppRoles.Personel);
 
         Assert.Empty(await tools.SearchAsync(user, "05321112233"));
-        var byName = await tools.SearchAsync(user, "sahin");
-        Assert.Equal(seed.A5.Id, Assert.Single(byName).Id);
+        var found = Assert.Single(await tools.SearchAsync(user, "sahin"));
+        Assert.Equal(seed.A5.Id, found.Id);
 
         var detail = await tools.GetUnitAsync(user, seed.A5.Id);
         Assert.Contains(detail.People, x => x.Name == "Şahin Yılmaz");
         Assert.All(detail.People, x => Assert.Null(x.Phone));
+        // Daire sayfasını açamaz: bağlantısı da verilmez.
+        Assert.Null(found.Link);
+        Assert.Null(detail.Link);
+    }
+
+    // Ekstre sayfası Daireler yetkisi ister; Tahsilatlar yetkisi yetmez.
+    [Fact]
+    public async Task Unit_statement_requires_daireler()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var collector = Tools(db, AppRoles.Personel, AppModules.Tahsilatlar);
+        var viewer = Tools(db, AppRoles.SadeceGoruntuleme, AppModules.Daireler);
+
+        var denied = await Assert.ThrowsAsync<McpException>(() => collector.UnitStatementAsync(User(AppRoles.Personel), seed.A5.Id));
+        Assert.Contains("yetkiniz yok (Daireler)", denied.Message);
+        Assert.Equal(300m, (await viewer.UnitStatementAsync(User(AppRoles.SadeceGoruntuleme), seed.A5.Id)).ClosingBalance);
+    }
+
+    [Fact]
+    public async Task Daireler_viewer_gets_unit_links()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db, AppRoles.Personel, AppModules.Daireler);
+        var user = User(AppRoles.Personel);
+        var link = $"https://localhost/Units/Detail/{seed.A5.Id}";
+
+        Assert.Equal(link, Assert.Single(await tools.SearchAsync(user, "sahin")).Link);
+        Assert.Equal(link, (await tools.GetUnitAsync(user, seed.A5.Id)).Link);
     }
 
     [Fact]
@@ -279,6 +324,32 @@ public class McpUnitToolsTests
         Assert.Equal(60m, detail.RecentCollections[0].Amount);
         Assert.Equal("2025-11-06", detail.RecentCollections[0].Date);
         Assert.Equal("Ana Kasa", detail.RecentCollections[0].Account);
+    }
+
+    // Banka adı diğer araçlardaki gibi şubesiyle gelir: aynı bankanın iki hesabı karışmasın.
+    [Fact]
+    public async Task Get_unit_recent_collections_show_the_bank_branch()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var bank = new BankAccount { Name = "İş Bankası", Branch = "Merkez" };
+        var branchless = new BankAccount { Name = "Halkbank" };
+        db.BankAccounts.AddRange(bank, branchless);
+        await db.SaveChangesAsync();
+        foreach (var (account, day) in new[] { (bank, 1), (branchless, 2) })
+        {
+            db.Collections.Add(new Collection
+            {
+                UnitId = seed.A5.Id, BillingGroupId = seed.GroupId, Date = Utc(2025, 11, day), Amount = 10m,
+                PaymentChannel = PaymentChannel.Bank, BankAccountId = account.Id
+            });
+        }
+
+        await db.SaveChangesAsync();
+
+        var detail = await Tools(db).GetUnitAsync(Admin(), seed.A5.Id);
+
+        Assert.Equal(["Halkbank", "İş Bankası - Merkez"], detail.RecentCollections.Select(x => x.Account));
     }
 
     // Devir alacağı taksitlerden düşülür: kalanlar tahsilat formu ve Aidatlar ekranıyla aynı.
@@ -412,7 +483,8 @@ public class McpUnitToolsTests
         Assert.Equal("2025-2026", all.Rows[0].OldestPeriod);
         Assert.Equal("2025-2026", all.Rows[1].OldestPeriod);
         Assert.Equal(4_000m, all.Rows[1].Remaining);
-        Assert.Equal($"https://localhost/Units/Detail/{seed.A15.Id}", all.Rows[1].Link);
+        // Raporlar yetkisi daire sayfasını açmaz: bağlantı yok.
+        Assert.All(all.Rows, x => Assert.Null(x.Link));
 
         var limited = await tools.OverdueDuesAsync(user, limit: 1);
         Assert.Equal(seed.A150.Id, Assert.Single(limited.Rows).UnitId);
@@ -425,6 +497,18 @@ public class McpUnitToolsTests
         Assert.Equal(300m, period.Rows[1].Remaining);
 
         await Assert.ThrowsAsync<McpException>(() => tools.OverdueDuesAsync(user, period: "2026"));
+    }
+
+    [Fact]
+    public async Task Overdue_dues_links_units_for_daireler_viewer()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db, AppRoles.Personel, AppModules.Raporlar, AppModules.Daireler);
+
+        var row = Assert.Single((await tools.OverdueDuesAsync(User(AppRoles.Personel))).Rows);
+
+        Assert.Equal($"https://localhost/Units/Detail/{seed.A5.Id}", row.Link);
     }
 
     [Fact]

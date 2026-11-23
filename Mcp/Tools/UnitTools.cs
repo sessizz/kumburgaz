@@ -10,7 +10,7 @@ using ModelContextProtocol.Server;
 
 namespace Kumburgaz.Web.Mcp.Tools;
 
-public sealed record SearchResult(string Type, int Id, string Title, string Subtitle, string Link);
+public sealed record SearchResult(string Type, int Id, string Title, string Subtitle, string? Link);
 
 public sealed record UnitPerson(string Name, string Type, string? Phone);
 
@@ -29,7 +29,7 @@ public sealed record UnitDetail(
     decimal DevirRemaining,
     List<OpenInstallment> OpenInstallments,
     List<RecentCollection> RecentCollections,
-    string Link);
+    string? Link);
 
 public sealed record StatementLine(string Date, string Kind, string Description, decimal Amount, decimal RunningBalance);
 
@@ -59,7 +59,7 @@ public class UnitTools(
     [McpServerTool(Name = "search", Title = "Daire ve hesap ara", ReadOnly = true)]
     [Description("Daire, malik/kiracı adı ve telefon (yetkiliyse) ile arar; en fazla 20 sonuç döner. "
         + "Büyük/küçük harf, Türkçe harf ve \"A Blok 5\" / \"A-5\" / \"A5\" farkı önemsizdir. "
-        + "Sonuçlar: type \"unit\" ya da \"account\", id, title, subtitle, link. Hesap sonuçları yalnız Hesaplar yetkisiyle gelir.")]
+        + "Sonuçlar: type \"unit\" ya da \"account\", id, title, subtitle, link. Hesap sonuçları yalnız Hesaplar, dairenin link'i yalnız Daireler yetkisiyle gelir.")]
     public async Task<List<SearchResult>> SearchAsync(
         ClaimsPrincipal user,
         [Description("Aranacak metin; en az 2 karakter (daire no, blok, ad, telefon).")] string query,
@@ -90,6 +90,8 @@ public class UnitTools(
             .Include(x => x.CombinedUnitMembers).ThenInclude(x => x.ComponentUnit).ThenInclude(x => x!.Block)
             .ToListAsync(cancellationToken);
 
+        // Birleşik dairelerin bileşenleri: birleştirmede pasif olurlar.
+        var componentIds = units.SelectMany(x => x.CombinedUnitMembers).Select(x => x.ComponentUnitId).ToHashSet();
         var found = new List<(int Rank, int Order, string Sort, SearchResult Result)>();
 
         foreach (var unit in units)
@@ -136,7 +138,8 @@ public class UnitTools(
             var display = UnitDisplayHelper.Display(unit);
             // Aynı eşleşme kalitesinde aktif daire pasifin (birleştirilmiş bileşen) önünde gelir.
             found.Add((best, unit.Active ? 0 : 1, $"{unit.Block?.Name}\u0001{unit.UnitNo.PadLeft(10)}",
-                new SearchResult("unit", unit.Id, display, UnitSubtitle(ownerName, tenant?.Name, unit.Active), links.Unit(unit.Id))));
+                new SearchResult("unit", unit.Id, display,
+                    UnitSubtitle(ownerName, tenant?.Name, unit.Active, componentIds.Contains(unit.Id)), UnitLink(user, unit.Id))));
         }
 
         if (permissions.CanView(user, AppModules.Hesaplar))
@@ -174,7 +177,7 @@ public class UnitTools(
     [Description("Bir dairenin malik/kiracısını, aidat grubunu, bakiyesini, devir borcunu, açık taksitlerini ve son 5 tahsilatını getirir. "
         + "balance: pozitif = daire borçlu, negatif = daire alacaklı (avans). devirRemaining: devir borcundan henüz ödenmemiş kısım. "
         + "openInstallments.remaining: devir alacağı düşülmüş kalan (tahsilat ekranıyla aynı); kalanı kalmayan taksit listelenmez. "
-        + "Telefon yalnız Daireler ya da Hesaplar yetkisi olana gelir. unitId için önce search kullanın.")]
+        + "Telefon yalnız Daireler ya da Hesaplar, link yalnız Daireler yetkisi olana gelir. unitId için önce search kullanın.")]
     public async Task<UnitDetail> GetUnitAsync(
         ClaimsPrincipal user,
         [Description("Dairenin id'si (search sonucundan).")] int unitId,
@@ -237,7 +240,7 @@ public class UnitTools(
             ledger.Summary.OpeningDebt,
             openInstallments,
             recent,
-            links.Unit(unit.Id));
+            UnitLink(user, unit.Id));
     }
 
     [McpServerTool(Name = "unit_statement", Title = "Daire ekstresi", ReadOnly = true)]
@@ -253,7 +256,8 @@ public class UnitTools(
         [Description("Bitiş tarihi, YYYY-AA-GG (dahil). Verilmezse sonuna kadar.")] string? to = null,
         CancellationToken cancellationToken = default)
     {
-        McpAccess.RequireAny(user, permissions, UnitModules, write: false);
+        // Ekrandaki ekstre sayfası (UnitsController) gibi yalnız Daireler yetkisi.
+        McpAccess.Require(user, permissions, AppModules.Daireler, write: false);
 
         var fromDate = from is null ? (DateTime?)null : McpInput.ParseDate(from).Date;
         var toDate = to is null ? (DateTime?)null : McpInput.ParseDate(to).Date;
@@ -280,7 +284,7 @@ public class UnitTools(
         + "period verilince de devir girer: o dönemin aidatını tamamen ödemiş daire, devir borcu varsa yine listelenir. "
         + "oldestPeriod: kalanı olan en eski dönem; period verilince yalnız o döneme bakılır. "
         + "oldestPeriod \"Devir\" ise (seçilen dönemin) aidatında açık taksit yoktur, borç yalnız devirdendir: \"bu dönemi ödemedi\" demeyin. "
-        + "unitId ve link'i boş satır, birleştirilmiş aidat grubunun ortak taksitidir (tek daireye bağlı değil). "
+        + "unitId ve link'i boş satır, birleştirilmiş aidat grubunun ortak taksitidir (tek daireye bağlı değil); link Daireler yetkisi yoksa hep boştur. "
         + "total: eşleşen tüm satırların toplam borcu (TL, limit'ten bağımsız); count: eşleşen satır sayısı.")]
     public async Task<OverdueDuesResult> OverdueDuesAsync(
         ClaimsPrincipal user,
@@ -322,7 +326,7 @@ public class UnitTools(
                 x.ResponsibleAccountName,
                 x.RemainingAmount,
                 oldest.GetValueOrDefault(x) ?? (x.OpeningBalance < 0m ? "Devir" : null),
-                x.UnitId.HasValue ? links.Unit(x.UnitId.Value) : null)).ToList());
+                x.UnitId.HasValue ? UnitLink(user, x.UnitId.Value) : null)).ToList());
     }
 
     private async Task<Unit> LoadUnitAsync(int unitId, CancellationToken cancellationToken)
@@ -356,7 +360,8 @@ public class UnitTools(
         return latest.Select(entry =>
         {
             collections.TryGetValue(entry.SourceId!.Value, out var collection);
-            var account = collection?.CashBox?.Name ?? collection?.BankAccount?.Name ?? string.Empty;
+            var account = collection?.CashBox?.Name
+                ?? (collection?.BankAccount is { } bank ? FinancialAccountHelper.BankName(bank) : string.Empty);
             return new RecentCollection(entry.SourceId.Value, FormatDate(entry.Date), -entry.Amount, account);
         }).ToList();
     }
@@ -401,6 +406,10 @@ public class UnitTools(
         return result;
     }
 
+    // Daire sayfası (UnitsController) Daireler yetkisi ister: açamayacağı bağlantı verilmez.
+    private string? UnitLink(ClaimsPrincipal user, int unitId)
+        => permissions.CanView(user, AppModules.Daireler) ? links.Unit(unitId) : null;
+
     // Telefon: Daireler ya da Hesaplar görüntüleme yetkisi gerekir.
     private bool CanSeePhone(ClaimsPrincipal user)
         => permissions.CanView(user, AppModules.Daireler) || permissions.CanView(user, AppModules.Hesaplar);
@@ -429,12 +438,12 @@ public class UnitTools(
         return allowContains && candidate.Contains(key, StringComparison.Ordinal) ? 2 : null;
     }
 
-    private static string UnitSubtitle(string? ownerName, string? tenantName, bool active)
+    private static string UnitSubtitle(string? ownerName, string? tenantName, bool active, bool isComponent)
     {
         var parts = new List<string>();
         if (!active)
         {
-            parts.Add("Pasif (birleştirilmiş daire)");
+            parts.Add(isComponent ? "Pasif (birleştirilmiş daire)" : "Pasif");
         }
 
         if (!string.IsNullOrWhiteSpace(ownerName))

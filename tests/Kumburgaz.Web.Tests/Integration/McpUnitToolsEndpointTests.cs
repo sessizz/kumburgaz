@@ -52,6 +52,26 @@ public class McpUnitToolsEndpointTests(KumburgazAppFactory factory)
         Assert.Contains($"Şahin {token}", Text(detail));
     }
 
+    // Muhasebe görevlisinin yetki matrisinde Tahsilatlar var, Daireler yok: daireyi bulur ama bağlantı ve ekstre almaz.
+    [Fact]
+    public async Task User_without_daireler_gets_no_unit_link_and_no_statement()
+    {
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var unitId = await SeedUnitAsync($"Şahin {token}");
+        await using var client = await ConnectAsync(AppRoles.MuhasebeGorevli);
+
+        var search = await client.CallToolAsync("search", new Dictionary<string, object?> { ["query"] = $"sahin {token}" });
+        var detail = await client.CallToolAsync("get_unit", new Dictionary<string, object?> { ["unitId"] = unitId });
+        var statement = await client.CallToolAsync("unit_statement", new Dictionary<string, object?> { ["unitId"] = unitId });
+
+        Assert.Contains($"Şahin {token}", Text(search));
+        Assert.Contains($"Şahin {token}", Text(detail));
+        Assert.DoesNotContain("/Units/", Text(search));
+        Assert.DoesNotContain("/Units/", Text(detail));
+        Assert.True(statement.IsError);
+        Assert.Contains("yetkiniz yok (Daireler)", Text(statement));
+    }
+
     // Personel'in yetki matrisinde Daireler/Tahsilatlar yok (yalnız Panel ve Raporlar).
     [Fact]
     public async Task Search_rejects_user_without_unit_permissions_but_overdue_dues_works_with_raporlar()

@@ -152,7 +152,7 @@ public class FinanceTools(
                 FormatDate(x.Date),
                 x.Unit is null ? string.Empty : UnitDisplayHelper.Display(x.Unit),
                 x.Amount,
-                x.CashBox?.Name ?? (x.BankAccount is null ? string.Empty : BankName(x.BankAccount)),
+                x.CashBox?.Name ?? (x.BankAccount is null ? string.Empty : FinancialAccountHelper.BankName(x.BankAccount)),
                 x.ReferenceNo,
                 x.IsReceipt,
                 links.Collection(x.Id))).ToList());
@@ -290,15 +290,12 @@ public class FinanceTools(
                     x.Kind,
                     x.Entry.IncomeExpenseCategory!.Name,
                     x.Entry.Amount,
-                    x.Entry.CashBox?.Name ?? (x.Entry.BankAccount is null ? string.Empty : BankName(x.Entry.BankAccount)),
+                    x.Entry.CashBox?.Name ?? (x.Entry.BankAccount is null ? string.Empty : FinancialAccountHelper.BankName(x.Entry.BankAccount)),
                     x.Entry.Description,
                     links.Ledger(x.Entry.Id))).ToList());
     }
 
     private static string Key(CashBankListItemViewModel item) => $"{item.Type}:{item.Id}";
-
-    private static string BankName(BankAccount bank)
-        => string.IsNullOrWhiteSpace(bank.Branch) ? bank.Name : $"{bank.Name} - {bank.Branch}";
 
     private static string KindOf(IncomeExpenseCategory category)
         => CategoryTypeHelper.Normalize(category.Type) == CategoryTypeHelper.Gelir ? Income : Expense;

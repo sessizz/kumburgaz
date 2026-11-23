@@ -12,6 +12,10 @@ public static class FinancialAccountHelper
     public static string CashKey(int id) => $"cash:{id}";
     public static string BankKey(int id) => $"bank:{id}";
 
+    // Şube, aynı bankadaki hesapları ayırır.
+    public static string BankName(BankAccount bank)
+        => string.IsNullOrWhiteSpace(bank.Branch) ? bank.Name : $"{bank.Name} - {bank.Branch}";
+
     public static bool TryParse(string? key, out PaymentChannel channel, out int? cashBoxId, out int? bankAccountId)
     {
         channel = PaymentChannel.Bank;
@@ -65,13 +69,9 @@ public static class FinancialAccountHelper
 
         var bank = await db.BankAccounts.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == bankAccountId!.Value && x.Active);
-        if (bank is null)
-        {
-            return null;
-        }
-
-        var name = string.IsNullOrWhiteSpace(bank.Branch) ? bank.Name : $"{bank.Name} - {bank.Branch}";
-        return new ActiveFinancialAccount(BankKey(bank.Id), name, channel, null, bank.Id);
+        return bank is null
+            ? null
+            : new ActiveFinancialAccount(BankKey(bank.Id), BankName(bank), channel, null, bank.Id);
     }
 
     public static string? BuildKey(int? cashBoxId, int? bankAccountId)

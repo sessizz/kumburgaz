@@ -84,14 +84,9 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
 
         foreach (var l in ledgerRaw)
         {
-            var catType = l.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
-            var kind2 = catType == "Gelir" ? TxKind.Girdi : TxKind.Cikis;
-            var isTransferLeg = TransferPairing.IsTransferLedger(l);
-            var hasLegacyTransferDescription = !isTransferLeg
-                && (l.Description?.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase) == true
-                    || l.Description?.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase) == true);
-            var isTransfer = isTransferLeg || hasLegacyTransferDescription;
-            var isIncoming = hasLegacyTransferDescription ? l.TransferIsIncoming : TransferPairing.IsIncoming(l);
+            var isIncome = l.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
+            var isTransfer = TransferPairing.IsTransferForDisplay(l);
+            var isIncoming = isTransfer ? l.TransferIsIncoming : isIncome;
             allRows.Add(new TxRow
             {
                 Id = l.Id,
@@ -101,7 +96,7 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
                 IncomeExpenseCategoryId = l.IncomeExpenseCategoryId,
                 Description = l.Description ?? l.IncomeExpenseCategory?.Name ?? (isTransfer ? "Para transferi" : "Gider"),
                 Subline = l.IncomeExpenseCategory?.Name,
-                Kind = isTransfer ? TxKind.Transfer : kind2,
+                Kind = isTransfer ? TxKind.Transfer : isIncome ? TxKind.Girdi : TxKind.Cikis,
                 Amount = isIncoming ? l.Amount : -l.Amount,
                 Date = l.Date
             });

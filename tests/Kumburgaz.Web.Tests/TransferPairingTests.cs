@@ -132,7 +132,7 @@ public class TransferPairingTests
     [Theory]
     [InlineData("Para transferi")]
     [InlineData("Para transferi: Açıklama")]
-    public async Task Backfill_and_lookup_ignore_description_only_decoys(string description)
+    public async Task Backfill_ignores_description_only_decoys_that_legacy_lookup_can_match(string description)
     {
         await using var db = CreateDb();
         var source = CreateLeg(1, incoming: false);
@@ -148,10 +148,31 @@ public class TransferPairingTests
         var count = await TransferPairing.BackfillAsync(db, NullLogger.Instance);
 
         Assert.Null(decoy.TransferGroupId);
-        Assert.Equal(legitimate.Id, pair?.Id);
+        Assert.Equal(decoy.Id, pair?.Id);
         Assert.Equal(1, count);
         Assert.NotNull(source.TransferGroupId);
         Assert.Equal(source.TransferGroupId, legitimate.TransferGroupId);
+    }
+
+    [Fact]
+    public async Task Description_only_transfer_remains_ungrouped_and_can_be_matched_at_runtime()
+    {
+        await using var db = CreateDb();
+        var outgoing = CreateLeg(1, incoming: false);
+        var incoming = CreateLeg(2, incoming: true);
+        outgoing.IsTransfer = incoming.IsTransfer = false;
+        outgoing.Description = incoming.Description = "Bankaya yatır: Açıklama";
+        outgoing.IncomeExpenseCategory = new() { Name = "Diğer giderler", Type = CategoryTypeHelper.Gider };
+        incoming.IncomeExpenseCategory = new() { Name = "Diğer gelirler", Type = CategoryTypeHelper.Gelir };
+        db.AddRange(outgoing, incoming);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(0, await TransferPairing.BackfillAsync(db, NullLogger.Instance));
+        db.ChangeTracker.Clear();
+        var rows = await db.LedgerTransactions.Include(x => x.IncomeExpenseCategory).OrderBy(x => x.Id).ToListAsync();
+        Assert.All(rows, row => Assert.Null(row.TransferGroupId));
+        Assert.Equal(incoming.Id, (await TransferPairing.FindPairAsync(db, rows[0]))?.Id);
+        Assert.Equal(outgoing.Id, (await TransferPairing.FindPairAsync(db, rows[1]))?.Id);
     }
 
     [Fact]

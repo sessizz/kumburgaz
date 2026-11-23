@@ -1213,7 +1213,7 @@ public class CashBankController(
             return false;
         }
 
-        if (TransferPairing.IsTransferLedger(ledger))
+        if (TransferPairing.IsLegacyTransferLeg(ledger))
         {
             var pair = await TransferPairing.FindPairAsync(db, ledger);
             if (pair is not null)

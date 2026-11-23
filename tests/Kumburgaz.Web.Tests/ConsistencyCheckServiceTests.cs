@@ -80,8 +80,10 @@ public class ConsistencyCheckServiceTests
         Assert.Empty(await db.ConsistencyCheckResults.Where(x => !x.Resolved).ToListAsync());
     }
 
-    [Fact]
-    public async Task Transfer_without_counterpart_is_reported()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Transfer_without_counterpart_is_reported(bool isFlaggedTransfer)
     {
         await using var db = CreateDb();
         var bank = await AddBankAsync(db);
@@ -92,7 +94,7 @@ public class ConsistencyCheckServiceTests
             PaymentChannel = PaymentChannel.Bank,
             BankAccountId = bank.Id,
             Description = "Para transferi",
-            IsTransfer = true,
+            IsTransfer = isFlaggedTransfer,
             TransferIsIncoming = true
         });
         await db.SaveChangesAsync();

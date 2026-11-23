@@ -13,11 +13,12 @@ public class CashBankDetailServiceTests
     private static readonly DateTime Date = new(2026, 11, 23, 0, 0, 0, DateTimeKind.Utc);
 
     [Theory]
-    [InlineData("Para transferi", TxKind.Girdi, 100)]
-    [InlineData("Bankaya yatır", TxKind.Girdi, 100)]
-    [InlineData("Para transferi: Açıklama", TxKind.Transfer, -100)]
-    [InlineData("Bankaya yatır: Açıklama", TxKind.Transfer, -100)]
-    public async Task Display_preserves_legacy_description_classification(string description, TxKind kind, int amount)
+    [InlineData("Diğer gelirler", "Para transferi", TxKind.Girdi, 100)]
+    [InlineData("Diğer gelirler", "Bankaya yatır", TxKind.Girdi, 100)]
+    [InlineData("Diğer gelirler", "Para transferi: Açıklama", TxKind.Transfer, -100)]
+    [InlineData("Diğer gelirler", "Bankaya yatır: Açıklama", TxKind.Transfer, -100)]
+    [InlineData("Transfer geliri", "Açıklama", TxKind.Transfer, -100)]
+    public async Task Display_preserves_legacy_classification_and_sign(string category, string description, TxKind kind, int amount)
     {
         await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
@@ -29,7 +30,7 @@ public class CashBankDetailServiceTests
             BankAccount = bank,
             PaymentChannel = PaymentChannel.Bank,
             Description = description,
-            IncomeExpenseCategory = new() { Name = "Diğer gelirler", Type = CategoryTypeHelper.Gelir }
+            IncomeExpenseCategory = new() { Name = category, Type = CategoryTypeHelper.Gelir }
         });
         await db.SaveChangesAsync();
 
@@ -56,8 +57,9 @@ public class CashBankDetailServiceTests
         var bank = new BankAccount { Name = "Banka" };
         var groupedCash = new CashBox { Name = "Kasa 1" };
         var legacyCash = new CashBox { Name = "Kasa 2" };
-        var income = new IncomeExpenseCategory { Name = "Transfer geliri", Type = CategoryTypeHelper.Gelir };
-        var expense = new IncomeExpenseCategory { Name = "Transfer gideri", Type = CategoryTypeHelper.Gider };
+        var income = new IncomeExpenseCategory { Name = "Diğer gelirler", Type = CategoryTypeHelper.Gelir };
+        var expense = new IncomeExpenseCategory { Name = "Diğer giderler", Type = CategoryTypeHelper.Gider };
+        const string legacyDescription = "Bankaya yatır: Açıklama";
         var groupId = Guid.NewGuid();
         var grouped = new LedgerTransaction
         {
@@ -67,7 +69,7 @@ public class CashBankDetailServiceTests
         var legacy = new LedgerTransaction
         {
             Date = Date, Amount = 200m, BankAccount = bank, PaymentChannel = PaymentChannel.Bank,
-            IncomeExpenseCategory = income
+            Description = legacyDescription, IncomeExpenseCategory = income, TransferIsIncoming = true
         };
         db.AddRange(grouped, legacy,
             new LedgerTransaction
@@ -78,7 +80,7 @@ public class CashBankDetailServiceTests
             new LedgerTransaction
             {
                 Date = Date, Amount = 200m, CashBox = legacyCash, PaymentChannel = PaymentChannel.Cash,
-                IncomeExpenseCategory = expense, TransferIsIncoming = true
+                Description = legacyDescription, IncomeExpenseCategory = expense
             });
         await db.SaveChangesAsync();
         commands.Clear();

@@ -437,6 +437,75 @@ public class CashBankControllerTests
         Assert.Equal(cash.Id, outgoing.CashBoxId);
     }
 
+    [Fact]
+    public async Task Update_transfer_edits_both_description_only_legs()
+    {
+        await using var db = CreateDb();
+        var (incoming, outgoing) = await SeedDescriptionOnlyTransferAsync(db);
+        var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
+
+        await controller.UpdateTransferTransaction(incoming.Id, new CashBankTransferFormViewModel
+        {
+            Kind = "bank",
+            Id = incoming.BankAccountId!.Value,
+            Date = incoming.Date,
+            ToAccountKey = $"cash:{outgoing.CashBoxId}",
+            Description = "Güncellendi"
+        });
+
+        db.ChangeTracker.Clear();
+        var updated = await db.LedgerTransactions.OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, updated.Count);
+        Assert.All(updated, leg =>
+        {
+            Assert.Equal(200m, leg.Amount);
+            Assert.Equal("Bankaya yatır: Güncellendi", leg.Description);
+            Assert.Null(leg.TransferGroupId);
+        });
+        Assert.True(updated.Single(x => x.Id == incoming.Id).TransferIsIncoming);
+        Assert.False(updated.Single(x => x.Id == outgoing.Id).TransferIsIncoming);
+    }
+
+    [Fact]
+    public async Task Delete_transaction_removes_both_description_only_transfer_legs()
+    {
+        await using var db = CreateDb();
+        var (_, outgoing) = await SeedDescriptionOnlyTransferAsync(db);
+        var controller = CreateController(db, new Dictionary<string, StringValues>());
+
+        await controller.DeleteTransaction("cash", outgoing.CashBoxId!.Value, "ledger", outgoing.Id);
+
+        Assert.Empty(await db.LedgerTransactions.ToListAsync());
+    }
+
+    private static async Task<(LedgerTransaction Incoming, LedgerTransaction Outgoing)> SeedDescriptionOnlyTransferAsync(ApplicationDbContext db)
+    {
+        var date = Utc(2026, 7, 24);
+        const string description = "Bankaya yatır: Açıklama";
+        var incoming = new LedgerTransaction
+        {
+            Amount = 100m,
+            Date = date,
+            Description = description,
+            BankAccount = new() { Name = "Banka" },
+            PaymentChannel = PaymentChannel.Bank,
+            IncomeExpenseCategory = new() { Name = "Diğer gelirler", Type = CategoryTypeHelper.Gelir },
+            TransferIsIncoming = true
+        };
+        var outgoing = new LedgerTransaction
+        {
+            Amount = 100m,
+            Date = date,
+            Description = description,
+            CashBox = new() { Name = "Kasa" },
+            PaymentChannel = PaymentChannel.Cash,
+            IncomeExpenseCategory = new() { Name = "Diğer giderler", Type = CategoryTypeHelper.Gider }
+        };
+        db.AddRange(incoming, outgoing);
+        await db.SaveChangesAsync();
+        return (incoming, outgoing);
+    }
+
     private static CashBankController CreateController(
         ApplicationDbContext db,
         Dictionary<string, StringValues> formValues)

@@ -1,8 +1,11 @@
+using System.Data;
+using System.Data.Common;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -299,6 +302,63 @@ public class TransactionReorderTests
         });
     }
 
+    [Fact]
+    public async Task Reorder_rejects_a_row_moved_to_another_day_after_it_was_read_and_writes_nothing()
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = $"reorder-{Guid.NewGuid():N}", Mode = SqliteOpenMode.Memory,
+            Cache = SqliteCacheMode.Shared, Pooling = false, DefaultTimeout = 1
+        }.ToString();
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync();
+        await using var editDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connectionString).Options);
+        await editDb.Database.EnsureCreatedAsync();
+        var (cash, outgoing, incoming) = await SeedLegacyPairAsync(editDb, "Bankaya yatır: Eski hareket");
+        var collection = new Models.Collection
+        {
+            CashBox = cash, Date = Day.AddTicks(90),
+            Unit = new Unit { Block = new Block { Name = "A", Site = new Site { Name = "Site" } }, UnitNo = "1" },
+            BillingGroup = new BillingGroup { Name = "Aidat", DuesType = new DuesType { Name = "Aidat" } }
+        };
+        var moved = new LedgerTransaction { CashBox = cash, Date = Day.AddTicks(100) };
+        editDb.AddRange(collection, moved);
+        await editDb.SaveChangesAsync();
+        editDb.ChangeTracker.Clear();
+
+        // PostgreSQL Read Committed gibi, sıralama günü okuduktan sonra başka bağlantının kaydı araya girebilir.
+        var pause = new PauseBeforeFirstUpdate();
+        await using var reorderDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connectionString).AddInterceptors(new NonBlockingReadTransaction(), pause).Options);
+        var reorder = new TransactionOrderService(reorderDb).ReorderDayAsync(FinancialAccountHelper.CashKey(cash.Id), Date,
+            [new("collection", collection.Id), new("ledger", outgoing.Id), new("ledger", moved.Id)]);
+        int auditCount;
+        try
+        {
+            await pause.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Defter ekranı gibi: satırı yükler, başka güne taşır ve sıra kilidi almadan kaydeder.
+            var edited = await editDb.LedgerTransactions.SingleAsync(x => x.Id == moved.Id);
+            edited.Date = Day.AddDays(1);
+            await editDb.SaveChangesAsync();
+            auditCount = await editDb.AuditLogs.CountAsync();
+        }
+        finally
+        {
+            pause.Resume.TrySetResult();
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => reorder);
+        Assert.Equal("Sıralama listesi bu günün işlemleriyle uyuşmuyor; sayfayı yenileyin.", error.Message);
+        var ledger = await editDb.LedgerTransactions.AsNoTracking().ToDictionaryAsync(x => x.Id);
+        Assert.Equal(Day.AddTicks(80), ledger[outgoing.Id].Date);
+        Assert.Equal(Day.AddTicks(80), ledger[incoming.Id].Date);
+        Assert.Equal(Day.AddDays(1), ledger[moved.Id].Date);
+        Assert.All(ledger.Values, row => Assert.Null(row.TransferGroupId));
+        Assert.Equal(Day.AddTicks(90), (await editDb.Collections.AsNoTracking().SingleAsync()).Date);
+        Assert.Equal(auditCount, await editDb.AuditLogs.CountAsync());
+    }
+
     private static async Task<(CashBox Cash, LedgerTransaction Outgoing, LedgerTransaction Incoming)> SeedLegacyPairAsync(
         ApplicationDbContext db, string description)
     {
@@ -325,4 +385,45 @@ public class TransactionReorderTests
 
     private static ApplicationDbContext CreateDb() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+    // Paylaşımlı önbellekte okuma kilidi almayan ertelenmiş işlem: okunan satırlar, ilk yazmaya kadar başka
+    // bağlantıda değiştirilip kaydedilebilir.
+    private sealed class NonBlockingReadTransaction : DbTransactionInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(
+            DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(InterceptionResult<DbTransaction>.SuppressWithResult(
+                ((SqliteConnection)connection).BeginTransaction(IsolationLevel.ReadUncommitted)));
+    }
+
+    private sealed class PauseBeforeFirstUpdate : DbCommandInterceptor
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Resume { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseAsync(command, cancellationToken);
+            return result;
+        }
+
+        private async Task PauseAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            if (command.CommandText.TrimStart().StartsWith("UPDATE", StringComparison.Ordinal) && Entered.TrySetResult())
+            {
+                await Resume.Task.WaitAsync(cancellationToken);
+            }
+        }
+    }
 }

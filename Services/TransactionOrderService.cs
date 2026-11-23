@@ -47,7 +47,10 @@ public class TransactionOrderService(ApplicationDbContext db)
                 .Where(slot => slot.Row.Source == "ledger" && ledger[slot.Row.Id].Date != slot.Date)
                 .Select(slot => ledger[slot.Row.Id]);
             await TransferPairing.PreserveLegacyPairsForReorderAsync(db, movingLedger);
+            await CompareAndSetDatesAsync(account, slots, collections, ledger);
 
+            // Denetim kaydı ve eski transfer kimlikleri mevcut kayıt yolundan yazılır. Satırlar koşullu
+            // güncellemeden beri bu işlemde kilitli olduğundan aynı saat güvenle yeniden yazılır.
             foreach (var (row, date) in slots)
             {
                 if (row.Source == "collection")
@@ -74,6 +77,40 @@ public class TransactionOrderService(ApplicationDbContext db)
             { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
         {
             throw new InvalidOperationException(InvalidOrderMessage, ex);
+        }
+    }
+
+    // Tahsilat ve Defter ekranları satırın gününü ve hesabını sıra kilidi almadan değiştirebilir. Yeni saat yalnız
+    // satır doğrulamada okunan saatte ve hesapta duruyorsa yazılır; biri değiştiyse liste bayattır ve hiçbir şey kaydedilmez.
+    private async Task CompareAndSetDatesAsync(ActiveFinancialAccount account, IEnumerable<(TxRef Row, DateTime Date)> slots,
+        Dictionary<int, Collection> collections, Dictionary<int, LedgerTransaction> ledger)
+    {
+        if (!db.Database.IsRelational())
+        {
+            return;
+        }
+
+        var (collectionRows, ledgerRows) = AccountRows(account, db.Collections);
+        foreach (var (row, date) in slots)
+        {
+            int updated;
+            if (row.Source == "collection")
+            {
+                var read = collections[row.Id].Date;
+                updated = await collectionRows.Where(x => x.Id == row.Id && x.Date == read)
+                    .ExecuteUpdateAsync(x => x.SetProperty(collection => collection.Date, date));
+            }
+            else
+            {
+                var read = ledger[row.Id].Date;
+                updated = await ledgerRows.Where(x => x.Id == row.Id && x.Date == read)
+                    .ExecuteUpdateAsync(x => x.SetProperty(transaction => transaction.Date, date));
+            }
+
+            if (updated == 0)
+            {
+                throw new InvalidOperationException(InvalidOrderMessage);
+            }
         }
     }
 

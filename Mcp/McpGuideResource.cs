@@ -32,6 +32,9 @@ public class McpGuideResource
         ## Kasa/banka anahtarı
         Hesaplar anahtarla belirtilir: kasa için `cash:{id}`, banka hesabı için `bank:{id}` (örnek: `cash:1`, `bank:2`). Geçerli anahtarlar cash_bank_accounts aracından alınır.
 
+        ## Transfer
+        Kasa ile banka (ya da iki hesap) arasındaki para aktarımı gelir ya da gider değildir. Kasadaki nakdin ATM'den bankaya yatırılması record_transfer ile kaydedilir (kaynak: kasa, hedef: banka); create_income/create_expense kullanılmaz. Kaynak hesaptan çıkış, hedef hesaba giriş olmak üzere iki satır yazılır; açıklama kasadan bankaya "Bankaya yatır", diğer yönlerde "Para transferi" ile başlar.
+
         ## Tarih ve tutar
         Araçlara tarih YYYY-AA-GG biçiminde verilir; verilmezse Türkiye saatine göre bugün kullanılır. Tutar sayı ya da "2.500,00" gibi Türkçe metin olabilir ve sıfırdan büyük olmalıdır.
         """.ReplaceLineEndings("\n");

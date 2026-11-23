@@ -33,6 +33,16 @@ public sealed record WriteReceipt(
     bool Created, int Id, string Link, List<AllocatedLine>? Lines = null, decimal? Advance = null, decimal? BalanceAfter = null)
     : WriteResult;
 
+public sealed record TransferAccount(string Key, string Name);
+
+public sealed record TransferWritePreview(
+    bool WillWrite, string Summary, TransferAccount From, TransferAccount To, decimal Amount, string Date, string Description,
+    string PreviewToken) : WriteResult;
+
+public sealed record TransferLinks(string From, string To);
+
+public sealed record TransferWriteReceipt(bool Created, int OutgoingId, int IncomingId, TransferLinks Links) : WriteResult;
+
 /// <summary>
 /// MCP'nin yazabildiği tek şeyler: tahsilat, gider, gelir. confirm: false yalnız önizler; confirm: true aynı girdilerle
 /// alınmış önizlemeyi (preview_token) ve tekrar koruması için idempotency_key'i ister.
@@ -47,11 +57,13 @@ public class WriteTools(
     UnitLedgerService unitLedger,
     McpIdempotencyStore idempotency,
     McpPreviewTokens previewTokens,
-    McpLinks links)
+    McpLinks links,
+    CashBankTransferService transfers)
 {
     private const string RecordCollection = "record_collection";
     private const string CreateExpense = "create_expense";
     private const string CreateIncome = "create_income";
+    private const string RecordTransfer = "record_transfer";
 
     private const string Devir = "devir";
     private const string DateFormat = "yyyy-MM-dd";
@@ -62,6 +74,9 @@ public class WriteTools(
     // Collection.ReferenceNo/Note ve LedgerTransaction.Description sütun sınırları.
     private const int MaxReferenceLength = 80;
     private const int MaxNoteLength = 250;
+
+    // Transfer açıklaması "Para transferi: " (16 karakter) önekiyle LedgerTransaction.Description sınırına (250) sığmalı.
+    private const int MaxTransferDescriptionLength = 230;
 
     private const string ConfirmFlow =
         " Önce confirm: false ile çağırın: hiçbir şey yazmaz, yazılacakları ve previewToken'ı döner; önizlemeyi kullanıcıya gösterin. "
@@ -83,6 +98,8 @@ public class WriteTools(
         int UnitId, decimal Amount, DateTime Date, string AccountKey, string? Period, bool IsReceipt, string? ReferenceNo, string? Note);
 
     private sealed record LedgerInput(int CategoryId, decimal Amount, DateTime Date, string AccountKey, string? Description);
+
+    private sealed record TransferInput(string FromAccountKey, string ToAccountKey, decimal Amount, DateTime Date, string? Description);
 
     private sealed record PreparedCollection(CollectionCreateViewModel Model, string Unit, string Account);
 
@@ -161,6 +178,54 @@ public class WriteTools(
         => RunLedgerAsync(user, CreateIncome, LedgerEntryKind.Income, categoryId, amount, accountKey, description, date,
             confirm, idempotency_key, preview_token);
 
+    [McpServerTool(Name = RecordTransfer, Title = "Kasa/banka transferi kaydet", ReadOnly = false, Destructive = false, Idempotent = false)]
+    [Description("Kasa ile banka (ya da iki hesap) arasında para aktarır: kasadaki nakdi bankaya yatırma (ATM) dahil. Kaynak hesaptan çıkış, hedef hesaba giriş "
+        + "olarak iki satır yazılır; gelir/gider değildir, bu yüzden kasadan bankaya yatırma için create_income/create_expense kullanmayın. "
+        + "Kasadan bankaya transferin açıklaması otomatik \"Bankaya yatır\" ile başlar, diğer yönler \"Para transferi\" ile. "
+        + "Hesap anahtarları için cash_bank_accounts kullanın; ikisi de aktif ve farklı olmalı." + ConfirmFlow
+        + " Kayıtta outgoingId, incomingId ve iki hesabın links adresi döner.")]
+    public Task<WriteResult> RecordTransferAsync(
+        ClaimsPrincipal user,
+        [Description("Paranın çıktığı hesap: cash:{id} ya da bank:{id} (cash_bank_accounts sonucundan).")] string fromAccountKey,
+        [Description("Paranın girdiği hesap: cash:{id} ya da bank:{id} (cash_bank_accounts sonucundan).")] string toAccountKey,
+        [Description(AmountHelp)] JsonElement amount,
+        [Description(DateHelp)] string? date = null,
+        [Description("İsteğe bağlı açıklama (en fazla 230 karakter); otomatik önek başına eklenir.")] string? description = null,
+        [Description(ConfirmHelp)] bool confirm = false,
+        [Description(KeyHelp)] string? idempotency_key = null,
+        [Description(TokenHelp)] string? preview_token = null)
+    {
+        McpAccess.Require(user, permissions, AppModules.KasaBanka, write: true);
+        var key = confirm ? McpIdempotencyStore.RequireKey(idempotency_key) : null;
+
+        var input = new TransferInput(
+            ParseAccountKey(fromAccountKey),
+            ParseAccountKey(toAccountKey),
+            McpInput.ParseAmount(amount),
+            McpInput.ParseDate(date),
+            McpInput.ParseText(description, MaxTransferDescriptionLength, nameof(description)));
+        var request = new TransferRequest(input.FromAccountKey, input.ToAccountKey, input.Amount, input.Date, input.Description);
+
+        return RunAsync(user, RecordTransfer, input, key, preview_token,
+            async token =>
+            {
+                var preview = await transfers.PreviewAsync(request);
+                var summary = $"{Money(preview.Amount)} transfer, {DisplayDate(preview.Date)}: {preview.FromAccountName} hesabından {preview.ToAccountName} hesabına. "
+                    + $"Açıklama: {preview.Description}";
+                return new TransferWritePreview(
+                    false, summary, new TransferAccount(preview.FromAccountKey, preview.FromAccountName),
+                    new TransferAccount(preview.ToAccountKey, preview.ToAccountName), preview.Amount, FormatDate(preview.Date),
+                    preview.Description, token);
+            },
+            async () =>
+            {
+                var result = await transfers.CreateAsync(request);
+                return new TransferWriteReceipt(
+                    true, result.OutgoingId, result.IncomingId,
+                    new TransferLinks(links.CashBank(input.FromAccountKey), links.CashBank(input.ToAccountKey)));
+            });
+    }
+
     private async Task<WriteResult> RunLedgerAsync(
         ClaimsPrincipal user, string tool, LedgerEntryKind kind, int categoryId, JsonElement amount, string accountKey,
         string? description, string? date, bool confirm, string? idempotencyKey, string? previewToken)
@@ -190,9 +255,10 @@ public class WriteTools(
     // anahtarla tekrar denemeye "yeniden önizleyin" denirse kullanıcı yazılmış ödemeyi ikinci kez onaylar.
     // Veritabanı durumuna bakan kontroller saklı sonuçlardan sonra gelir: ilk çağrının kapattığı taksit tekrarı engellemez.
     // İptal jetonu bilerek yok: istemci koparsa başlamış kayıt tamamlanır, tekrar deneme saklı sonucu alır.
-    private async Task<WriteResult> RunAsync<TInput>(
+    private async Task<WriteResult> RunAsync<TInput, TPreview, TReceipt>(
         ClaimsPrincipal user, string tool, TInput input, string? key, string? previewToken,
-        Func<string, Task<WritePreview>> preview, Func<Task<WriteReceipt>> write) where TInput : notnull
+        Func<string, Task<TPreview>> preview, Func<Task<TReceipt>> write)
+        where TInput : notnull where TPreview : WriteResult where TReceipt : WriteResult
     {
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new McpException("Oturum kullanıcısı bulunamadı.");
         var fingerprint = McpInput.Fingerprint(input);
@@ -204,13 +270,13 @@ public class WriteTools(
                 return await preview(previewTokens.Issue(userId, tool, fingerprint));
             }
 
-            if (await idempotency.TryReplayAsync<WriteReceipt>(userId, tool, key, fingerprint) is { } stored)
+            if (await idempotency.TryReplayAsync<TReceipt>(userId, tool, key, fingerprint) is { } stored)
             {
                 return stored;
             }
 
             var approval = previewTokens.Read(previewToken, userId, tool, fingerprint);
-            if (await idempotency.TryReplayPreviewAsync<WriteReceipt>(userId, tool, approval.Nonce, fingerprint) is { } written)
+            if (await idempotency.TryReplayPreviewAsync<TReceipt>(userId, tool, approval.Nonce, fingerprint) is { } written)
             {
                 return written;
             }

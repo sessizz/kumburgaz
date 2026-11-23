@@ -845,7 +845,7 @@ public class McpWriteToolsTests
             .OfType<McpServerToolAttribute>()
             .ToDictionary(x => x.Name!);
 
-        Assert.Equal(["create_expense", "create_income", "record_collection"], tools.Keys.Order());
+        Assert.Equal(["create_expense", "create_income", "record_collection", "record_transfer"], tools.Keys.Order());
         Assert.All(tools.Values, x =>
         {
             Assert.False(x.ReadOnly);
@@ -1001,7 +1001,8 @@ public class McpWriteToolsTests
             LedgerOf(db),
             new McpIdempotencyStore(db),
             new McpPreviewTokens(DataProtection),
-            new McpLinks(config));
+            new McpLinks(config),
+            new CashBankTransferService(db, new TransactionOrderService(db)));
     }
 
     private static UnitLedgerService LedgerOf(ApplicationDbContext db) => new(db, new DuesLedgerRowService(db));

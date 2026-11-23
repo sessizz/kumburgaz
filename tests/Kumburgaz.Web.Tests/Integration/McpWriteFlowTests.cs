@@ -19,16 +19,16 @@ public class McpWriteFlowTests(KumburgazAppFactory factory)
 
     private readonly OAuthTestClient _oauth = new(factory);
 
-    // MCP'de yazan yalnız üç araç var; hepsi yıkıcı olmayan ekleme.
+    // MCP'de yazan yalnız dört araç var; hepsi yıkıcı olmayan ekleme.
     [Fact]
-    public async Task Only_three_tools_can_write()
+    public async Task Only_four_tools_can_write()
     {
         await using var client = await ConnectAsync(AppRoles.SistemYonetici);
 
         var tools = (await client.ListToolsAsync()).ToDictionary(x => x.Name);
         var writers = tools.Values.Where(x => x.ProtocolTool.Annotations?.ReadOnlyHint is not true).ToList();
 
-        Assert.Equal(["create_expense", "create_income", "record_collection"], writers.Select(x => x.Name).Order());
+        Assert.Equal(["create_expense", "create_income", "record_collection", "record_transfer"], writers.Select(x => x.Name).Order());
         Assert.All(writers, x =>
         {
             Assert.False(x.ProtocolTool.Annotations!.DestructiveHint);

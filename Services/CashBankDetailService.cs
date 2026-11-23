@@ -44,11 +44,6 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
             .Where(x => kind == "bank" ? x.BankAccountId == id : x.CashBoxId == id)
             .ToListAsync();
 
-        var allLedgerRaw = await db.LedgerTransactions
-            .AsNoTracking()
-            .Include(x => x.IncomeExpenseCategory)
-            .ToListAsync();
-
         // 3. TxRow listesi oluştur
         var allRows = new List<TxRow>();
 
@@ -91,7 +86,7 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         {
             var catType = l.IncomeExpenseCategory?.Type ?? CategoryTypeHelper.Gider;
             var kind2 = catType == "Gelir" ? TxKind.Girdi : TxKind.Cikis;
-            var isTransfer = IsTransfer(l);
+            var isTransfer = TransferPairing.IsTransferLedger(l);
             allRows.Add(new TxRow
             {
                 Id = l.Id,
@@ -270,28 +265,14 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         vm.IncomeCategoryOptions = options.IncomeCategories;
         vm.ExpenseCategoryOptions = options.ExpenseCategories;
         vm.TransferAccountOptions = options.TransferAccounts;
-        ApplyRowOptions(vm, allLedgerRaw);
+        await ApplyRowOptionsAsync(vm, ledgerRaw);
 
         return vm;
     }
 
-    private static bool IsTransfer(LedgerTransaction tx)
+    private async Task ApplyRowOptionsAsync(CashBankDetailViewModel vm, List<LedgerTransaction> ledgerRaw)
     {
-        if (tx.IsTransfer)
-        {
-            return true;
-        }
-
-        var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
-        var description = tx.Description ?? string.Empty;
-        return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
-            || category.Contains("Para Transferi", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void ApplyRowOptions(CashBankDetailViewModel vm, List<LedgerTransaction> ledgerRaw)
-    {
+        var ledgerById = ledgerRaw.ToDictionary(x => x.Id);
         foreach (var row in vm.Groups.SelectMany(x => x.Items))
         {
             row.DuesOptions = vm.DuesOptions;
@@ -315,34 +296,18 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
                 continue;
             }
 
-            var sourceLedger = ledgerRaw.FirstOrDefault(x => x.Id == row.Id);
-            var pair = sourceLedger is null ? null : FindTransferPair(sourceLedger, ledgerRaw);
+            var pair = ledgerById.TryGetValue(row.Id, out var sourceLedger)
+                ? await TransferPairing.FindPairAsync(db, sourceLedger)
+                : null;
             row.ToAccountKey = pair is null
                 ? null
                 : FinancialAccountHelper.BuildKey(pair.CashBoxId, pair.BankAccountId);
         }
     }
 
-    private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
-    {
-        var sourceIncoming = IsTransfer(source)
-            ? source.TransferIsIncoming
-            : source.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
-
-        return candidates
-            .Where(x => x.Id != source.Id)
-            .Where(x => x.Amount == source.Amount)
-            .Where(x => x.Date == source.Date)
-            .Where(x => string.Equals(x.Description, source.Description, StringComparison.Ordinal))
-            .Where(IsTransfer)
-            .Where(x => x.TransferIsIncoming != sourceIncoming)
-            .OrderBy(x => Math.Abs(x.Id - source.Id))
-            .FirstOrDefault();
-    }
-
     private static decimal SignedLedgerAmount(LedgerTransaction tx)
     {
-        if (IsTransfer(tx))
+        if (TransferPairing.IsTransferLedger(tx))
         {
             return tx.TransferIsIncoming ? tx.Amount : -tx.Amount;
         }

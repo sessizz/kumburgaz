@@ -966,12 +966,14 @@ public class CashBankController(
         var description = $"{descriptionPrefix}: {model.Description}".Trim().TrimEnd(':');
         var orderedDate = await BuildNextTransactionDateAsync(model.Kind, model.Id, model.Date);
         var utcDate = DateTimeHelper.EnsureUtc(orderedDate);
+        var transferGroupId = Guid.NewGuid();
 
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
             IncomeExpenseCategoryId = null,
             IsTransfer = true,
+            TransferGroupId = transferGroupId,
             TransferIsIncoming = false,
             Amount = model.Amount,
             PaymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash,
@@ -984,6 +986,7 @@ public class CashBankController(
             Date = utcDate,
             IncomeExpenseCategoryId = null,
             IsTransfer = true,
+            TransferGroupId = transferGroupId,
             TransferIsIncoming = true,
             Amount = model.Amount,
             PaymentChannel = toChannel,
@@ -1021,14 +1024,7 @@ public class CashBankController(
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (source is null) return NotFound();
 
-        var candidates = await db.LedgerTransactions
-            .Include(x => x.IncomeExpenseCategory)
-            .Where(x => x.Id != source.Id)
-            .Where(x => x.Amount == source.Amount)
-            .Where(x => x.Date == source.Date)
-            .Where(x => x.Description == source.Description)
-            .ToListAsync();
-        var pair = FindTransferPair(source, candidates);
+        var pair = await TransferPairing.FindPairAsync(db, source);
         if (pair is null)
         {
             TempData["ActionError"] = "Transferin karşı satırı bulunamadı.";
@@ -1157,12 +1153,14 @@ public class CashBankController(
         var descriptionPrefix = fromCashBoxId.HasValue && toBankAccountId.HasValue ? "Bankaya yatir" : "Para transferi";
         var description = $"{descriptionPrefix}: {descriptionText}".Trim().TrimEnd(':');
         var utcDate = DateTimeHelper.EnsureUtc(date);
+        var transferGroupId = Guid.NewGuid();
 
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = utcDate,
             IncomeExpenseCategoryId = null,
             IsTransfer = true,
+            TransferGroupId = transferGroupId,
             TransferIsIncoming = false,
             Amount = amount,
             PaymentChannel = fromChannel,
@@ -1175,6 +1173,7 @@ public class CashBankController(
             Date = utcDate,
             IncomeExpenseCategoryId = null,
             IsTransfer = true,
+            TransferGroupId = transferGroupId,
             TransferIsIncoming = true,
             Amount = amount,
             PaymentChannel = toChannel,
@@ -1184,36 +1183,6 @@ public class CashBankController(
         });
 
         await db.SaveChangesAsync();
-    }
-
-    private static LedgerTransaction? FindTransferPair(LedgerTransaction source, List<LedgerTransaction> candidates)
-    {
-        var sourceIncoming = source.IsTransfer
-            ? source.TransferIsIncoming
-            : source.IncomeExpenseCategory?.Type == CategoryTypeHelper.Gelir;
-
-        return candidates
-            .Where(IsTransferLedger)
-            .Where(x => x.TransferIsIncoming != sourceIncoming)
-            .OrderBy(x => Math.Abs(x.Id - source.Id))
-            .FirstOrDefault();
-    }
-
-    private static bool IsTransferLedger(LedgerTransaction tx)
-    {
-        if (tx.IsTransfer)
-        {
-            return true;
-        }
-
-        var category = tx.IncomeExpenseCategory?.Name ?? string.Empty;
-        var description = tx.Description ?? string.Empty;
-        return category.Contains("Transfer", StringComparison.OrdinalIgnoreCase)
-            || category.Contains("Para Transferi", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Para transferi:", StringComparison.OrdinalIgnoreCase)
-            || description.StartsWith("Bankaya yatır:", StringComparison.OrdinalIgnoreCase)
-            || description.Equals("Para transferi", StringComparison.OrdinalIgnoreCase)
-            || description.Equals("Bankaya yatır", StringComparison.OrdinalIgnoreCase);
     }
 
     private static (string Source, int Id)? ParseSelectedTransaction(string value)
@@ -1244,16 +1213,9 @@ public class CashBankController(
             return false;
         }
 
-        if (IsTransferLedger(ledger))
+        if (TransferPairing.IsTransferLedger(ledger))
         {
-            var candidates = await db.LedgerTransactions
-                .Include(x => x.IncomeExpenseCategory)
-                .Where(x => x.Id != ledger.Id)
-                .Where(x => x.Amount == ledger.Amount)
-                .Where(x => x.Date == ledger.Date)
-                .Where(x => x.Description == ledger.Description)
-                .ToListAsync();
-            var pair = FindTransferPair(ledger, candidates);
+            var pair = await TransferPairing.FindPairAsync(db, ledger);
             if (pair is not null)
             {
                 db.LedgerTransactions.Remove(pair);

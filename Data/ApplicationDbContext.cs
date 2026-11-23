@@ -272,6 +272,9 @@ public class ApplicationDbContext(
             .HasPrecision(18, 2);
 
         builder.Entity<LedgerTransaction>()
+            .HasIndex(x => x.TransferGroupId);
+
+        builder.Entity<LedgerTransaction>()
             .HasOne(x => x.CashBox)
             .WithMany()
             .HasForeignKey(x => x.CashBoxId)

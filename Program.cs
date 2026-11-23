@@ -195,6 +195,7 @@ using (var scope = app.Services.CreateScope())
     // fazlasini gercek CollectionAllocation satirlarina cevirir (bkz. AddDevirOpeningBalanceAllocation
     // migration'i). Idempotent - zaten uzlasmis veride hicbir etkisi olmaz.
     await CollectionAdvanceAllocator.ApplyAsync(db);
+    await TransferPairing.BackfillAsync(db, app.Logger);
 
     // OAuth imzalama/şifreleme anahtarlarını açılışta yükle (yoksa üret, bkz. OAuthKeyStore):
     // anahtar ya da veritabanı sorunu ilk istekte değil burada görünsün.

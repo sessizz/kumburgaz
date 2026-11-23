@@ -589,6 +589,7 @@ public class LedgerTransaction : ISoftDeletable
     public IncomeExpenseCategory? IncomeExpenseCategory { get; set; }
     public bool IsTransfer { get; set; }
     public bool TransferIsIncoming { get; set; }
+    public Guid? TransferGroupId { get; set; }
     public decimal Amount { get; set; }
     public PaymentChannel PaymentChannel { get; set; }
     public int? CashBoxId { get; set; }

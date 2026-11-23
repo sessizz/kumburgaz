@@ -283,18 +283,11 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
 
     private async Task CheckTransferPairsAsync(List<ConsistencyCheckResult> issues, CancellationToken cancellationToken)
     {
-        var transfers = await db.LedgerTransactions
+        var rows = await db.LedgerTransactions
             .AsNoTracking()
-            .Where(x => x.IsTransfer)
-            .Select(x => new
-            {
-                x.Id,
-                x.Date,
-                x.Amount,
-                x.Description,
-                x.TransferIsIncoming
-            })
+            .Include(x => x.IncomeExpenseCategory)
             .ToListAsync(cancellationToken);
+        var transfers = rows.Where(TransferPairing.IsTransferLedger).ToList();
 
         foreach (var transfer in transfers.Where(x => x.Amount <= 0m))
         {
@@ -308,17 +301,15 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
                 transfer.Amount);
         }
 
-        foreach (var group in transfers
-                     .GroupBy(x => new { x.Date, x.Amount, x.Description })
-                     .Where(x => x.Count(t => t.TransferIsIncoming) != x.Count(t => !t.TransferIsIncoming)))
+        foreach (var transfer in TransferPairing.FindUnmatchedGroups(transfers))
         {
             AddIssue(
                 issues,
                 "Transfer karşı hareketi",
                 "Error",
-                $"Transfer hareketleri eşleşmiyor: {group.Key.Date:dd.MM.yyyy}, {group.Key.Amount:N2} TL, {group.Key.Description}.",
+                $"Transfer hareketleri eşleşmiyor: {transfer.Date:dd.MM.yyyy}, {transfer.Amount:N2} TL, {transfer.Description}.",
                 nameof(LedgerTransaction),
-                group.OrderBy(x => x.Id).First().Id);
+                transfer.Id);
         }
     }
 

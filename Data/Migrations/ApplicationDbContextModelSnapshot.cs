@@ -1304,6 +1304,9 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.Property<int>("PaymentChannel")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("TransferGroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("TransferIsIncoming")
                         .HasColumnType("boolean");
 
@@ -1316,6 +1319,8 @@ namespace Kumburgaz.Web.Data.Migrations
                     b.HasIndex("IncomeExpenseCategoryId");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("TransferGroupId");
 
                     b.ToTable("LedgerTransactions");
                 });

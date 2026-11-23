@@ -33,6 +33,8 @@ public class MobileGiderListItem
     public string? Description { get; set; }
     public bool HasAttachment { get; set; }
     public int? AttachmentId { get; set; }
+    public string? AttachmentContentType { get; set; }
+    public string? AttachmentFileName { get; set; }
     public bool IsMahsup { get; set; }
     public int? MahsupId { get; set; }
     public string? UnitDisplay { get; set; }
@@ -72,6 +74,7 @@ public class MobileAttachmentSummary
 {
     public int Id { get; set; }
     public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "image/jpeg";
 }
 
 // Mobil gider detay ekrani.

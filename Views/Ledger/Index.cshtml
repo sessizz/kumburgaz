@@ -130,18 +130,31 @@
                 @foreach (var row in Model.Rows)
                 {
                     var hasAttachments = Model.AttachmentsByLedgerId.TryGetValue(row.Id, out var rowAttachments) && rowAttachments.Count > 0;
-                    var firstAttachmentUrl = hasAttachments ? Url.Action("Ek", "Ledger", new { id = rowAttachments![0].Id }) : null;
+                    var firstAttachment = hasAttachments ? rowAttachments![0] : null;
+                    var firstAttachmentUrl = firstAttachment is null ? null : Url.Action("Ek", "Ledger", new { id = firstAttachment.Id });
+                    var firstIsImage = firstAttachment is not null && AttachmentKindHelper.IsImage(firstAttachment.ContentType);
                     <tr class="cursor-pointer" style="transition:background .12s;" onmouseenter="this.style.background='#f4f9f9'" onmouseleave="this.style.background=''" onclick="document.getElementById('giderModal-@row.Id').showModal()">
                         <td>@row.Date.ToString("dd.MM.yyyy")</td>
                         <td>
                             <span class="@CategoryBadgeClass(row.IncomeExpenseCategoryId)">@row.IncomeExpenseCategory?.Name</span>
                             @if (hasAttachments)
                             {
-                                <span class="material-symbols-outlined align-middle text-primary" style="font-size:19px;cursor:pointer;"
-                                      title="Fiş fotoğrafı - üzerine gelin veya tıklayın"
-                                      onmouseenter="showAttPreview(this, '@firstAttachmentUrl')"
-                                      onmouseleave="hideAttPreview()"
-                                      onclick="event.stopPropagation(); openLightbox('@firstAttachmentUrl')">attachment</span>
+                                @if (firstIsImage)
+                                {
+                                    <span class="material-symbols-outlined align-middle text-primary" style="font-size:19px;cursor:pointer;"
+                                          title="Fiş fotoğrafı - üzerine gelin veya tıklayın"
+                                          onmouseenter="showAttPreview(this, '@firstAttachmentUrl')"
+                                          onmouseleave="hideAttPreview()"
+                                          data-attachment-url="@firstAttachmentUrl" data-attachment-type="@firstAttachment!.ContentType" data-attachment-name="@firstAttachment.FileName"
+                                          onclick="event.stopPropagation(); openAttachmentFrom(this)">attachment</span>
+                                }
+                                else
+                                {
+                                    <span class="material-symbols-outlined align-middle text-primary" style="font-size:19px;cursor:pointer;"
+                                          title="@firstAttachment!.FileName - açmak için tıklayın"
+                                          data-attachment-url="@firstAttachmentUrl" data-attachment-type="@firstAttachment.ContentType" data-attachment-name="@firstAttachment.FileName"
+                                          onclick="event.stopPropagation(); openAttachmentFrom(this)">attachment</span>
+                                }
                             }
                         </td>
                         <td class="text-end font-bold">@row.Amount.ToString("N2")</td>
@@ -211,13 +224,28 @@
                 @if (rowAttachments.Count > 0)
                 {
                     <div class="mt-4">
-                        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Fiş / Fatura Fotoğrafları</div>
+                        <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Fiş / Fatura Ekleri</div>
                         <div class="grid grid-cols-2 gap-2">
                             @foreach (var att in rowAttachments)
                             {
-                                <img src="@Url.Action("Ek", "Ledger", new { id = att.Id })" alt="@att.FileName"
-                                     class="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer"
-                                     onclick="event.stopPropagation(); openLightbox('@Url.Action("Ek", "Ledger", new { id = att.Id })')" />
+                                var attUrl = Url.Action("Ek", "Ledger", new { id = att.Id });
+                                if (AttachmentKindHelper.IsImage(att.ContentType))
+                                {
+                                    <img src="@attUrl" alt="@att.FileName"
+                                         class="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer"
+                                         data-attachment-url="@attUrl" data-attachment-type="@att.ContentType" data-attachment-name="@att.FileName"
+                                         onclick="event.stopPropagation(); openAttachmentFrom(this)" />
+                                }
+                                else
+                                {
+                                    <button type="button" title="@att.FileName"
+                                            class="w-full h-32 flex flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 text-center cursor-pointer"
+                                            data-attachment-url="@attUrl" data-attachment-type="@att.ContentType" data-attachment-name="@att.FileName"
+                                            onclick="event.stopPropagation(); openAttachmentFrom(this)">
+                                        <span class="material-symbols-outlined text-error" style="font-size:40px;">@AttachmentKindHelper.Icon(att.ContentType)</span>
+                                        <span class="text-xs font-medium text-gray-700 w-full truncate">@att.FileName</span>
+                                    </button>
+                                }
                             }
                         </div>
                     </div>

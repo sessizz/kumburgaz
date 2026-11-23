@@ -614,7 +614,7 @@ public class LedgerController(
         return await db.Attachments.AsNoTracking()
             .Where(x => x.EntityType == nameof(LedgerTransaction) && x.EntityId == ledgerTransactionId)
             .OrderBy(x => x.Id)
-            .Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName })
+            .Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName, ContentType = x.ContentType })
             .ToListAsync();
     }
 
@@ -628,12 +628,12 @@ public class LedgerController(
         var attachments = await db.Attachments.AsNoTracking()
             .Where(x => x.EntityType == nameof(LedgerTransaction) && ledgerIds.Contains(x.EntityId))
             .OrderBy(x => x.Id)
-            .Select(x => new { x.EntityId, x.Id, x.FileName })
+            .Select(x => new { x.EntityId, x.Id, x.FileName, x.ContentType })
             .ToListAsync();
 
         return attachments
             .GroupBy(x => x.EntityId)
-            .ToDictionary(g => g.Key, g => g.Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName }).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(x => new LedgerAttachmentSummary { Id = x.Id, FileName = x.FileName, ContentType = x.ContentType }).ToList());
     }
 
     private async Task<Dictionary<int, string>> BuildMahsupUnitMapAsync(List<int> ledgerIds)

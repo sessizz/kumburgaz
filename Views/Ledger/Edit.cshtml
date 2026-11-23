@@ -51,12 +51,14 @@
                 @if (Model.ExistingAttachments.Count > 0)
                 {
                     <fieldset class="fieldset">
-                        <legend class="fieldset-legend">Ekli fotoğraflar</legend>
+                        <legend class="fieldset-legend">Ekli dosyalar</legend>
                         <div class="flex flex-wrap gap-2">
                             @foreach (var att in Model.ExistingAttachments)
                             {
                                 <span class="badge badge-ghost gap-1">
-                                    <button type="button" class="hover:underline" onclick="openLightbox('@Url.Action("Ek", "Ledger", new { id = att.Id })')">@att.FileName</button>
+                                    <button type="button" class="hover:underline"
+                                            data-attachment-url="@Url.Action("Ek", "Ledger", new { id = att.Id })" data-attachment-type="@att.ContentType" data-attachment-name="@att.FileName"
+                                            onclick="openAttachmentFrom(this)">@att.FileName</button>
                                     <button type="submit" form="ekSil-@att.Id" class="text-error" title="Kaldır">✕</button>
                                 </span>
                             }

@@ -42,7 +42,9 @@ public class GiderController(
                 Amount = m.LedgerTransaction.Amount,
                 Description = m.LedgerTransaction.Description,
                 HasAttachment = attMap.ContainsKey(m.LedgerTransactionId),
-                AttachmentId = attMap.GetValueOrDefault(m.LedgerTransactionId),
+                AttachmentId = attMap.GetValueOrDefault(m.LedgerTransactionId)?.Id,
+                AttachmentContentType = attMap.GetValueOrDefault(m.LedgerTransactionId)?.ContentType,
+                AttachmentFileName = attMap.GetValueOrDefault(m.LedgerTransactionId)?.FileName,
                 IsMahsup = true,
                 MahsupId = m.Id,
                 UnitDisplay = UnitLabel(m.Unit)
@@ -77,7 +79,9 @@ public class GiderController(
                 Amount = x.Amount,
                 Description = x.Description,
                 HasAttachment = attachmentMap.ContainsKey(x.Id),
-                AttachmentId = attachmentMap.GetValueOrDefault(x.Id),
+                AttachmentId = attachmentMap.GetValueOrDefault(x.Id)?.Id,
+                AttachmentContentType = attachmentMap.GetValueOrDefault(x.Id)?.ContentType,
+                AttachmentFileName = attachmentMap.GetValueOrDefault(x.Id)?.FileName,
                 IsMahsup = mahsup is not null,
                 MahsupId = mahsup?.Id,
                 UnitDisplay = mahsup is null ? null : UnitLabel(mahsup.Unit)
@@ -227,7 +231,7 @@ public class GiderController(
         var attachments = await db.Attachments.AsNoTracking()
             .Where(x => x.EntityType == nameof(LedgerTransaction) && x.EntityId == id)
             .OrderBy(x => x.Id)
-            .Select(x => new MobileAttachmentSummary { Id = x.Id, FileName = x.FileName })
+            .Select(x => new MobileAttachmentSummary { Id = x.Id, FileName = x.FileName, ContentType = x.ContentType })
             .ToListAsync();
 
         return View(new MobileGiderDetailViewModel
@@ -409,7 +413,7 @@ public class GiderController(
         return await db.Attachments.AsNoTracking()
             .Where(x => x.EntityType == nameof(LedgerTransaction) && x.EntityId == ledgerTransactionId)
             .OrderBy(x => x.Id)
-            .Select(x => new MobileAttachmentSummary { Id = x.Id, FileName = x.FileName })
+            .Select(x => new MobileAttachmentSummary { Id = x.Id, FileName = x.FileName, ContentType = x.ContentType })
             .ToListAsync();
     }
 
@@ -454,7 +458,8 @@ public class GiderController(
         return model;
     }
 
-    private async Task<Dictionary<int, int>> BuildFirstAttachmentMapAsync(IEnumerable<int> ledgerIds)
+    // Her giderin ilk eki (türüyle; resim değilse liste onu dosya olarak açar).
+    private async Task<Dictionary<int, MobileAttachmentSummary>> BuildFirstAttachmentMapAsync(IEnumerable<int> ledgerIds)
     {
         var ids = ledgerIds.ToList();
         if (ids.Count == 0)
@@ -462,11 +467,20 @@ public class GiderController(
             return [];
         }
 
-        return await db.Attachments.AsNoTracking()
+        var firstIds = await db.Attachments.AsNoTracking()
             .Where(x => x.EntityType == nameof(LedgerTransaction) && ids.Contains(x.EntityId))
             .GroupBy(x => x.EntityId)
-            .Select(g => new { EntityId = g.Key, Id = g.Min(a => a.Id) })
-            .ToDictionaryAsync(x => x.EntityId, x => x.Id);
+            .Select(g => g.Min(a => a.Id))
+            .ToListAsync();
+
+        var firsts = await db.Attachments.AsNoTracking()
+            .Where(x => firstIds.Contains(x.Id))
+            .Select(x => new { x.EntityId, x.Id, x.FileName, x.ContentType })
+            .ToListAsync();
+
+        return firsts.ToDictionary(
+            x => x.EntityId,
+            x => new MobileAttachmentSummary { Id = x.Id, FileName = x.FileName, ContentType = x.ContentType });
     }
 
     private static string? UnitLabel(Unit? unit)

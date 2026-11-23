@@ -1,12 +1,78 @@
+using System.Data;
 using Kumburgaz.Web.Data;
+using Kumburgaz.Web.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Kumburgaz.Web.Services;
+
+public sealed record TxRef(string Source, int Id);
 
 public class TransactionOrderService(ApplicationDbContext db)
 {
     // PostgreSQL zaman damgaları mikrosaniye duyarlılığındadır.
     public const long TickStep = 10;
+
+    internal const string InvalidOrderMessage = "Sıralama listesi bu günün işlemleriyle uyuşmuyor; sayfayı yenileyin.";
+
+    public async Task ReorderDayAsync(string accountKey, DateOnly day, IReadOnlyList<TxRef> oldestFirst)
+    {
+        try
+        {
+            // Satır kümesi, aktarım eşleri, saatler ve denetim kayıtları aynı işlemde kalır.
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                : null;
+            var account = await RequireAccountAsync(accountKey);
+            var start = day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            var end = start.AddTicks(TimeSpan.TicksPerDay - 1);
+            var (accountCollections, accountLedger) = AccountRows(account);
+            var collections = await accountCollections.Where(x => x.Date >= start && x.Date <= end)
+                .ToDictionaryAsync(x => x.Id);
+            var ledger = await accountLedger.Where(x => x.Date >= start && x.Date <= end)
+                .Include(x => x.IncomeExpenseCategory).ToDictionaryAsync(x => x.Id);
+
+            var expected = collections.Keys.Select(id => new TxRef("collection", id))
+                .Concat(ledger.Keys.Select(id => new TxRef("ledger", id))).ToHashSet();
+            if (oldestFirst.Count != expected.Count || !expected.SetEquals(oldestFirst))
+            {
+                throw new InvalidOperationException(InvalidOrderMessage);
+            }
+
+            var slots = oldestFirst.Select((row, index) => (Row: row, Date: ApplySlot(start, index + 1L))).ToList();
+            var movingLedger = slots
+                .Where(slot => slot.Row.Source == "ledger" && ledger[slot.Row.Id].Date != slot.Date)
+                .Select(slot => ledger[slot.Row.Id]);
+            await TransferPairing.PreserveLegacyPairsForReorderAsync(db, movingLedger);
+
+            foreach (var (row, date) in slots)
+            {
+                if (row.Source == "collection")
+                {
+                    collections[row.Id].Date = date;
+                }
+                else
+                {
+                    ledger[row.Id].Date = date;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync();
+            }
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException(InvalidOrderMessage, ex);
+        }
+        catch (Exception ex) when ((ex is DbUpdateException ? ex.InnerException : ex) is PostgresException
+            { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+        {
+            throw new InvalidOperationException(InvalidOrderMessage, ex);
+        }
+    }
 
     public async Task<DateTime> NextSlotAsync(string accountKey, DateTime date)
     {
@@ -54,20 +120,21 @@ public class TransactionOrderService(ApplicationDbContext db)
 
     private IQueryable<DateTime> AccountDates(ActiveFinancialAccount account)
     {
-        var collections = db.Collections.AsNoTracking();
-        var ledger = db.LedgerTransactions.AsNoTracking();
+        var (collections, ledger) = AccountRows(account);
+        return collections.AsNoTracking().Select(x => x.Date).Concat(ledger.AsNoTracking().Select(x => x.Date));
+    }
+
+    private (IQueryable<Collection> Collections, IQueryable<LedgerTransaction> Ledger) AccountRows(
+        ActiveFinancialAccount account)
+    {
         if (account.CashBoxId.HasValue)
         {
-            collections = collections.Where(x => x.CashBoxId == account.CashBoxId);
-            ledger = ledger.Where(x => x.CashBoxId == account.CashBoxId);
-        }
-        else
-        {
-            collections = collections.Where(x => x.BankAccountId == account.BankAccountId);
-            ledger = ledger.Where(x => x.BankAccountId == account.BankAccountId);
+            return (db.Collections.Where(x => x.CashBoxId == account.CashBoxId),
+                db.LedgerTransactions.Where(x => x.CashBoxId == account.CashBoxId));
         }
 
-        return collections.Select(x => x.Date).Concat(ledger.Select(x => x.Date));
+        return (db.Collections.Where(x => x.BankAccountId == account.BankAccountId),
+            db.LedgerTransactions.Where(x => x.BankAccountId == account.BankAccountId));
     }
 
     private async Task<ActiveFinancialAccount> RequireAccountAsync(string accountKey) =>

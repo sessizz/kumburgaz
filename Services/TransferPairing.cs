@@ -36,18 +36,18 @@ public static class TransferPairing
 
     public static async Task<LedgerTransaction?> FindPairAsync(ApplicationDbContext db, LedgerTransaction leg, CancellationToken ct = default)
     {
+        if (!IsLegacyTransferLeg(leg))
+        {
+            return null;
+        }
+
         var candidates = db.LedgerTransactions
             .Include(x => x.IncomeExpenseCategory)
             .Where(x => x.Id != leg.Id);
         if (leg.TransferGroupId is Guid groupId)
         {
-            if (!IsDurableTransferLeg(leg))
-            {
-                return null;
-            }
-
             var groupMembers = await candidates.Where(x => x.TransferGroupId == groupId).ToListAsync(ct);
-            return FindOppositeLeg(leg, groupMembers.Where(IsDurableTransferLeg));
+            return FindOppositeLeg(leg, groupMembers.Where(IsLegacyTransferLeg));
         }
 
         var key = LegacyKey(leg);
@@ -57,12 +57,48 @@ public static class TransferPairing
         return FindOppositeLeg(leg, legacyCandidates.Where(IsLegacyTransferLeg));
     }
 
+    internal static async Task PreserveLegacyPairsForReorderAsync(
+        ApplicationDbContext db, IEnumerable<LedgerTransaction> movingLedger)
+    {
+        var legs = movingLedger.Where(x => x.TransferGroupId == null && IsLegacyTransferLeg(x)).ToList();
+        if (legs.Count == 0)
+        {
+            return;
+        }
+
+        var dates = legs.Select(x => x.Date).Distinct().ToArray();
+        var candidates = await db.LedgerTransactions.Include(x => x.IncomeExpenseCategory)
+            .Where(x => x.TransferGroupId == null && dates.Contains(x.Date)).ToListAsync();
+        var byKey = candidates.Where(IsLegacyTransferLeg).ToLookup(LegacyKey);
+        var pairs = new List<(LedgerTransaction Leg, LedgerTransaction Pair)>();
+        foreach (var leg in legs)
+        {
+            var matches = byKey[LegacyKey(leg)].ToArray();
+            var pair = matches.Length == 2 ? matches.SingleOrDefault(x => x.Id != leg.Id) : null;
+            if (pair is null || IsIncoming(leg) == IsIncoming(pair) || !BelongToDifferentAccounts(leg, pair))
+            {
+                throw new InvalidOperationException("Karşı hareketi kesin olarak belirlenemeyen eski transfer sıralanamaz.");
+            }
+
+            pairs.Add((leg, pair));
+        }
+
+        // Kategori ve yön alanları korunur. Yalnızca ortak kimlik iki hesaba yazılır.
+        foreach (var (leg, pair) in pairs)
+        {
+            leg.TransferGroupId = pair.TransferGroupId = Guid.NewGuid();
+        }
+    }
+
+    private static bool BelongToDifferentAccounts(LedgerTransaction leg, LedgerTransaction pair) =>
+        leg.CashBoxId.HasValue != leg.BankAccountId.HasValue
+        && pair.CashBoxId.HasValue != pair.BankAccountId.HasValue
+        && (leg.CashBoxId != pair.CashBoxId || leg.BankAccountId != pair.BankAccountId);
+
     internal static async Task<Dictionary<int, LedgerTransaction>> FindPairsAsync(
         ApplicationDbContext db, IEnumerable<LedgerTransaction> legs)
     {
-        var transfers = legs
-            .Where(x => x.TransferGroupId.HasValue ? IsDurableTransferLeg(x) : IsLegacyTransferLeg(x))
-            .ToList();
+        var transfers = legs.Where(IsLegacyTransferLeg).ToList();
         var pairs = new Dictionary<int, LedgerTransaction>();
         if (transfers.Count == 0)
         {
@@ -77,7 +113,7 @@ public static class TransferPairing
             .Where(x => groupIds.Contains(x.TransferGroupId) || (x.TransferGroupId == null && legacyDates.Contains(x.Date)))
             .ToListAsync();
         var groupedCandidates = candidates
-            .Where(x => x.TransferGroupId.HasValue && IsDurableTransferLeg(x))
+            .Where(x => x.TransferGroupId.HasValue && IsLegacyTransferLeg(x))
             .ToLookup(x => x.TransferGroupId);
         var legacyCandidates = candidates
             .Where(x => x.TransferGroupId == null && IsLegacyTransferLeg(x))
@@ -98,11 +134,11 @@ public static class TransferPairing
         return pairs;
     }
 
-    // Açılıştaki kimlik atamasında ve kimlikli çiftlerin denetiminde kullanılır.
-    internal static bool IsDurableTransferLeg(LedgerTransaction leg) =>
+    // Açılışta yalnız işaretli veya transfer kategorisindeki hareketler eşlenir.
+    private static bool IsDurableTransferLeg(LedgerTransaction leg) =>
         leg.IsTransfer || leg.IncomeExpenseCategory?.Name.Contains("Transfer", StringComparison.OrdinalIgnoreCase) == true;
 
-    // Kimliksiz hareketlerin karşı satırını ararken kullanılır.
+    // Eski açıklamalar, açılışta eşlenmese de karşı hareket aramasına dahildir.
     internal static bool IsLegacyTransferLeg(LedgerTransaction leg) =>
         IsTransferForDisplay(leg)
         || string.Equals(leg.Description, "Para transferi", StringComparison.OrdinalIgnoreCase)

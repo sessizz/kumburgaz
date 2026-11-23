@@ -546,6 +546,39 @@ public class CashBankController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReorderDay(
+        [FromForm] string? kind, [FromForm] int id, [FromForm] string? day, [FromForm] string[]? rows)
+    {
+        if (!ModelState.IsValid || kind is not ("cash" or "bank") || id <= 0
+            || !DateOnly.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            return BadRequest(new { error = "Geçerli bir kasa/banka hesabı ve gün belirtin." });
+        }
+
+        var order = new List<TxRef>();
+        foreach (var row in rows ?? [])
+        {
+            if (row is null || ParseSelectedTransaction(row) is not { } parsed || parsed.Id <= 0)
+            {
+                return BadRequest(new { error = TransactionOrderService.InvalidOrderMessage });
+            }
+
+            order.Add(new TxRef(parsed.Source, parsed.Id));
+        }
+
+        try
+        {
+            await orderService.ReorderDayAsync(BuildAccountKey(kind, id), date, order);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteTransaction(string kind, int accountId, string source, int id)
     {
         if (source == "collection")

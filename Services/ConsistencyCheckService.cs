@@ -287,11 +287,7 @@ public class ConsistencyCheckService(ApplicationDbContext db, UnitLedgerService 
             .AsNoTracking()
             .Include(x => x.IncomeExpenseCategory)
             .ToListAsync(cancellationToken);
-        var transfers = rows
-            .Where(x => x.TransferGroupId.HasValue
-                ? TransferPairing.IsDurableTransferLeg(x)
-                : TransferPairing.IsLegacyTransferLeg(x))
-            .ToList();
+        var transfers = rows.Where(TransferPairing.IsLegacyTransferLeg).ToList();
 
         foreach (var transfer in transfers.Where(x => x.Amount <= 0m))
         {

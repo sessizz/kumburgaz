@@ -51,14 +51,25 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
 
         var (from, to) = await ResolveAccountsAsync(request, activeOnly: false);
         var editingIncoming = TransferPairing.IsIncoming(leg);
-        var editedAccountKey = editingIncoming ? to.Key : from.Key;
-        var date = await order.ResolveEditedTransactionDateAsync(editedAccountKey, request.Date, leg.Date);
+        var (outgoing, incoming) = editingIncoming ? (pair, leg) : (leg, pair);
+        var outgoingDate = outgoing.Date;
+        var incomingDate = incoming.Date;
+        if (request.Date.Date != outgoingDate.Date || request.Date.Date != incomingDate.Date
+            || !BelongsTo(outgoing, from) || !BelongsTo(incoming, to))
+        {
+            var editedAccountKey = editingIncoming ? to.Key : from.Key;
+            outgoingDate = incomingDate = await order.ResolveEditedTransactionDateAsync(editedAccountKey, request.Date, leg.Date);
+        }
+
         var description = FormatDescription(from, to, request.Description);
 
-        ApplyLeg(editingIncoming ? pair : leg, from, false, request.Amount, date, description);
-        ApplyLeg(editingIncoming ? leg : pair, to, true, request.Amount, date, description);
+        ApplyLeg(outgoing, from, false, request.Amount, outgoingDate, description);
+        ApplyLeg(incoming, to, true, request.Amount, incomingDate, description);
         await db.SaveChangesAsync();
     }
+
+    private static bool BelongsTo(LedgerTransaction leg, ActiveFinancialAccount account) =>
+        leg.CashBoxId == account.CashBoxId && leg.BankAccountId == account.BankAccountId;
 
     private async Task<(ActiveFinancialAccount From, ActiveFinancialAccount To)> ResolveAccountsAsync(
         TransferRequest request, bool activeOnly)

@@ -10,17 +10,19 @@ public sealed record TransferResult(int OutgoingId, int IncomingId, Guid GroupId
 
 public class CashBankTransferService(ApplicationDbContext db, TransactionOrderService order)
 {
+    internal const string SameAccountMessage = "Kaynak ve hedef hesap aynı olamaz.";
+
     public async Task<TransferPreview> PreviewAsync(TransferRequest request)
     {
-        var (from, to) = await ResolveAccountsAsync(request);
+        var (from, to) = await ResolveAccountsAsync(request, activeOnly: true);
         return new TransferPreview(from.Key, from.Name, to.Key, to.Name, request.Amount,
             DateTime.SpecifyKind(request.Date.Date, DateTimeKind.Utc), FormatDescription(from, to, request.Description));
     }
 
-    public async Task<TransferResult> CreateAsync(TransferRequest request)
+    public async Task<TransferResult> CreateAsync(TransferRequest request, DateTime? orderedDate = null)
     {
-        var (from, to) = await ResolveAccountsAsync(request);
-        var date = await order.NextSlotAsync(from.Key, request.Date);
+        var (from, to) = await ResolveAccountsAsync(request, activeOnly: true);
+        var date = orderedDate ?? await order.NextSlotAsync(from.Key, request.Date);
         var description = FormatDescription(from, to, request.Description);
         var groupId = Guid.NewGuid();
         var outgoing = new LedgerTransaction { TransferGroupId = groupId };
@@ -43,7 +45,7 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
             throw new InvalidOperationException("Transferin karşı satırı bulunamadı.");
         }
 
-        var (from, to) = await ResolveAccountsAsync(request);
+        var (from, to) = await ResolveAccountsAsync(request, activeOnly: false);
         var editingIncoming = TransferPairing.IsIncoming(leg);
         var editedAccountKey = editingIncoming ? to.Key : from.Key;
         var date = await order.ResolveEditedTransactionDateAsync(editedAccountKey, request.Date, leg.Date);
@@ -54,15 +56,16 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
         await db.SaveChangesAsync();
     }
 
-    private async Task<(ActiveFinancialAccount From, ActiveFinancialAccount To)> ResolveAccountsAsync(TransferRequest request)
+    private async Task<(ActiveFinancialAccount From, ActiveFinancialAccount To)> ResolveAccountsAsync(
+        TransferRequest request, bool activeOnly)
     {
         if (request.Amount <= 0)
         {
             throw new InvalidOperationException("Tutar sıfırdan büyük olmalı.");
         }
 
-        var from = await FinancialAccountHelper.FindActiveAsync(db, request.FromAccountKey);
-        var to = await FinancialAccountHelper.FindActiveAsync(db, request.ToAccountKey);
+        var from = await FinancialAccountHelper.FindAsync(db, request.FromAccountKey, activeOnly);
+        var to = await FinancialAccountHelper.FindAsync(db, request.ToAccountKey, activeOnly);
         if (from is null || to is null)
         {
             throw new InvalidOperationException("Geçerli bir kasa/banka hesabı seçiniz.");
@@ -70,7 +73,7 @@ public class CashBankTransferService(ApplicationDbContext db, TransactionOrderSe
 
         if (from.Key == to.Key)
         {
-            throw new InvalidOperationException("Kaynak ve hedef hesap aynı olamaz.");
+            throw new InvalidOperationException(SameAccountMessage);
         }
 
         return (from, to);

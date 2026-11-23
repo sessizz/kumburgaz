@@ -51,7 +51,11 @@ public static class FinancialAccountHelper
     }
 
     /// <summary>Anahtarı aktif bir kasa/banka hesabına çözer; anahtar bozuksa ya da hesap yok/pasifse null.</summary>
-    public static async Task<ActiveFinancialAccount?> FindActiveAsync(ApplicationDbContext db, string? key)
+    public static Task<ActiveFinancialAccount?> FindActiveAsync(ApplicationDbContext db, string? key)
+        => FindAsync(db, key, activeOnly: true);
+
+    internal static async Task<ActiveFinancialAccount?> FindAsync(
+        ApplicationDbContext db, string? key, bool activeOnly)
     {
         if (!TryParse(key, out var channel, out var cashBoxId, out var bankAccountId))
         {
@@ -61,14 +65,14 @@ public static class FinancialAccountHelper
         if (cashBoxId.HasValue)
         {
             var cashBox = await db.CashBoxes.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == cashBoxId.Value && x.Active);
+                .FirstOrDefaultAsync(x => x.Id == cashBoxId.Value && (!activeOnly || x.Active));
             return cashBox is null
                 ? null
                 : new ActiveFinancialAccount(CashKey(cashBox.Id), cashBox.Name, channel, cashBox.Id, null);
         }
 
         var bank = await db.BankAccounts.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == bankAccountId!.Value && x.Active);
+            .FirstOrDefaultAsync(x => x.Id == bankAccountId!.Value && (!activeOnly || x.Active));
         return bank is null
             ? null
             : new ActiveFinancialAccount(BankKey(bank.Id), BankName(bank), channel, null, bank.Id);

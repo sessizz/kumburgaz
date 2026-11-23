@@ -57,8 +57,9 @@ public class CashBankTransferServiceTests
             Description = " "
         });
 
-        Assert.All(await db.LedgerTransactions.AsNoTracking().ToListAsync(),
-            leg => Assert.Equal("Para transferi", leg.Description));
+        var legs = await db.LedgerTransactions.AsNoTracking().ToListAsync();
+        Assert.Equal(2, legs.Count);
+        Assert.All(legs, leg => Assert.Equal("Para transferi", leg.Description));
     }
 
     [Fact]
@@ -168,6 +169,34 @@ public class CashBankTransferServiceTests
         var outgoing = Assert.Single(legs, leg => leg.Id == result.OutgoingId);
         Assert.False(outgoing.TransferIsIncoming);
         Assert.Equal(request.FromAccountKey, FinancialAccountHelper.BuildKey(outgoing.CashBoxId, outgoing.BankAccountId));
+    }
+
+    [Fact]
+    public async Task Update_to_different_day_uses_the_inactive_edited_accounts_slot()
+    {
+        await using var db = CreateDb();
+        var request = await SeedAccountsAsync(db);
+        var service = CreateService(db);
+        var result = await service.CreateAsync(request);
+        var cash = await db.CashBoxes.SingleAsync();
+        var bank = await db.BankAccounts.SingleAsync();
+        bank.Active = false;
+        var newDay = Day.AddDays(1);
+        db.LedgerTransactions.AddRange(
+            new LedgerTransaction { CashBoxId = cash.Id, Date = newDay.AddTicks(20) },
+            new LedgerTransaction { BankAccountId = bank.Id, Date = newDay.AddTicks(50) });
+        await db.SaveChangesAsync();
+
+        await service.UpdateAsync(result.IncomingId, request with { Date = newDay, Amount = 300m });
+
+        var legs = await db.LedgerTransactions.AsNoTracking().Where(x => x.IsTransfer).ToListAsync();
+        Assert.Equal(2, legs.Count);
+        Assert.All(legs, leg =>
+        {
+            Assert.Equal(newDay.AddTicks(60), leg.Date);
+            Assert.Equal(result.GroupId, leg.TransferGroupId);
+            Assert.Equal(300m, leg.Amount);
+        });
     }
 
     private static ApplicationDbContext CreateDb()

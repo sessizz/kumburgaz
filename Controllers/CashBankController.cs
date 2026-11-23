@@ -283,6 +283,15 @@ public class CashBankController(
             return ImportPreviewWithErrors(model, detail, errors, "CSV import edilmedi. Hatalı satırları düzeltin.");
         }
 
+        try
+        {
+            importRows = ApplyImportOrder(importRows, await orderService.BuildExistingTransactionDateOffsetsAsync(accountKey));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
+        }
+
         var saved = importRows.Count;
         var batch = await importBatchService.CreateAsync("cashbank", model.Kind, model.Id, null);
         await using var transaction = await db.Database.BeginTransactionAsync();
@@ -297,7 +306,7 @@ public class CashBankController(
                         ? (counterKey, accountKey)
                         : (accountKey, counterKey);
                     await transferService.CreateAsync(new TransferRequest(fromKey, toKey, item.Amount, item.Date,
-                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description));
+                        string.IsNullOrWhiteSpace(item.Row.Description) ? item.Row.Note : item.Row.Description), item.Date);
                     await importBatchService.AddRowAsync(
                         batch,
                         item.Row.LineNo,
@@ -308,14 +317,13 @@ public class CashBankController(
                     continue;
                 }
 
-                var orderedDate = await orderService.NextSlotAsync(accountKey, item.Date);
                 if (item.Installment is not null)
                 {
                     var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
                     {
                         BillingGroupId = item.Installment.BillingGroupId,
                         DuesInstallmentId = item.Installment.Id,
-                        Date = orderedDate,
+                        Date = item.Date,
                         Amount = item.Amount,
                         PaymentChannel = paymentChannel,
                         AccountKey = accountKey,
@@ -335,7 +343,7 @@ public class CashBankController(
 
                 var ledgerTransaction = new LedgerTransaction
                 {
-                    Date = orderedDate,
+                    Date = item.Date,
                     IncomeExpenseCategoryId = item.CategoryId!.Value,
                     IsTransfer = false,
                     TransferIsIncoming = false,
@@ -641,7 +649,17 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+        DateTime orderedDate;
+        try
+        {
+            orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ActionError"] = ex.Message;
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
         if (model.IncomeSource == "dues")
         {
             if (!model.DuesInstallmentId.HasValue || model.BillingGroupId <= 0)
@@ -743,10 +761,9 @@ public class CashBankController(
 
         var accountKey = BuildAccountKey(model.Kind, model.Id);
         var paymentChannel = model.Kind == "bank" ? PaymentChannel.Bank : PaymentChannel.Cash;
-        var orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
-
         try
         {
+            var orderedDate = await orderService.NextSlotAsync(accountKey, model.Date);
             var collectionId = await collectionService.CreateAsync(new CollectionCreateViewModel
             {
                 BillingGroupId = model.BillingGroupId,
@@ -798,11 +815,10 @@ public class CashBankController(
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == transactionId);
         if (existingCollection is null) return NotFound();
-        var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
-            BuildAccountKey(model.Kind, model.Id), model.Date, existingCollection.Date);
-
         try
         {
+            var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
+                BuildAccountKey(model.Kind, model.Id), model.Date, existingCollection.Date);
             await collectionService.UpdateAsync(transactionId, new CollectionCreateViewModel
             {
                 BillingGroupId = model.BillingGroupId,
@@ -859,7 +875,17 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+        DateTime orderedDate;
+        try
+        {
+            orderedDate = await orderService.NextSlotAsync(BuildAccountKey(model.Kind, model.Id), model.Date);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ActionError"] = ex.Message;
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
         db.LedgerTransactions.Add(new LedgerTransaction
         {
             Date = DateTimeHelper.EnsureUtc(orderedDate),
@@ -916,8 +942,18 @@ public class CashBankController(
             return RedirectToDetail(model.Kind, model.Id);
         }
 
-        var orderedDate = await orderService.ResolveEditedTransactionDateAsync(
-            BuildAccountKey(model.Kind, model.Id), model.Date, entity.Date);
+        DateTime orderedDate;
+        try
+        {
+            orderedDate = await orderService.ResolveEditedTransactionDateAsync(
+                BuildAccountKey(model.Kind, model.Id), model.Date, entity.Date);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ActionError"] = ex.Message;
+            return RedirectToDetail(model.Kind, model.Id);
+        }
+
         entity.Date = DateTimeHelper.EnsureUtc(orderedDate);
         entity.IncomeExpenseCategoryId = model.IncomeExpenseCategoryId;
         entity.Amount = model.Amount;
@@ -1004,7 +1040,9 @@ public class CashBankController(
         }
         catch (InvalidOperationException ex)
         {
-            TempData["ActionError"] = ex.Message;
+            TempData["ActionError"] = ex.Message == CashBankTransferService.SameAccountMessage
+                ? "Kaynak ve karşı hesap aynı olamaz."
+                : ex.Message;
         }
 
         return RedirectToDetail(model.Kind, model.Id);
@@ -1244,6 +1282,25 @@ public class CashBankController(
         var suffix = parts.Count > 0 ? string.Join(" ", parts) : $"{errors.Count} hata var.";
         TempData["ActionError"] = $"{message} {suffix}";
         return View("ImportPreview", model);
+    }
+
+    private static List<CashBankImportOperation> ApplyImportOrder(
+        List<CashBankImportOperation> rows,
+        Dictionary<DateTime, long> existingOffsets)
+    {
+        var offsets = new Dictionary<DateTime, long>(existingOffsets);
+        var orderedRows = new List<CashBankImportOperation>(rows.Count);
+
+        foreach (var row in rows)
+        {
+            var day = row.Date.Date;
+            offsets.TryGetValue(day, out var offset);
+            var nextSlot = offset + 1;
+            offsets[day] = nextSlot;
+            orderedRows.Add(row with { Date = TransactionOrderService.ApplySlot(day, nextSlot) });
+        }
+
+        return orderedRows;
     }
 
     private sealed record CashBankImportOperation(

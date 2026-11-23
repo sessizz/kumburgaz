@@ -392,8 +392,11 @@ public class CashBankControllerTests
         Assert.Equal("Gelir bilgilerini kontrol edin.", controller.TempData["ActionError"]);
     }
 
-    [Fact]
-    public async Task Import_incoming_transfer_uses_source_slot_before_ordering_following_row()
+    [Theory]
+    [InlineData(true, 10, 20)]
+    [InlineData(false, 40, 30)]
+    public async Task Import_orders_income_and_incoming_transfer_in_file_order(
+        bool transferFirst, int transferTicks, int incomeTicks)
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -406,38 +409,37 @@ public class CashBankControllerTests
         var category = new IncomeExpenseCategory { Name = "Faiz", Type = CategoryTypeHelper.Gelir };
         db.AddRange(cash, bank, category, new LedgerTransaction
         {
-            CashBox = cash,
-            PaymentChannel = PaymentChannel.Cash,
+            CashBox = transferFirst ? cash : null,
+            BankAccount = transferFirst ? null : bank,
+            PaymentChannel = transferFirst ? PaymentChannel.Cash : PaymentChannel.Bank,
             Date = day.AddTicks(20)
         });
         await db.SaveChangesAsync();
         var controller = CreateController(db, new Dictionary<string, StringValues>());
 
+        var transferRow = new CashBankImportRowViewModel
+        {
+            LineNo = transferFirst ? 2 : 3,
+            Type = "transfer",
+            Date = "2026-11-23",
+            Amount = "100,00",
+            ToAccountKey = FinancialAccountHelper.CashKey(cash.Id),
+            TransferToCurrentAccount = true,
+            Description = "ATM"
+        };
+        var incomeRow = new CashBankImportRowViewModel
+        {
+            LineNo = transferFirst ? 3 : 2,
+            Type = "income",
+            Date = "2026-11-23",
+            Amount = "10,00",
+            ExpenseCategoryId = category.Id
+        };
         var result = await controller.CommitImport(new CashBankImportPreviewViewModel
         {
             Kind = "bank",
             Id = bank.Id,
-            Rows =
-            [
-                new()
-                {
-                    LineNo = 2,
-                    Type = "transfer",
-                    Date = "2026-11-23",
-                    Amount = "100,00",
-                    ToAccountKey = FinancialAccountHelper.CashKey(cash.Id),
-                    TransferToCurrentAccount = true,
-                    Description = "ATM"
-                },
-                new()
-                {
-                    LineNo = 3,
-                    Type = "income",
-                    Date = "2026-11-23",
-                    Amount = "10,00",
-                    ExpenseCategoryId = category.Id
-                }
-            ]
+            Rows = transferFirst ? [transferRow, incomeRow] : [incomeRow, transferRow]
         });
 
         var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
@@ -449,12 +451,68 @@ public class CashBankControllerTests
         Assert.Equal(bank.Id, incoming.BankAccountId);
         Assert.NotNull(outgoing.TransferGroupId);
         Assert.Equal(outgoing.TransferGroupId, incoming.TransferGroupId);
-        Assert.Equal(day.AddTicks(30), outgoing.Date);
+        Assert.Equal(day.AddTicks(transferTicks), outgoing.Date);
         Assert.Equal(outgoing.Date, incoming.Date);
         Assert.Equal("Bankaya yatır: ATM", incoming.Description);
         var income = await db.LedgerTransactions.AsNoTracking()
             .SingleAsync(leg => leg.IncomeExpenseCategoryId == category.Id);
-        Assert.Equal(day.AddTicks(40), income.Date);
+        Assert.Equal(day.AddTicks(incomeTicks), income.Date);
+    }
+
+    [Fact]
+    public async Task Update_transfer_reports_original_same_account_message()
+    {
+        await using var db = CreateDb();
+        var (incoming, outgoing) = await SeedDescriptionOnlyTransferAsync(db);
+        var key = FinancialAccountHelper.BankKey(incoming.BankAccountId!.Value);
+        var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
+
+        var result = await controller.UpdateTransferTransaction(incoming.Id, new CashBankTransferFormViewModel
+        {
+            Kind = "bank",
+            Id = incoming.BankAccountId.Value,
+            Date = incoming.Date,
+            ToAccountKey = key
+        });
+
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        Assert.Equal("Kaynak ve karşı hesap aynı olamaz.", controller.TempData["ActionError"]);
+        Assert.Equal(100m, incoming.Amount);
+        Assert.Equal(100m, outgoing.Amount);
+    }
+
+    [Fact]
+    public async Task Update_ledger_transaction_reports_missing_account_on_same_day()
+    {
+        await using var db = CreateDb();
+        var category = new IncomeExpenseCategory { Name = "Gider", Type = CategoryTypeHelper.Gider };
+        var bank = new BankAccount { Name = "Banka" };
+        var tx = new LedgerTransaction
+        {
+            Date = Utc(2026, 11, 23),
+            Amount = 100m,
+            BankAccount = bank,
+            PaymentChannel = PaymentChannel.Bank,
+            IncomeExpenseCategory = category
+        };
+        db.LedgerTransactions.Add(tx);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, new Dictionary<string, StringValues> { ["Amount"] = "200,00" });
+
+        var result = await controller.UpdateLedgerTransaction(tx.Id, new CashBankLedgerFormViewModel
+        {
+            Kind = "bank",
+            Id = bank.Id + 1,
+            Date = tx.Date,
+            IncomeExpenseCategoryId = category.Id
+        });
+
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        Assert.Equal("Geçerli bir kasa/banka hesabı seçiniz.", controller.TempData["ActionError"]);
+        Assert.Equal(100m, tx.Amount);
+        Assert.Equal(bank.Id, tx.BankAccountId);
     }
 
     [Fact]

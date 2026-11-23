@@ -465,6 +465,111 @@ public class CashBankControllerTests
     }
 
     [Fact]
+    public async Task Import_rolls_back_both_transfer_legs_and_batch_rows_when_a_later_batch_row_fails()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        var bank = new BankAccount { Name = "Banka" };
+        var cash = new CashBox { Name = "Kasa" };
+        db.AddRange(bank, cash);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, []);
+        var counterKey = FinancialAccountHelper.CashKey(cash.Id);
+
+        var result = await controller.CommitImport(new CashBankImportPreviewViewModel
+        {
+            Kind = "bank", Id = bank.Id,
+            Rows =
+            [
+                new() { LineNo = 2, Date = "2026-11-23", Type = "transfer", Amount = "100", ToAccountKey = counterKey },
+                new() { LineNo = 2, Date = "2026-11-23", Type = "transfer", Amount = "200", ToAccountKey = counterKey }
+            ]
+        });
+
+        Assert.Equal("ImportPreview", Assert.IsType<Microsoft.AspNetCore.Mvc.ViewResult>(result).ViewName);
+        Assert.StartsWith("CSV import edilmedi. Import kaydedilemedi:", (string?)controller.TempData["ActionError"]);
+        Assert.Empty(await db.LedgerTransactions.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.ImportBatchRows.AsNoTracking().ToListAsync());
+        var batch = await db.ImportBatches.AsNoTracking().SingleAsync();
+        Assert.Equal(ImportBatchStatus.Failed, batch.Status);
+        Assert.Null(batch.CommittedAt);
+    }
+
+    [Theory]
+    [InlineData("2026-11-23", false)]
+    [InlineData("2026-11-23T12:00:00+03:00", true)]
+    public async Task Import_reallocates_after_reorder_changes_the_existing_slots(string date, bool carryAtMidnight)
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var reorderDb = new ApplicationDbContext(options);
+        await reorderDb.Database.EnsureCreatedAsync();
+        var parsedDay = DateTime.Parse(date, CultureInfo.InvariantCulture).Date;
+        var offsetDay = DateTime.SpecifyKind(parsedDay, DateTimeKind.Utc);
+        var bank = new BankAccount { Name = "Banka" };
+        var cash = new CashBox { Name = "Kasa" };
+        var category = new IncomeExpenseCategory { Name = "Faiz", Type = CategoryTypeHelper.Gelir };
+        var oldDate = offsetDay.AddTicks(carryAtMidnight ? TimeSpan.TicksPerDay - 10 : 10);
+        LedgerTransaction[] existing = Enumerable.Range(0, 3)
+            .Select(_ => new LedgerTransaction { BankAccount = bank, Date = oldDate }).ToArray();
+        reorderDb.AddRange(existing);
+        reorderDb.AddRange(cash, category);
+        await reorderDb.SaveChangesAsync();
+        reorderDb.ChangeTracker.Clear();
+        var bankKey = FinancialAccountHelper.BankKey(bank.Id);
+        var order = new TransactionOrderService(reorderDb);
+        var reorder = new ReorderBeforeImportBatch(() => order.ReorderDayAsync(bankKey, DateOnly.FromDateTime(offsetDay),
+            existing.Reverse().Select(row => new TxRef("ledger", row.Id)).ToArray()));
+        var transactions = new ImportTransactionCounter();
+        await using var importDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection).AddInterceptors(reorder, transactions).Options);
+        var controller = CreateController(importDb, []);
+        var transferDate = DateTimeHelper.EnsureUtc(parsedDay.AddTicks(40));
+        var counterDayChanged = carryAtMidnight
+            && DateTimeHelper.EnsureUtc(parsedDay.AddDays(1)).Date != transferDate.Date;
+        List<CashBankImportRowViewModel> rows =
+        [
+            new()
+            {
+                LineNo = 2, Date = date, Type = "transfer", Amount = "100",
+                ToAccountKey = FinancialAccountHelper.CashKey(cash.Id), TransferToCurrentAccount = true
+            },
+            new() { LineNo = 3, Date = date, Type = "income", Amount = "20", ExpenseCategoryId = category.Id }
+        ];
+        if (counterDayChanged)
+        {
+            // Bankanın yeni günü baştan bilinir. İkinci işlem karşı hesabın yeni günü için gereklidir.
+            rows.Add(new()
+            {
+                LineNo = 4, Date = transferDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Type = "income", Amount = "30", ExpenseCategoryId = category.Id
+            });
+        }
+
+        var result = await controller.CommitImport(new CashBankImportPreviewViewModel
+        {
+            Kind = "bank", Id = bank.Id, Rows = rows
+        });
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.True(reorder.Ran);
+        Assert.Equal(counterDayChanged ? 2 : 1, transactions.Started);
+        var persisted = await reorderDb.LedgerTransactions.AsNoTracking().ToListAsync();
+        Assert.Equal(offsetDay.AddTicks(30), Assert.Single(persisted, row => row.Id == existing[0].Id).Date);
+        var legs = persisted.Where(row => row.IsTransfer).ToArray();
+        Assert.Equal(transferDate, Assert.Single(legs, leg => leg.BankAccountId == bank.Id).Date);
+        Assert.Equal(transferDate, Assert.Single(legs, leg => leg.CashBoxId == cash.Id).Date);
+        Assert.Equal(DateTimeHelper.EnsureUtc(parsedDay.AddTicks(50)),
+            Assert.Single(persisted, row => row.IncomeExpenseCategoryId == category.Id && row.Amount == 20m).Date);
+        Assert.Equal(rows.Count, await reorderDb.ImportBatchRows.CountAsync());
+        Assert.Equal(ImportBatchStatus.Committed, (await reorderDb.ImportBatches.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task In_flight_collection_append_excludes_reorder_until_its_slot_is_persisted()
     {
         var connectionString = new SqliteConnectionStringBuilder
@@ -814,6 +919,38 @@ public class CashBankControllerTests
         public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
         public void SaveTempData(HttpContext context, IDictionary<string, object> values)
         {
+        }
+    }
+
+    private sealed class ReorderBeforeImportBatch(Func<Task> reorder) : DbCommandInterceptor
+    {
+        public bool Ran { get; private set; }
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            // İlk sıra okuması tamamlandı. CSV satırları yazılmadan önce kullanıcı sıralamayı kaydeder.
+            if (!Ran && command.CommandText.Contains("SELECT COUNT(*)", StringComparison.Ordinal)
+                && command.CommandText.Contains("FROM \"ImportBatches\"", StringComparison.Ordinal))
+            {
+                Ran = true;
+                await reorder();
+            }
+
+            return result;
+        }
+    }
+
+    private sealed class ImportTransactionCounter : DbTransactionInterceptor
+    {
+        public int Started { get; private set; }
+
+        public override ValueTask<DbTransaction> TransactionStartedAsync(DbConnection connection,
+            TransactionEndEventData eventData, DbTransaction result, CancellationToken cancellationToken = default)
+        {
+            Started++;
+            return ValueTask.FromResult(result);
         }
     }
 

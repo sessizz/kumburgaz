@@ -4,6 +4,7 @@ using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -283,9 +284,10 @@ public class CashBankController(
             return ImportPreviewWithErrors(model, detail, errors, "CSV import edilmedi. Hatalı satırları düzeltin.");
         }
 
+        List<CashBankImportOperation> plannedRows;
         try
         {
-            importRows = ApplyImportOrder(importRows, await orderService.BuildExistingTransactionDateOffsetsAsync(accountKey));
+            plannedRows = ApplyImportOrder(importRows, await orderService.BuildExistingTransactionDateOffsetsAsync(accountKey));
         }
         catch (InvalidOperationException ex)
         {
@@ -294,10 +296,11 @@ public class CashBankController(
 
         var saved = importRows.Count;
         var batch = await importBatchService.CreateAsync("cashbank", model.Kind, model.Id, null);
-        await using var transaction = await db.Database.BeginTransactionAsync();
         try
         {
-            foreach (var item in importRows)
+            var (writeTransaction, orderedRows) = await BeginImportWriteAsync(accountKey, importRows, plannedRows);
+            await using var transaction = writeTransaction;
+            foreach (var item in orderedRows)
             {
                 if (item.Row.Type == "transfer")
                 {
@@ -370,9 +373,10 @@ public class CashBankController(
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
-            batch.Status = ImportBatchStatus.Failed;
-            await db.SaveChangesAsync();
+            // Geri alınan satırlar hata durumu kaydedilirken yeniden yazılmamalı.
+            db.ChangeTracker.Clear();
+            var failedBatch = await db.ImportBatches.SingleAsync(x => x.Id == batch.Id);
+            await importBatchService.FailAsync(failedBatch);
             return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
         }
 
@@ -1349,6 +1353,56 @@ public class CashBankController(
         return View("ImportPreview", model);
     }
 
+    private async Task<(IDbContextTransaction Transaction, List<CashBankImportOperation> Rows)> BeginImportWriteAsync(
+        string accountKey, List<CashBankImportOperation> rows, List<CashBankImportOperation> plannedRows)
+    {
+        // Sıra hesabı dosyadaki günü, yazma ise UTC'ye çevrilmiş ve gece yarısını aşabilen günü kullanır.
+        var locations = rows.Select(row => ((string?)accountKey, row.Date.Date)).ToHashSet();
+        locations.UnionWith(ImportWriteLocations(accountKey, plannedRows));
+
+        while (true)
+        {
+            var transaction = await orderService.BeginWriteAsync(locations.ToArray())
+                ?? await db.Database.BeginTransactionAsync();
+            try
+            {
+                var ordered = ApplyImportOrder(rows, await orderService.BuildExistingTransactionDateOffsetsAsync(accountKey));
+                var writes = ImportWriteLocations(accountKey, ordered);
+                if (writes.IsSubsetOf(locations))
+                {
+                    return (transaction, ordered);
+                }
+
+                // Yeni günleri bu işlemde kilitlemek sıralamayı bozabilir. Tüm kilitleri bırakıp birlikte al.
+                locations.UnionWith(writes);
+            }
+            catch
+            {
+                await transaction.DisposeAsync();
+                throw;
+            }
+
+            await transaction.DisposeAsync();
+        }
+    }
+
+    private static HashSet<(string? AccountKey, DateTime Day)> ImportWriteLocations(
+        string accountKey, List<CashBankImportOperation> rows)
+    {
+        var locations = new HashSet<(string?, DateTime)>();
+        foreach (var row in rows)
+        {
+            var day = DateTimeHelper.EnsureUtc(row.Date).Date;
+            locations.Add((accountKey, day));
+            if (row.Row.Type == "transfer")
+            {
+                locations.Add((row.Row.ToAccountKey, day));
+            }
+        }
+
+        return locations;
+    }
+
     private static List<CashBankImportOperation> ApplyImportOrder(
         List<CashBankImportOperation> rows,
         Dictionary<DateTime, long> existingOffsets)
@@ -1362,7 +1416,7 @@ public class CashBankController(
             offsets.TryGetValue(day, out var offset);
             var nextSlot = offset + 1;
             offsets[day] = nextSlot;
-            // CSV keeps the parsed date kind until write time and may carry past midnight.
+            // CSV, UTC dönüşümüne kadar tarihin türünü korur ve sıra gece yarısını aşabilir.
             orderedRows.Add(row with { Date = day.AddTicks(nextSlot * TransactionOrderService.TickStep) });
         }
 

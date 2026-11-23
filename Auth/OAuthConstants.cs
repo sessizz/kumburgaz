@@ -9,6 +9,9 @@ public static class OAuthConstants
 
     public const string McpPolicy = "Mcp";
 
+    // Token'daki Identity güvenlik damgası; şifre değişince ya da sıfırlanınca yenilenir ve eski token'lar reddedilir.
+    public const string SecurityStampClaim = "kumburgaz_security_stamp";
+
     // Dinamik istemci kaydında kabul edilen dönüş adresleri (birebir eşleşme).
     public static readonly IReadOnlySet<string> AllowedRedirectUris = new HashSet<string>(StringComparer.Ordinal)
     {

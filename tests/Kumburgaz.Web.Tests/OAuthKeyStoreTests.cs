@@ -3,6 +3,8 @@ using Kumburgaz.Web.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Server;
 using Xunit;
@@ -46,10 +48,73 @@ public class OAuthKeyStoreTests
         Assert.Equal(0, await db.AuditLogs.CountAsync());
     }
 
-    private static OpenIddictServerOptions Load(IServiceProvider provider, IDataProtectionProvider dataProtection)
+    // Data Protection anahtar halkası kaybolursa eski anahtar açılamaz: site yine açılır, yeni anahtarla devam edilir
+    // (bağlayıcılar yeniden giriş yapar). Açılamayan satırlara dokunulmaz.
+    [Fact]
+    public async Task Unreadable_keys_are_replaced_without_touching_the_old_rows()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        await using var provider = services.BuildServiceProvider();
+        var lostDataProtection = new EphemeralDataProtectionProvider();
+        var lost = Load(provider, lostDataProtection);
+        var oldRows = await ReadRowsAsync(provider);
+        var dataProtection = new EphemeralDataProtectionProvider();
+        var log = new ListLogger();
+
+        var replaced = Load(provider, dataProtection, log);
+
+        Assert.NotEqual(Assert.Single(lost.SigningCredentials).Key.KeyId, Assert.Single(replaced.SigningCredentials).Key.KeyId);
+        Assert.NotEqual(Assert.Single(lost.EncryptionCredentials).Key.KeyId, Assert.Single(replaced.EncryptionCredentials).Key.KeyId);
+        Assert.Equal(2, log.Entries.Count(x => x.Level == LogLevel.Critical));
+        var rows = await ReadRowsAsync(provider);
+        Assert.Equal(4, rows.Count);
+        Assert.Equal(oldRows, rows.Take(2));
+        // Özel anahtar günlüğe yazılmaz.
+        Assert.All(log.Entries, x => Assert.All(rows, row => Assert.DoesNotContain(row.Pem, x.Message)));
+
+        // Sonraki açılışlar yeni anahtarı kullanır; bir daha anahtar üretilmez, uyarı da tekrarlanmaz.
+        var again = new ListLogger();
+        var reloaded = Load(provider, dataProtection, again);
+        Assert.Equal(replaced.SigningCredentials[0].Key.KeyId, reloaded.SigningCredentials[0].Key.KeyId);
+        Assert.Equal(replaced.EncryptionCredentials[0].Key.KeyId, reloaded.EncryptionCredentials[0].Key.KeyId);
+        Assert.Empty(again.Entries);
+
+        // Kayıp halka geri gelirse (ör. yedekten) onun açabildiği eski anahtar kullanılır, yenisi üretilmez.
+        var restored = Load(provider, lostDataProtection);
+        Assert.Equal(lost.SigningCredentials[0].Key.KeyId, restored.SigningCredentials[0].Key.KeyId);
+        Assert.Equal(rows, await ReadRowsAsync(provider));
+    }
+
+    private static async Task<List<(int Id, string Use, string Pem, DateTime CreatedAt)>> ReadRowsAsync(IServiceProvider provider)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        var rows = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().OAuthKeys.OrderBy(x => x.Id).ToListAsync();
+        return rows.Select(x => (x.Id, x.Use, x.ProtectedPrivateKeyPem, x.CreatedAt)).ToList();
+    }
+
+    private static OpenIddictServerOptions Load(
+        IServiceProvider provider, IDataProtectionProvider dataProtection, ILogger<OAuthKeyStore>? logger = null)
     {
         var options = new OpenIddictServerOptions();
-        new OAuthKeyStore(provider.GetRequiredService<IServiceScopeFactory>(), dataProtection).Configure(options);
+        new OAuthKeyStore(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            dataProtection,
+            logger ?? NullLogger<OAuthKeyStore>.Instance).Configure(options);
         return options;
+    }
+
+    private sealed class ListLogger : ILogger<OAuthKeyStore>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            => Entries.Add((logLevel, formatter(state, exception)));
     }
 }

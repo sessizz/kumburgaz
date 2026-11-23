@@ -80,10 +80,14 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         return await users.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
     });
 
+    public Task ResetPasswordAsync(string userName, string newPassword) => WithUserAsync(userName, async (users, user)
+        => await users.ResetPasswordAsync(user, await users.GeneratePasswordResetTokenAsync(user), newPassword));
+
     // Bağlayıcının /mcp'ye ilk çağrısı. Token verilmezse kimliksizdir; browser verilirse onun çerezleri gider.
-    public async Task<HttpResponseMessage> InitializeMcpAsync(string? accessToken = null, HttpClient? browser = null)
+    public async Task<HttpResponseMessage> InitializeMcpAsync(
+        string? accessToken = null, HttpClient? browser = null, string path = "/mcp")
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        using var request = new HttpRequestMessage(HttpMethod.Post, path)
         {
             Content = new StringContent(
                 """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}""",

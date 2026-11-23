@@ -9,7 +9,7 @@ namespace Kumburgaz.Web.Auth;
 public sealed class ConnectorEligibilityRequirement : IAuthorizationRequirement;
 
 /// <summary>
-/// Kullanıcıyı her istekte veritabanından yeniden okur: silinen, kilitlenen ya da uygunluğunu yitiren
+/// Kullanıcıyı her istekte veritabanından yeniden okur: silinen, kilitlenen, şifresi değişen ya da uygunluğunu yitiren
 /// kullanıcının geçerli token'ı süresi dolmadan reddedilir. Token'daki roller değişmez; uygun roller
 /// arasındaki değişiklik token yenilenince etkili olur.
 /// </summary>
@@ -21,7 +21,7 @@ public sealed class ConnectorEligibilityHandler(UserManager<ApplicationUser> use
     {
         var userId = context.User.GetClaim(OpenIddictConstants.Claims.Subject);
         var user = userId is null ? null : await users.FindByIdAsync(userId);
-        if (user is not null && await principals.IsEligibleAsync(user))
+        if (user is not null && await principals.IsEligibleAsync(user, context.User))
         {
             context.Succeed(requirement);
         }

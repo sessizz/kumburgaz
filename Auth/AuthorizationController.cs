@@ -18,6 +18,7 @@ namespace Kumburgaz.Web.Auth;
 [SkipSakinRestriction]
 public class AuthorizationController(
     UserManager<ApplicationUser> users,
+    SignInManager<ApplicationUser> signIn,
     IOpenIddictApplicationManager applications,
     IOpenIddictAuthorizationManager authorizations,
     OAuthPrincipalFactory principals) : Controller
@@ -119,9 +120,9 @@ public class AuthorizationController(
         var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var userId = result.Principal?.GetClaim(Claims.Subject);
         var user = userId is null ? null : await users.FindByIdAsync(userId);
-        var principal = user is null
-            ? null
-            : await principals.CreateAsync(user, result.Principal!.GetScopes(), request.GetResources().FirstOrDefault());
+        var principal = user is not null && await principals.IsEligibleAsync(user, result.Principal!)
+            ? await principals.CreateAsync(user, result.Principal!.GetScopes(), request.GetResources().FirstOrDefault())
+            : null;
         if (principal is null)
         {
             return ForbidWithError(Errors.InvalidGrant, IneligibleMessage);
@@ -132,12 +133,12 @@ public class AuthorizationController(
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    // Çerez, şifre değiştikten sonra en çok 30 dakika daha geçerlidir (SecurityStampValidator). Burada hemen denetlenir:
+    // eski oturum yeni damgalı bir bağlantı kuramasın.
     private async Task<ApplicationUser?> GetSignedInUserAsync()
     {
         var result = await HttpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-        return result is { Succeeded: true, Principal: { } cookiePrincipal }
-            ? await users.GetUserAsync(cookiePrincipal)
-            : null;
+        return result.Succeeded ? await signIn.ValidateSecurityStampAsync(result.Principal) : null;
     }
 
     // Mevcut giriş ekranına gider ve aynı yetkilendirme isteğiyle geri döner.

@@ -11,13 +11,18 @@ namespace Kumburgaz.Web.Auth;
 
 /// <summary>
 /// Bağlayıcı token'larındaki kullanıcı kimliğini kurar. Onayda ve her token alışında (code ya da
-/// refresh) kullanıcı veritabanından yeniden okunur: rolü düşen ya da kilitlenen kullanıcı token alamaz,
-/// yeni token eski rolleri taşımaz.
+/// refresh) kullanıcı veritabanından yeniden okunur: rolü düşen, kilitlenen ya da şifresi değişen kullanıcı token
+/// alamaz, yeni token eski rolleri taşımaz.
 /// </summary>
 public class OAuthPrincipalFactory(UserManager<ApplicationUser> users, IConfiguration config)
 {
-    // Kullanıcı bağlayıcıyı kullanabilir mi? Kuralın tek kaynağı: authorize, token, refresh ve her /mcp isteği.
-    public async Task<bool> IsEligibleAsync(ApplicationUser user) => await GetEligibleRolesAsync(user) is not null;
+    // Verilmiş token (code, refresh ya da access) kullanıcı için hâlâ geçerli mi? Kuralın tek kaynağı: token ucu ve her
+    // /mcp isteği. Kullanıcı uygun kalmalı, güvenlik damgası da token'dakiyle aynı olmalı: şifre değişince ya da
+    // sıfırlanınca damga yenilenir ve önceki bağlantılar kopar. Damgasız token da reddedilir.
+    public async Task<bool> IsEligibleAsync(ApplicationUser user, ClaimsPrincipal token)
+        => token.GetClaim(OAuthConstants.SecurityStampClaim) is { Length: > 0 } stamp
+            && string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal)
+            && await GetEligibleRolesAsync(user) is not null;
 
     // Uygun değilse null (bkz. GetEligibleRolesAsync).
     public async Task<ClaimsPrincipal?> CreateAsync(ApplicationUser user, ImmutableArray<string> scopes, string? resource)
@@ -46,10 +51,12 @@ public class OAuthPrincipalFactory(UserManager<ApplicationUser> users, IConfigur
             .SetClaim(Claims.Name, user.UserName)
             // AuditLog bu adı okur; "(Claude)" eki MCP kaynaklı kayıtları ayırt eder.
             .SetClaim(ApplicationUserClaimsPrincipalFactory.DisplayNameClaimType, $"{displayName} (Claude)")
+            .SetClaim(OAuthConstants.SecurityStampClaim, user.SecurityStamp)
             .SetClaims(Claims.Role, [.. roles]);
 
         identity.SetScopes(scopes);
         identity.SetResources(mcpResource);
+        // Yalnız şifreli (JWE) access token; güvenlik damgası id_token'a ya da yanıta çıkmamalı.
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
 
         return new ClaimsPrincipal(identity);

@@ -7,9 +7,11 @@ using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
 using Xunit;
 
 namespace Kumburgaz.Web.Tests.Integration;
@@ -95,18 +97,20 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     public async Task Mcp_policy_requires_mcp_scope(string? scope, bool expected)
     {
         var user = await _oauth.CreateUserAsync($"mcp-{Guid.NewGuid():N}", Password, AppRoles.MuhasebeGorevli);
-        var identity = new ClaimsIdentity("Bearer", "name", "role");
-        identity.SetClaim(OpenIddictConstants.Claims.Subject, user.Id);
-        if (scope is not null)
-        {
-            identity.SetScopes(scope);
-        }
+        Assert.Equal(expected, await SatisfiesMcpPolicyAsync(user.Id, scope, user.SecurityStamp));
+    }
 
-        using var services = factory.Services.CreateScope();
-        var authorization = services.ServiceProvider.GetRequiredService<IAuthorizationService>();
-        var result = await authorization.AuthorizeAsync(new ClaimsPrincipal(identity), resource: null, OAuthConstants.McpPolicy);
+    // Damgası eski ya da hiç olmayan token (ör. bu kontrolden önce verilmiş) reddedilir.
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(null, false)]
+    public async Task Mcp_policy_requires_current_security_stamp(bool? current, bool expected)
+    {
+        var user = await _oauth.CreateUserAsync($"mcp-{Guid.NewGuid():N}", Password, AppRoles.MuhasebeGorevli);
+        var stamp = current switch { true => user.SecurityStamp, false => "eski-damga", null => null };
 
-        Assert.Equal(expected, result.Succeeded);
+        Assert.Equal(expected, await SatisfiesMcpPolicyAsync(user.Id, OAuthConstants.Scope, stamp));
     }
 
     // Token geçerli olsa da kullanıcı artık uygun değilse erişim, token süresini beklemeden biter.
@@ -128,6 +132,56 @@ public class McpEndpointTests(KumburgazAppFactory factory)
     public Task User_who_lost_staff_role_with_valid_token_is_refused()
         => AssertRefusedAfterAsync(userName => _oauth.WithUserAsync(
             userName, (users, user) => users.RemoveFromRoleAsync(user, AppRoles.MuhasebeGorevli)));
+
+    // Şifresi sıfırlanan ya da değişen kullanıcının eldeki token'ı süresini beklemeden geçersizdir.
+    [Fact]
+    public Task User_with_reset_password_is_refused_with_old_token()
+        => AssertRefusedAfterAsync(userName => _oauth.ResetPasswordAsync(userName, "yeni12345"));
+
+    [Fact]
+    public Task User_with_changed_password_is_refused_with_old_token()
+        => AssertRefusedAfterAsync(userName => _oauth.WithUserAsync(
+            userName, (users, user) => users.ChangePasswordAsync(user, Password, "yeni12345")));
+
+    // Token yalnız Authorization başlığından okunur: adres çubuğu, günlük ve form gövdesinde token taşınmaz.
+    [Fact]
+    public async Task Mcp_does_not_accept_token_from_query_string()
+    {
+        var tokens = await _oauth.GetTokensAsync(await CreateUserAsync(AppRoles.MuhasebeGorevli), Password);
+
+        var response = await _oauth.InitializeMcpAsync(path: $"/mcp?access_token={tokens.AccessToken}");
+
+        AssertMcpChallenge(response);
+    }
+
+    // Form gövdesi /mcp'ye bugün zaten ulaşmaz (uç yalnız JSON kabul eder, 415); ayar doğrudan denetlenir.
+    [Fact]
+    public void Token_is_extracted_only_from_the_authorization_header()
+    {
+        var options = factory.Services.GetRequiredService<IOptionsMonitor<OpenIddictValidationAspNetCoreOptions>>().CurrentValue;
+
+        Assert.True(options.DisableAccessTokenExtractionFromQueryString);
+        Assert.True(options.DisableAccessTokenExtractionFromBodyForm);
+        Assert.False(options.DisableAccessTokenExtractionFromAuthorizationHeader);
+    }
+
+    // İptal sırasında yenilenen token'ın kendi kaydı iptal edilmemiş olabilir: bağlantının kendisi iptalse yetmez.
+    [Fact]
+    public async Task Token_of_a_revoked_authorization_is_refused_even_if_its_own_entry_is_valid()
+    {
+        var user = await _oauth.CreateUserAsync($"mcp-{Guid.NewGuid():N}", Password, AppRoles.MuhasebeGorevli);
+        var tokens = await _oauth.GetTokensAsync(user.UserName!, Password);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var authorizations = scope.ServiceProvider.GetRequiredService<IOpenIddictAuthorizationManager>();
+            var authorization = Assert.Single(await authorizations.FindBySubjectAsync(user.Id).ToListAsync());
+            Assert.True(await authorizations.TryRevokeAsync(authorization));
+        }
+
+        AssertMcpChallenge(await _oauth.InitializeMcpAsync(tokens.AccessToken));
+    }
 
     [Fact]
     public async Task Authenticated_client_lists_tools_and_reads_instructions()
@@ -283,6 +337,21 @@ public class McpEndpointTests(KumburgazAppFactory factory)
             _oauth.CreateBrowser(),
             ownsHttpClient: true);
         return await McpClient.CreateAsync(transport);
+    }
+
+    private async Task<bool> SatisfiesMcpPolicyAsync(string userId, string? scope, string? securityStamp)
+    {
+        var identity = new ClaimsIdentity("Bearer", "name", "role");
+        identity.SetClaim(OpenIddictConstants.Claims.Subject, userId);
+        identity.SetClaim(OAuthConstants.SecurityStampClaim, securityStamp);
+        if (scope is not null)
+        {
+            identity.SetScopes(scope);
+        }
+
+        using var services = factory.Services.CreateScope();
+        var authorization = services.ServiceProvider.GetRequiredService<IAuthorizationService>();
+        return (await authorization.AuthorizeAsync(new ClaimsPrincipal(identity), resource: null, OAuthConstants.McpPolicy)).Succeeded;
     }
 
     // Değişiklikten önce 200, sonra 403; aynı anda bağlı başka kullanıcı etkilenmez.

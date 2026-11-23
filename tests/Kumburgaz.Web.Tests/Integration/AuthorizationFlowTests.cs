@@ -1,8 +1,12 @@
+using System.Buffers.Text;
 using System.Net;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
+using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation;
@@ -297,6 +301,128 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(Errors.InvalidGrant, await ReadErrorAsync(response));
+    }
+
+    // Şifre sıfırlanınca ya da değişince verilmiş refresh token'lar ölür; kullanıcı yeni şifresiyle yeniden bağlanır.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Refresh_fails_after_password_reset_or_change_until_user_reconnects(bool reset)
+    {
+        const string newPassword = "yeni12345";
+        var userName = NewUserName("muhasebe");
+        var otherName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        await _oauth.CreateUserAsync(otherName, Password, AppRoles.MuhasebeGorevli);
+        var tokens = await _oauth.GetTokensAsync(userName, Password);
+        var otherTokens = await _oauth.GetTokensAsync(otherName, Password);
+
+        if (reset)
+        {
+            await _oauth.ResetPasswordAsync(userName, newPassword);
+        }
+        else
+        {
+            await _oauth.WithUserAsync(userName, (users, user) => users.ChangePasswordAsync(user, Password, newPassword));
+        }
+
+        var refused = await _oauth.RefreshAsync(tokens.ClientId, tokens.RefreshToken);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal(Errors.InvalidGrant, await ReadErrorAsync(refused));
+
+        // Şifresi değişmeyen kullanıcı etkilenmez.
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.RefreshAsync(otherTokens.ClientId, otherTokens.RefreshToken)).StatusCode);
+
+        var reconnected = await _oauth.GetTokensAsync(userName, newPassword);
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(reconnected.AccessToken)).StatusCode);
+        var refreshed = await OAuthTestClient.ReadTokensAsync(
+            reconnected.ClientId, await _oauth.RefreshAsync(reconnected.ClientId, reconnected.RefreshToken));
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(refreshed.AccessToken)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Code_exchange_fails_after_password_reset()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+        var authorization = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+        Assert.NotNull(authorization.Code);
+
+        await _oauth.ResetPasswordAsync(userName, "yeni12345");
+        var response = await _oauth.ExchangeCodeAsync(clientId, authorization.Code!, authorization.CodeVerifier);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(Errors.InvalidGrant, await ReadErrorAsync(response));
+    }
+
+    // Çerez oturumu şifre sıfırlandıktan sonra bir süre daha açık kalır; onunla yeni bağlantı kurulamaz, yeniden giriş istenir.
+    [Fact]
+    public async Task Login_session_from_before_password_reset_cannot_authorize()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+        var browser = _oauth.CreateBrowser();
+        Assert.NotNull((await _oauth.AuthorizeAsync(browser, clientId, userName, Password)).Code);
+
+        await _oauth.ResetPasswordAsync(userName, "yeni12345");
+        var (url, _) = OAuthTestClient.CreateAuthorizeRequest(clientId);
+        var response = await browser.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/Identity/Account/Login", response.Headers.Location!.OriginalString);
+        Assert.NotNull((await _oauth.AuthorizeAsync(browser, clientId, userName, "yeni12345")).Code);
+    }
+
+    // Güvenlik damgası yalnız şifreli token'ların içindedir: yanıtta düz metin olarak, id_token'da ya da başka yerde görünmez.
+    [Fact]
+    public async Task Security_stamp_is_carried_only_inside_encrypted_tokens()
+    {
+        var userName = NewUserName("muhasebe");
+        var user = await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+        var authorization = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+
+        var response = await _oauth.ExchangeCodeAsync(clientId, authorization.Code!, authorization.CodeVerifier);
+        var body = await response.Content.ReadAsStringAsync();
+        var tokens = await OAuthTestClient.ReadTokensAsync(clientId, response);
+
+        Assert.Equal(user.SecurityStamp, (await ValidateAccessTokenAsync(tokens.AccessToken)).GetClaim(OAuthConstants.SecurityStampClaim));
+        Assert.DoesNotContain(user.SecurityStamp!, body);
+        Assert.DoesNotContain("id_token", body);
+        Assert.DoesNotContain(user.SecurityStamp!, authorization.Callback.ToString());
+        foreach (var token in new[] { tokens.AccessToken, tokens.RefreshToken })
+        {
+            // JWE (beş parça): içerik şifreli; okunabilen tek parça başlıktır.
+            var parts = token.Split('.');
+            Assert.Equal(5, parts.Length);
+            Assert.DoesNotContain(user.SecurityStamp!, Encoding.UTF8.GetString(Base64Url.DecodeFromChars(parts[0])));
+        }
+    }
+
+    // Onay POST'u antiforgery ister: başka siteden gönderilen form kullanıcının adına izin veremez.
+    [Fact]
+    public async Task Consent_post_without_antiforgery_token_is_rejected()
+    {
+        var userName = NewUserName("muhasebe");
+        var user = await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var clientId = await _oauth.RegisterClientAsync();
+        var browser = _oauth.CreateBrowser();
+        await OAuthTestClient.LoginAsync(browser, userName, Password);
+        var (url, _) = OAuthTestClient.CreateAuthorizeRequest(clientId);
+        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(url)).StatusCode);
+
+        var form = QueryHelpers.ParseQuery(new Uri(new Uri("https://localhost"), url).Query)
+            .ToDictionary(x => x.Key, x => x.Value.ToString());
+        form["submit"] = "accept";
+        var response = await browser.PostAsync("/connect/authorize", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var authorizations = scope.ServiceProvider.GetRequiredService<IOpenIddictAuthorizationManager>();
+        Assert.Empty(await authorizations.FindBySubjectAsync(user.Id).ToListAsync());
     }
 
     [Fact]

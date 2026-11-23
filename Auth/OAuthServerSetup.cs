@@ -57,11 +57,16 @@ public static class OAuthServerSetup
             .AddValidation(options =>
             {
                 options.UseLocalServer();
-                options.UseAspNetCore();
+                // Token yalnız Authorization başlığından: adres ve form gövdesi günlüklere, geçmişe düşer.
+                options.UseAspNetCore()
+                    .DisableAccessTokenExtractionFromQueryString()
+                    .DisableAccessTokenExtractionFromBodyForm();
                 options.AddAudiences(config.GetMcpResource());
                 // İptal edilen bağlantının token'ı süresi dolmadan geçersiz olsun (bkz. ConnectedAppsController);
-                // aksi halde yalnız imza, süre ve audience'a bakılır.
+                // aksi halde yalnız imza, süre ve audience'a bakılır. Bağlantının kendisi de denetlenir: iptal sırasında
+                // yenilenen token'ın kaydı iptal edilmemiş olabilir.
                 options.EnableTokenEntryValidation();
+                options.EnableAuthorizationEntryValidation();
             });
 
         // İmzalama/şifreleme anahtarları veritabanından (bkz. OAuthKeyStore).

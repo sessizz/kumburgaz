@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Kumburgaz.Web.Models;
 
 namespace Kumburgaz.Web.Auth;
@@ -31,7 +32,7 @@ public static class OAuthConstants
     // bilgisayarın kendisine (loopback) giden düz http adres. Yetki kodu yerel adrese gittiği için
     // başka bir makine ele geçiremez; PKCE zaten zorunlu. Kayıttan sonra authorize/token isteğindeki
     // adres OpenIddict tarafından kayıtlı adresle birebir karşılaştırılır (port dahil).
-    public static bool IsAllowedRedirectUri(string? value)
+    public static bool IsAllowedRedirectUri([NotNullWhen(true)] string? value)
     {
         if (string.IsNullOrEmpty(value))
         {

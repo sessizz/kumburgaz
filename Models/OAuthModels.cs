@@ -20,6 +20,7 @@ public class OAuthKey
 
 // MCP yazma araçlarının tekrar koruması: aynı kullanıcı + araç + anahtar yeniden gelirse
 // yeni kayıt açılmaz, ilk çağrının sonucu döner. Anahtar (UserId, Tool, Key) bileşik birincil anahtardır.
+// Harcanmış önizlemeler de burada durur: Tool "preview:{araç}", Key önizleme token'ının nonce'u.
 public class McpIdempotencyKey
 {
     [Required, MaxLength(450)]

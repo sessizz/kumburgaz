@@ -8,13 +8,17 @@ namespace Kumburgaz.Web.Mcp;
 
 /// <summary>
 /// Yazma araçlarının tekrar koruması: aynı kullanıcı + araç + anahtar 24 saat içinde yeniden gelirse yeni kayıt
-/// açılmaz, ilk sonuç döner. Anahtar satırı kayıtla aynı işlemde (transaction) ve kayıttan önce yazılır; eşzamanlı
-/// iki çağrıdan biri birincil anahtarda çakışır ya da bekler, bu yüzden tek kayıt oluşur.
+/// açılmaz, ilk sonuç döner. Önizleme (nonce) de aynı biçimde saklanır: bir önizleme, hangi anahtarla gelirse gelsin bir
+/// kez yazar. Anahtar ve önizleme satırları kayıtla aynı işlemde (transaction) ve kayıttan önce yazılır; eşzamanlı iki
+/// çağrıdan biri birincil anahtarda çakışır ya da bekler, bu yüzden tek kayıt oluşur.
 /// </summary>
 public class McpIdempotencyStore(ApplicationDbContext db)
 {
     private const int MinKeyLength = 8;
     private const int MaxKeyLength = 100;
+
+    // Önizleme satırlarının araç adı öneki; anahtarı istemci seçtiği için ayrım anahtarda değil araç adındadır.
+    private const string PreviewPrefix = "preview:";
 
     private static readonly TimeSpan Retention = TimeSpan.FromHours(24);
 
@@ -45,14 +49,7 @@ public class McpIdempotencyStore(ApplicationDbContext db)
     public async Task SaveAsync(string userId, string tool, string key, string resultJson)
     {
         await PurgeExpiredAsync();
-        db.McpIdempotencyKeys.Add(new McpIdempotencyKey
-        {
-            UserId = userId,
-            Tool = tool,
-            Key = key,
-            ResultJson = resultJson,
-            CreatedAt = DateTime.UtcNow
-        });
+        db.McpIdempotencyKeys.Add(NewRow(userId, tool, key, resultJson));
         await db.SaveChangesAsync();
     }
 
@@ -74,13 +71,19 @@ public class McpIdempotencyStore(ApplicationDbContext db)
                 "Bu idempotency_key farklı bir işlem için kullanılmış; yeni işlem için yeni bir anahtar gönderin.");
     }
 
+    // Önizlemenin daha önce yazdığı kaydın sonucu; henüz yazmadıysa null.
+    public Task<TResult?> TryReplayPreviewAsync<TResult>(string userId, string tool, string previewNonce, string fingerprint)
+        where TResult : class => TryReplayAsync<TResult>(userId, PreviewPrefix + tool, previewNonce, fingerprint);
+
     /// <summary>
-    /// write'ı anahtar başına bir kez çalıştırır. Anahtar, kayıt ve sonuç birlikte kaydedilir; hata olursa hiçbiri
-    /// kalmaz ve anahtar yeniden kullanılabilir. Anahtarı eşzamanlı başka bir çağrı aldıysa onun sonucu döner.
+    /// write'ı anahtar ve önizleme başına bir kez çalıştırır. Anahtar, önizleme, kayıt ve sonuç birlikte kaydedilir; hata
+    /// olursa hiçbiri kalmaz, anahtar da önizleme de yeniden kullanılabilir. Anahtarı ya da önizlemeyi eşzamanlı başka bir
+    /// çağrı aldıysa onun sonucu döner; bu çağrının ötekini harcaması da geri alınır.
     /// </summary>
     public async Task<TResult> RunOnceAsync<TResult>(
-        string userId, string tool, string key, string fingerprint, Func<Task<TResult>> write) where TResult : class
+        string userId, string tool, string key, string previewNonce, string fingerprint, Func<Task<TResult>> write) where TResult : class
     {
+        (string Tool, string Key)[] reservations = [(PreviewPrefix + tool, previewNonce), (tool, key)];
         DbUpdateException? conflict = null;
 
         // InMemory (birim testleri) işlem desteklemez. Commit edilmeden çıkılırsa dispose geri alır.
@@ -88,7 +91,10 @@ public class McpIdempotencyStore(ApplicationDbContext db)
         {
             try
             {
-                await SaveAsync(userId, tool, key, Pack<TResult>(fingerprint, null));
+                var pending = Pack<TResult>(fingerprint, null);
+                // Önizleme satırı SaveAsync'in kaydına katılır: ikisi birlikte ayrılır.
+                db.McpIdempotencyKeys.Add(NewRow(userId, PreviewPrefix + tool, previewNonce, pending));
+                await SaveAsync(userId, tool, key, pending);
             }
             catch (DbUpdateException ex)
             {
@@ -100,8 +106,12 @@ public class McpIdempotencyStore(ApplicationDbContext db)
                 try
                 {
                     var result = await write();
-                    var reserved = await db.McpIdempotencyKeys.FindAsync(userId, tool, key);
-                    reserved!.ResultJson = Pack(fingerprint, result);
+                    var packed = Pack(fingerprint, result);
+                    foreach (var reservation in reservations)
+                    {
+                        (await db.McpIdempotencyKeys.FindAsync(userId, reservation.Tool, reservation.Key))!.ResultJson = packed;
+                    }
+
                     await db.SaveChangesAsync();
                     if (transaction is not null)
                     {
@@ -116,7 +126,10 @@ public class McpIdempotencyStore(ApplicationDbContext db)
                     db.ChangeTracker.Clear();
                     if (transaction is null)
                     {
-                        await ReleaseAsync(userId, tool, key);
+                        foreach (var reservation in reservations)
+                        {
+                            await ReleaseAsync(userId, reservation.Tool, reservation.Key);
+                        }
                     }
 
                     throw;
@@ -127,6 +140,7 @@ public class McpIdempotencyStore(ApplicationDbContext db)
         // Çakışmalı işlem burada geri alınmış durumda (Npgsql'de hatalı işlemde sorgu çalışmaz); kazanan okunabilir.
         db.ChangeTracker.Clear();
         return await TryReplayAsync<TResult>(userId, tool, key, fingerprint)
+            ?? await TryReplayPreviewAsync<TResult>(userId, tool, previewNonce, fingerprint)
             ?? throw new DbUpdateException(conflict.Message, conflict);
     }
 
@@ -153,6 +167,15 @@ public class McpIdempotencyStore(ApplicationDbContext db)
             await db.SaveChangesAsync();
         }
     }
+
+    private static McpIdempotencyKey NewRow(string userId, string tool, string key, string resultJson) => new()
+    {
+        UserId = userId,
+        Tool = tool,
+        Key = key,
+        ResultJson = resultJson,
+        CreatedAt = DateTime.UtcNow
+    };
 
     private static string Pack<TResult>(string fingerprint, TResult? result) where TResult : class
         => JsonSerializer.Serialize(new StoredResult<TResult>(fingerprint, result), JsonSerializerOptions.Web);

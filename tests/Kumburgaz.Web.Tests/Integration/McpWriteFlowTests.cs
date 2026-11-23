@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using Kumburgaz.Web.Data;
-using Kumburgaz.Web.Mcp;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -165,15 +164,42 @@ public class McpWriteFlowTests(KumburgazAppFactory factory)
             && x.EntityId == id.ToString(CultureInfo.InvariantCulture) && x.Action == AuditAction.Create));
     }
 
-    // Claude araçları paralel çağırabilir: farklı anahtarlı eşzamanlı tahsilatlar aynı borcu iki kez kapatmaz.
+    // Tek önizleme tek kayıt: aynı onayla, her biri yeni anahtarlı eşzamanlı çağrılardan yalnız biri yazar.
     [Fact]
-    public async Task Parallel_collections_with_different_keys_do_not_over_allocate_the_debt()
+    public async Task Simultaneous_confirm_calls_with_one_preview_and_different_keys_create_exactly_one_collection()
     {
         var seed = await SeedAsync();
         await using var client = await ConnectAsync(AppRoles.MuhasebeGorevli);
         var token = PreviewToken(await CallAsync(client, "record_collection", Collection(seed, 900)));
+        var keys = Enumerable.Range(0, 8).Select(_ => NewKey()).ToList();
 
-        var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(
+        var results = await Task.WhenAll(keys.Select(key => Task.Run(
+            () => CallAsync(client, "record_collection", Confirmed(Collection(seed, 900), token, key)))));
+
+        Assert.Single(results.Select(x => x.GetRawText()).Distinct());
+        Assert.Equal(1, await CountCollectionsAsync(seed));
+        var allocations = await AllocationsAsync(seed);
+        Assert.All(allocations, x => Assert.Equal(results[0].GetProperty("id").GetInt32(), x.CollectionId));
+        Assert.Equal(900m, allocations.Sum(x => x.AppliedAmount));
+        // Yalnız yazan çağrının anahtarı harcanır.
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Single(await db.McpIdempotencyKeys.AsNoTracking().Where(x => keys.Contains(x.Key)).ToListAsync());
+    }
+
+    // Claude araçları paralel çağırabilir: ayrı onaylı eşzamanlı tahsilatlar aynı borcu iki kez kapatmaz.
+    [Fact]
+    public async Task Parallel_collections_with_separate_previews_do_not_over_allocate_the_debt()
+    {
+        var seed = await SeedAsync();
+        await using var client = await ConnectAsync(AppRoles.MuhasebeGorevli);
+        var tokens = new List<string>();
+        for (var i = 0; i < 4; i++)
+        {
+            tokens.Add(PreviewToken(await CallAsync(client, "record_collection", Collection(seed, 900))));
+        }
+
+        var results = await Task.WhenAll(tokens.Select(token => Task.Run(
             () => CallAsync(client, "record_collection", Confirmed(Collection(seed, 900), token, NewKey())))));
 
         Assert.Equal(4, results.Select(x => x.GetProperty("id").GetInt32()).Distinct().Count());
@@ -192,9 +218,7 @@ public class McpWriteFlowTests(KumburgazAppFactory factory)
         var input = Collection(seed);
         var token = PreviewToken(await CallAsync(client, "record_collection", input));
         var foreign = PreviewToken(await CallAsync(other, "record_collection", input));
-        var protector = factory.Services.GetRequiredService<IDataProtectionProvider>()
-            .CreateProtector(McpPreviewTokens.Purpose).ToTimeLimitedDataProtector();
-        var expired = protector.Protect(protector.Unprotect(token), TimeSpan.FromSeconds(-1));
+        var expired = new PreviewTokenEditor(factory.Services.GetRequiredService<IDataProtectionProvider>()).Expired(token);
 
         foreach (var rejected in new[]
                  {

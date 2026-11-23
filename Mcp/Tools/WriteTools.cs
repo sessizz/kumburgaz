@@ -66,7 +66,8 @@ public class WriteTools(
     private const string ConfirmFlow =
         " Önce confirm: false ile çağırın: hiçbir şey yazmaz, yazılacakları ve previewToken'ı döner; önizlemeyi kullanıcıya gösterin. "
         + "Kullanıcı açıkça onaylayınca aynı girdilerle confirm: true çağırın; preview_token (önizlemenin previewToken'ı) ve idempotency_key zorunludur. "
-        + "Önizleme 30 dakika geçerlidir; girdi değişirse yeniden önizleyin. Kayıtta id ve link döner.";
+        + "Önizleme 30 dakika geçerlidir; girdi değişirse yeniden önizleyin. Bir önizleme bir kayıt açar: aynı preview_token ile yapılan ikinci çağrı, "
+        + "anahtar farklı olsa da ilk kaydın sonucunu döner; aynısı gerçekten ikinci kez yapılacaksa yeniden önizleyip onay alın. Kayıtta id ve link döner.";
 
     private const string AmountHelp = "Tutar (TL): sayı ya da \"2.500,00\" gibi Türkçe metin. Sıfırdan büyük, en fazla 2 ondalık.";
     private const string AccountHelp = "Kasa/banka: cash:{id} ya da bank:{id} (cash_bank_accounts sonucundan).";
@@ -184,8 +185,10 @@ public class WriteTools(
             });
     }
 
-    // key yoksa önizleme. Kayıtta sıra: saklı sonuç (önizlemenin süresi dolmuş olsa da), önizleme kontrolü, yazma.
-    // Veritabanı durumuna bakan kontroller saklı sonuçtan sonra gelir: ilk çağrının kapattığı taksit tekrarı engellemez.
+    // key yoksa önizleme. Kayıtta sıra: anahtarın saklı sonucu (token eksik ya da süresi dolmuş olsa da), token kontrolü,
+    // önizlemenin saklı sonucu, süre kontrolü, yazma. Önizlemenin sonucu süreden önce gelir: zaman aşımından sonra yeni
+    // anahtarla tekrar denemeye "yeniden önizleyin" denirse kullanıcı yazılmış ödemeyi ikinci kez onaylar.
+    // Veritabanı durumuna bakan kontroller saklı sonuçlardan sonra gelir: ilk çağrının kapattığı taksit tekrarı engellemez.
     // İptal jetonu bilerek yok: istemci koparsa başlamış kayıt tamamlanır, tekrar deneme saklı sonucu alır.
     private async Task<WriteResult> RunAsync<TInput>(
         ClaimsPrincipal user, string tool, TInput input, string? key, string? previewToken,
@@ -206,8 +209,14 @@ public class WriteTools(
                 return stored;
             }
 
-            previewTokens.Require(previewToken, userId, tool, fingerprint);
-            return await idempotency.RunOnceAsync(userId, tool, key, fingerprint, write);
+            var approval = previewTokens.Read(previewToken, userId, tool, fingerprint);
+            if (await idempotency.TryReplayPreviewAsync<WriteReceipt>(userId, tool, approval.Nonce, fingerprint) is { } written)
+            {
+                return written;
+            }
+
+            approval.RequireUnexpired();
+            return await idempotency.RunOnceAsync(userId, tool, key, approval.Nonce, fingerprint, write);
         }
         catch (InvalidOperationException ex) when (ex.Source == OwnAssemblyName)
         {

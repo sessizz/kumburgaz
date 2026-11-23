@@ -14,6 +14,9 @@ public sealed class McpIdempotencyStoreTests : IDisposable
     private const string UserId = "user-1";
     private const string Tool = "create_expense";
     private const string Key = "key-12345";
+    private const string OtherKey = "key-67890";
+    private const string Preview = "nonce-1";
+    private const string OtherPreview = "nonce-2";
     private const string Fingerprint = "fp-1";
 
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"kumburgaz-idem-{Guid.NewGuid():N}.db");
@@ -66,11 +69,32 @@ public sealed class McpIdempotencyStoreTests : IDisposable
         var store = new McpIdempotencyStore(db);
 
         Assert.Null(await store.TryReplayAsync<Result>(UserId, Tool, Key, Fingerprint));
-        var first = await store.RunOnceAsync(UserId, Tool, Key, Fingerprint, () => Task.FromResult(new Result(7)));
+        var first = await RunAsync(db, () => Task.FromResult(new Result(7)));
         var replay = await store.TryReplayAsync<Result>(UserId, Tool, Key, Fingerprint);
 
         Assert.Equal(new Result(7), first);
         Assert.Equal(new Result(7), replay);
+    }
+
+    // Önizleme de anahtar gibi saklanır: aynı kullanıcı ve araçta ilk sonucu, başkasında hiçbir şey döner.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Preview_replay_returns_the_result_it_wrote(bool sqlite)
+    {
+        await using var db = sqlite ? OpenDb() : InMemoryDb();
+        var store = new McpIdempotencyStore(db);
+
+        Assert.Null(await store.TryReplayPreviewAsync<Result>(UserId, Tool, Preview, Fingerprint));
+        await RunAsync(db, () => Task.FromResult(new Result(7)));
+
+        Assert.Equal(new Result(7), await store.TryReplayPreviewAsync<Result>(UserId, Tool, Preview, Fingerprint));
+        Assert.Null(await store.TryReplayPreviewAsync<Result>(UserId, Tool, OtherPreview, Fingerprint));
+        Assert.Null(await store.TryReplayPreviewAsync<Result>(UserId, "create_income", Preview, Fingerprint));
+        Assert.Null(await store.TryReplayPreviewAsync<Result>("user-2", Tool, Preview, Fingerprint));
+        // Önizleme satırı anahtar yerine geçmez.
+        Assert.Null(await store.TryReplayAsync<Result>(UserId, Tool, Preview, Fingerprint));
+        await Assert.ThrowsAsync<McpException>(() => store.TryReplayPreviewAsync<Result>(UserId, Tool, Preview, "fp-2"));
     }
 
     [Theory]
@@ -80,7 +104,7 @@ public sealed class McpIdempotencyStoreTests : IDisposable
     {
         await using var db = sqlite ? OpenDb() : InMemoryDb();
         var store = new McpIdempotencyStore(db);
-        await store.RunOnceAsync(UserId, Tool, Key, Fingerprint, () => Task.FromResult(new Result(7)));
+        await RunAsync(db, () => Task.FromResult(new Result(7)));
 
         var ex = await Assert.ThrowsAsync<McpException>(() => store.TryReplayAsync<Result>(UserId, Tool, Key, "fp-2"));
 
@@ -115,14 +139,48 @@ public sealed class McpIdempotencyStoreTests : IDisposable
         await RunAsync(first, () => AddCashBoxAsync(first, "Kazanan"));
 
         await Assert.ThrowsAsync<McpException>(() => new McpIdempotencyStore(second).RunOnceAsync(
-            UserId, Tool, Key, "fp-2", () => AddCashBoxAsync(second, "Kaybeden")));
+            UserId, Tool, Key, OtherPreview, "fp-2", () => AddCashBoxAsync(second, "Kaybeden")));
 
         Assert.Equal(0, await CountCashBoxesAsync("Kaybeden"));
     }
 
-    // İlk çağrı henüz yazarken gelen ikinci çağrı bekler, sonra ilkin sonucunu döner.
+    // Aynı önizleme, farklı anahtar: geç kalan yazmaz, kazananın sonucunu döner ve kendi anahtarını harcamaz.
     [Fact]
-    public async Task Overlapping_run_waits_and_returns_winners_result()
+    public async Task Conflicting_run_with_same_preview_and_other_key_returns_winners_result()
+    {
+        await using var first = OpenDb();
+        await using var second = OpenDb();
+        await RunAsync(first, () => AddCashBoxAsync(first, "Kazanan"));
+
+        var result = await RunAsync(second, () => AddCashBoxAsync(second, "Kaybeden"), OtherKey);
+
+        Assert.Equal(await SingleCashBoxIdAsync("Kazanan"), result.Id);
+        Assert.Equal(0, await CountCashBoxesAsync("Kaybeden"));
+        Assert.Null(await new McpIdempotencyStore(second).TryReplayAsync<Result>(UserId, Tool, OtherKey, Fingerprint));
+        var later = await RunAsync(second, () => AddCashBoxAsync(second, "Yeni onay"), OtherKey, OtherPreview);
+        Assert.Equal(await SingleCashBoxIdAsync("Yeni onay"), later.Id);
+    }
+
+    // Aynı anahtar, farklı önizleme: kazananın sonucu döner, ikinci önizleme harcanmaz.
+    [Fact]
+    public async Task Conflicting_run_with_same_key_and_other_preview_does_not_spend_the_preview()
+    {
+        await using var first = OpenDb();
+        await using var second = OpenDb();
+        await RunAsync(first, () => AddCashBoxAsync(first, "Kazanan"));
+
+        var result = await RunAsync(second, () => AddCashBoxAsync(second, "Kaybeden"), Key, OtherPreview);
+
+        Assert.Equal(await SingleCashBoxIdAsync("Kazanan"), result.Id);
+        Assert.Null(await new McpIdempotencyStore(second).TryReplayPreviewAsync<Result>(UserId, Tool, OtherPreview, Fingerprint));
+    }
+
+    // İlk çağrı henüz yazarken aynı anahtarla ya da aynı önizlemeyle gelen ikinci çağrı bekler, sonra ilkin sonucunu döner.
+    [Theory]
+    [InlineData(Key, Preview)]
+    [InlineData(OtherKey, Preview)]
+    [InlineData(Key, OtherPreview)]
+    public async Task Overlapping_run_waits_and_returns_winners_result(string key, string preview)
     {
         await using var first = OpenDb();
         Task<Result>? overlapping = null;
@@ -130,7 +188,7 @@ public sealed class McpIdempotencyStoreTests : IDisposable
 
         var winner = await RunAsync(first, async () =>
         {
-            overlapping = StartOverlapping(() => overlappingRan = true);
+            overlapping = StartOverlapping(() => overlappingRan = true, key, preview);
             await Task.Delay(300);
             Assert.False(overlapping.IsCompleted);
             return await AddCashBoxAsync(first, "Kazanan");
@@ -143,16 +201,18 @@ public sealed class McpIdempotencyStoreTests : IDisposable
         Assert.Equal(0, await CountCashBoxesAsync("Eşzamanlı"));
     }
 
-    // İlk çağrı başarısız olursa bekleyen çağrı anahtarı alıp kendisi yazar.
-    [Fact]
-    public async Task Overlapping_run_writes_when_first_one_fails()
+    // İlk çağrı başarısız olursa bekleyen çağrı anahtarı ve önizlemeyi alıp kendisi yazar.
+    [Theory]
+    [InlineData(Key)]
+    [InlineData(OtherKey)]
+    public async Task Overlapping_run_writes_when_first_one_fails(string key)
     {
         await using var first = OpenDb();
         Task<Result>? overlapping = null;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync(first, async () =>
         {
-            overlapping = StartOverlapping(() => { });
+            overlapping = StartOverlapping(() => { }, key, Preview);
             await AddCashBoxAsync(first, "Başarısız");
             await Task.Delay(300);
             throw new InvalidOperationException("yazılamadı");
@@ -178,6 +238,7 @@ public sealed class McpIdempotencyStoreTests : IDisposable
         Assert.Equal(0, await db.McpIdempotencyKeys.CountAsync());
         Assert.Equal(0, await db.AuditLogs.CountAsync());
         Assert.Null(await new McpIdempotencyStore(db).TryReplayAsync<Result>(UserId, Tool, Key, Fingerprint));
+        Assert.Null(await new McpIdempotencyStore(db).TryReplayPreviewAsync<Result>(UserId, Tool, Preview, Fingerprint));
 
         var retried = await RunAsync(db, () => AddCashBoxAsync(db, "Tam"));
         Assert.Equal(await SingleCashBoxIdAsync("Tam"), retried.Id);
@@ -268,18 +329,19 @@ public sealed class McpIdempotencyStoreTests : IDisposable
 
     private sealed record Result(int Id);
 
-    private static Task<Result> RunAsync(ApplicationDbContext db, Func<Task<Result>> write)
-        => new McpIdempotencyStore(db).RunOnceAsync(UserId, Tool, Key, Fingerprint, write);
+    private static Task<Result> RunAsync(
+        ApplicationDbContext db, Func<Task<Result>> write, string key = Key, string preview = Preview)
+        => new McpIdempotencyStore(db).RunOnceAsync(UserId, Tool, key, preview, Fingerprint, write);
 
-    // Ayrı bağlamda (ayrı istek gibi) aynı anahtarla çalışır; SQLite beklemesi iş parçacığını tutar.
-    private Task<Result> StartOverlapping(Action onWrite) => Task.Run(async () =>
+    // Ayrı bağlamda (ayrı istek gibi) çalışır; SQLite beklemesi iş parçacığını tutar.
+    private Task<Result> StartOverlapping(Action onWrite, string key, string preview) => Task.Run(async () =>
     {
         await using var db = OpenDb();
         return await RunAsync(db, () =>
         {
             onWrite();
             return AddCashBoxAsync(db, "Eşzamanlı");
-        });
+        }, key, preview);
     });
 
     private static async Task<Result> AddCashBoxAsync(ApplicationDbContext db, string name)

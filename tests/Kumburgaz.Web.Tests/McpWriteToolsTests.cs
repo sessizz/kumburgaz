@@ -27,6 +27,7 @@ public class McpWriteToolsTests
     private const string BadAccount = "Geçerli bir kasa/banka hesabı seçiniz.";
 
     private static readonly IDataProtectionProvider DataProtection = new EphemeralDataProtectionProvider();
+    private static readonly PreviewTokenEditor Tokens = new(DataProtection);
 
     [Fact]
     public async Task Record_collection_preview_writes_nothing()
@@ -64,7 +65,7 @@ public class McpWriteToolsTests
         Assert.Equal(1_000m, await db.DuesInstallments.SumAsync(x => x.RemainingAmount));
     }
 
-    // Ağ yeniden denemesi: aynı anahtar tek kayıt, farklı anahtar ayrı kayıt.
+    // Ağ yeniden denemesi: aynı anahtar tek kayıt; yeni önizleme ve yeni anahtar ayrı kayıt.
     // İlk kayıt dönemi kapattığı için tekrar, dönem kontrolüne takılmadan saklı sonucu dönmeli.
     [Fact]
     public async Task Record_collection_confirm_creates_once_per_idempotency_key()
@@ -92,11 +93,75 @@ public class McpWriteToolsTests
         Assert.Equal(seed.CashId, saved.CashBoxId);
         Assert.Equal(PaymentChannel.Cash, saved.PaymentChannel);
 
-        var generalToken = (await PreviewAsync(tools, seed, amount: "100")).PreviewToken;
-        var second = await ConfirmAsync(tools, seed, generalToken, OtherKey, amount: "100");
-        var third = await ConfirmAsync(tools, seed, generalToken, "key-00000003", amount: "100");
+        var secondToken = (await PreviewAsync(tools, seed, amount: "100")).PreviewToken;
+        var thirdToken = (await PreviewAsync(tools, seed, amount: "100")).PreviewToken;
+        var second = await ConfirmAsync(tools, seed, secondToken, OtherKey, amount: "100");
+        var third = await ConfirmAsync(tools, seed, thirdToken, "key-00000003", amount: "100");
         Assert.Equal(3, new HashSet<int> { first.Id, second.Id, third.Id }.Count);
         Assert.Equal(3, await db.Collections.CountAsync());
+    }
+
+    // Tek onay tek kayıttır: zaman aşımından sonra yeni anahtarla gelen aynı önizleme ilk kaydın sonucunu alır.
+    [Fact]
+    public async Task Preview_token_writes_one_collection_whatever_the_key()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db);
+        var token = (await PreviewAsync(tools, seed, amount: "500", period: "2025-2026")).PreviewToken;
+
+        var first = await ConfirmAsync(tools, seed, token, Key, amount: "500", period: "2025-2026");
+        var second = await ConfirmAsync(tools, seed, token, OtherKey, amount: "500", period: "2025-2026");
+        var third = await ConfirmAsync(tools, seed, token, "key-00000003", amount: "500", period: "2025-2026");
+
+        foreach (var repeated in new[] { second, third })
+        {
+            Assert.Equal(first.Id, repeated.Id);
+            Assert.Equal(first.Link, repeated.Link);
+            Assert.Equal(first.Lines, repeated.Lines);
+            Assert.Equal(first.BalanceAfter, repeated.BalanceAfter);
+        }
+
+        Assert.Equal(first.Id, Assert.Single(await db.Collections.AsNoTracking().ToListAsync()).Id);
+    }
+
+    [Fact]
+    public async Task Preview_token_writes_one_ledger_entry_whatever_the_key()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db);
+        var expenseToken = (await ExpensePreviewAsync(tools, seed)).PreviewToken;
+        var incomeToken = (await IncomePreviewAsync(tools, seed)).PreviewToken;
+
+        var expense = await ExpenseConfirmAsync(tools, seed, expenseToken, Key);
+        Assert.Equal(expense, await ExpenseConfirmAsync(tools, seed, expenseToken, OtherKey));
+        var income = await IncomeConfirmAsync(tools, seed, incomeToken, Key);
+        Assert.Equal(income, await IncomeConfirmAsync(tools, seed, incomeToken, OtherKey));
+
+        Assert.Equal([expense.Id, income.Id], await db.LedgerTransactions.OrderBy(x => x.Id).Select(x => x.Id).ToListAsync());
+    }
+
+    // Kaydı yapılmış önizlemenin süresi dolsa da yeni anahtarla tekrar, ilk sonucu döner: "yeniden önizleyin" demek
+    // kullanıcıya ikinci kez onaylatıp parayı iki kez yazdırırdı. Süresi dolmuş token hiçbir zaman yazmaz.
+    [Fact]
+    public async Task Expired_token_returns_the_result_it_wrote_and_never_writes()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db);
+        var used = (await PreviewAsync(tools, seed)).PreviewToken;
+        var unused = (await PreviewAsync(tools, seed)).PreviewToken;
+        var first = await ConfirmAsync(tools, seed, used, Key);
+
+        var repeated = await ConfirmAsync(tools, seed, Tokens.Expired(used), OtherKey);
+
+        Assert.Equal(first.Id, repeated.Id);
+        await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, Tokens.Expired(unused), OtherKey));
+        await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, Tokens.Expired(used), OtherKey, amount: "75"));
+        await RejectedAsync(PreviewRequired, () => ConfirmAsync(
+            tools, seed, Tokens.Expired(used), OtherKey, user: User(AppRoles.SistemYonetici, "user-2")));
+        Assert.Equal(1, await db.Collections.CountAsync());
     }
 
     // Devir alacağı 5.000, taksit 12.000, ödeme 7.000: taksitin ham kalanı 5.000 görünse de dairenin borcu biter.
@@ -364,17 +429,15 @@ public class McpWriteToolsTests
         await using var db = CreateDb();
         var seed = await SeedAsync(db);
         var tools = Tools(db);
-        var protector = DataProtection.CreateProtector(McpPreviewTokens.Purpose).ToTimeLimitedDataProtector();
 
         var token = (await PreviewAsync(tools, seed)).PreviewToken;
-        var payload = protector.Unprotect(token, out var expiration);
-        var expired = protector.Protect(payload, TimeSpan.FromSeconds(-1));
 
-        Assert.InRange(expiration - DateTimeOffset.UtcNow, TimeSpan.FromMinutes(29), TimeSpan.FromMinutes(30));
-        await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, expired, Key));
+        Assert.InRange(Tokens.ExpiresAt(token) - DateTimeOffset.UtcNow, TimeSpan.FromMinutes(29), TimeSpan.FromMinutes(30));
+        await RejectedAsync(PreviewRequired, () => ConfirmAsync(tools, seed, Tokens.Expired(token), Key));
         await AssertNothingWrittenAsync(db);
         // Aynı içerik süresi dolmadan geçerlidir: ret yalnız süreden.
-        Assert.True((await ConfirmAsync(tools, seed, protector.Protect(payload, TimeSpan.FromMinutes(1)), Key)).Created);
+        var fresh = Tokens.WithExpiry(token, DateTimeOffset.UtcNow.AddMinutes(1));
+        Assert.True((await ConfirmAsync(tools, seed, fresh, Key)).Created);
     }
 
     [Fact]
@@ -490,7 +553,8 @@ public class McpWriteToolsTests
         Assert.Equal(1, await db.Collections.CountAsync());
 
         var second = await ConfirmRawAsync(OtherKey, amount, $" CASH:{seed.CashId} ", " DEVIR ", " ", "");
-        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal(1, await db.Collections.CountAsync());
 
         async Task<WriteReceipt> ConfirmRawAsync(
             string key, string amountJson, string account, string period, string? reference, string? note)
@@ -564,11 +628,13 @@ public class McpWriteToolsTests
         Assert.True((await ConfirmAsync(tools, seed, changedToken, OtherKey, amount: "75")).Created);
     }
 
-    // Gerçek işlemle (SQLite): yarıda kalan kayıt hiç iz bırakmaz, aynı anahtar ve önizleme yeniden kullanılabilir.
+    // Gerçek işlemle (SQLite): yarıda kalan kayıt hiç iz bırakmaz; önizleme aynı ya da yeni anahtarla yeniden kullanılabilir.
     [Theory]
-    [InlineData(FailureMode.AfterWriting)]
-    [InlineData(FailureMode.SaveChanges)]
-    public async Task Failed_write_leaves_key_reusable_and_writes_nothing(FailureMode mode)
+    [InlineData(FailureMode.AfterWriting, Key)]
+    [InlineData(FailureMode.AfterWriting, OtherKey)]
+    [InlineData(FailureMode.SaveChanges, Key)]
+    [InlineData(FailureMode.SaveChanges, OtherKey)]
+    public async Task Failed_write_leaves_key_and_preview_reusable_and_writes_nothing(FailureMode mode, string retryKey)
     {
         using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -590,12 +656,14 @@ public class McpWriteToolsTests
             .Where(x => x.UnitId == seed.UnitId && x.Period == "2025-2026").Select(x => x.RemainingAmount).SingleAsync());
 
         collections.Failure = FailureMode.None;
-        var receipt = await ConfirmAsync(tools, seed, token, Key, amount: "500", period: "2025-2026");
+        var receipt = await ConfirmAsync(tools, seed, token, retryKey, amount: "500", period: "2025-2026");
 
         Assert.Equal([new AllocatedLine("2025-2026 Aidat Tipi", 500m, 0m)], receipt.Lines);
         Assert.Equal(receipt.Id, Assert.Single(await db.Collections.AsNoTracking().ToListAsync()).Id);
         Assert.Equal(1, await db.CollectionAllocations.CountAsync());
-        Assert.Equal(1, await db.McpIdempotencyKeys.CountAsync());
+        // Anahtar ve önizleme satırı.
+        Assert.Equal(["preview:record_collection", "record_collection"],
+            await db.McpIdempotencyKeys.OrderBy(x => x.Tool).Select(x => x.Tool).ToListAsync());
     }
 
     [Fact]

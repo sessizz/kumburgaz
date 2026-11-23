@@ -88,6 +88,10 @@ public class ApplicationDbContext(
         builder.Entity<ImportBatch>()
             .HasIndex(x => new { x.Type, x.Status, x.CreatedAt });
 
+        builder.Entity<ImportBatch>()
+            .Property(x => x.Status)
+            .IsConcurrencyToken();
+
         builder.Entity<ImportBatchRow>()
             .HasOne(x => x.ImportBatch)
             .WithMany(x => x.Rows)

@@ -296,6 +296,7 @@ public class CashBankController(
 
         var saved = importRows.Count;
         var batch = await importBatchService.CreateAsync("cashbank", model.Kind, model.Id, null);
+        var commitAcknowledged = false;
         try
         {
             var (writeTransaction, orderedRows) = await BeginImportWriteAsync(accountKey, importRows, plannedRows);
@@ -370,14 +371,23 @@ public class CashBankController(
 
             await importBatchService.CommitAsync(batch);
             await transaction.CommitAsync();
+            commitAcknowledged = true;
         }
         catch (Exception ex)
         {
             // Geri alınan satırlar hata durumu kaydedilirken yeniden yazılmamalı.
             db.ChangeTracker.Clear();
-            var failedBatch = await db.ImportBatches.SingleAsync(x => x.Id == batch.Id);
-            await importBatchService.FailAsync(failedBatch);
-            return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
+            if (!commitAcknowledged)
+            {
+                // Durumu yalnızca import işlemi kapandıktan sonra veritabanından doğrula.
+                if (db.Database.CurrentTransaction is not null) throw;
+
+                var status = await importBatchService.ResolveFailedCommitAsync(batch.Id);
+                if (status is not (ImportBatchStatus.Committed or ImportBatchStatus.RolledBack))
+                {
+                    return ImportPreviewWithErrors(model, detail, [$"Import kaydedilemedi: {ex.Message}"], "CSV import edilmedi.");
+                }
+            }
         }
 
         TempData["ActionSuccess"] = $"{saved} kayıt import edildi. Batch: {batch.ImportNo}";

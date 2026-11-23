@@ -80,8 +80,31 @@ public class ImportBatchService(ApplicationDbContext db, IHttpContextAccessor ht
 
     public async Task FailAsync(ImportBatch batch)
     {
+        // Geri alınan bir commit, izlenen durumu Committed bırakmış olabilir.
+        db.Entry(batch).Property(x => x.Status).OriginalValue = ImportBatchStatus.Draft;
         batch.Status = ImportBatchStatus.Failed;
         await db.SaveChangesAsync();
+    }
+
+    public async Task<ImportBatchStatus> ResolveFailedCommitAsync(int batchId)
+    {
+        var batch = await db.ImportBatches.SingleAsync(x => x.Id == batchId);
+        if (batch.Status != ImportBatchStatus.Draft)
+        {
+            return batch.Status;
+        }
+
+        try
+        {
+            await FailAsync(batch);
+            return ImportBatchStatus.Failed;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // İlk okumadan sonra commit tamamlanmış olabilir.
+            db.Entry(batch).State = EntityState.Detached;
+            return await db.ImportBatches.Where(x => x.Id == batchId).Select(x => x.Status).SingleAsync();
+        }
     }
 
     public async Task RollbackAsync(int batchId)

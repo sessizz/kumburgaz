@@ -464,6 +464,67 @@ public class CashBankControllerTests
         Assert.Equal(day.AddTicks(incomeTicks), income.Date);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Import_reports_success_and_detects_duplicates_after_a_post_commit_exception(bool throwOnDisposal)
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var verificationDb = new ApplicationDbContext(options);
+        await verificationDb.Database.EnsureCreatedAsync();
+        var bank = new BankAccount { Name = "Banka" };
+        var cash = new CashBox { Name = "Kasa" };
+        verificationDb.AddRange(bank, cash);
+        await verificationDb.SaveChangesAsync();
+
+        var fault = new ThrowAfterImportCommit(throwOnDisposal);
+        await using var importDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>(options)
+            .AddInterceptors(fault)
+            .LogTo((eventId, _) => eventId == RelationalEventId.TransactionDisposed, fault.OnTransactionDisposed)
+            .Options);
+        var controller = CreateController(importDb, []);
+        var model = new CashBankImportPreviewViewModel
+        {
+            Kind = "bank", Id = bank.Id,
+            Rows =
+            [
+                new()
+                {
+                    LineNo = 2, Date = "2026-11-23", Type = "transfer", Amount = "100",
+                    ToAccountKey = FinancialAccountHelper.CashKey(cash.Id)
+                }
+            ]
+        };
+
+        var result = await controller.CommitImport(model);
+
+        Assert.True(fault.Threw);
+        var row = await verificationDb.ImportBatchRows.AsNoTracking().SingleAsync();
+        Assert.Equal(ImportRowStatus.Committed, row.Status);
+        var batch = await verificationDb.ImportBatches.AsNoTracking().SingleAsync();
+        Assert.Equal(batch.Id, row.ImportBatchId);
+        var legs = await verificationDb.LedgerTransactions.AsNoTracking().Where(x => x.IsTransfer).ToListAsync();
+        Assert.Equal(100m, Assert.Single(legs, x => x.TransferIsIncoming && x.BankAccountId == bank.Id).Amount);
+        Assert.Equal(100m, Assert.Single(legs, x => !x.TransferIsIncoming && x.CashBoxId == cash.Id).Amount);
+        Assert.Equal(ImportBatchStatus.Committed, batch.Status);
+        Assert.NotNull(batch.CommittedAt);
+        var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
+        Assert.Equal(nameof(CashBankController.BankDetail), redirect.ActionName);
+        Assert.Equal($"1 kayıt import edildi. Batch: {batch.ImportNo}", controller.TempData["ActionSuccess"]);
+        Assert.Null(controller.TempData["ActionError"]);
+
+        var retryController = CreateController(verificationDb, []);
+        var retry = await retryController.CommitImport(model);
+
+        Assert.Equal("ImportPreview", Assert.IsType<Microsoft.AspNetCore.Mvc.ViewResult>(retry).ViewName);
+        Assert.Contains("mükerrer import kaydı", Assert.Single(model.Rows).Status);
+        Assert.Equal(1, await verificationDb.ImportBatches.CountAsync());
+        Assert.Equal(1, await verificationDb.ImportBatchRows.CountAsync());
+        Assert.Equal(2, await verificationDb.LedgerTransactions.CountAsync());
+    }
+
     [Fact]
     public async Task Import_rolls_back_both_transfer_legs_and_batch_rows_when_a_later_batch_row_fails()
     {
@@ -479,7 +540,7 @@ public class CashBankControllerTests
         var controller = CreateController(db, []);
         var counterKey = FinancialAccountHelper.CashKey(cash.Id);
 
-        var result = await controller.CommitImport(new CashBankImportPreviewViewModel
+        var model = new CashBankImportPreviewViewModel
         {
             Kind = "bank", Id = bank.Id,
             Rows =
@@ -487,15 +548,31 @@ public class CashBankControllerTests
                 new() { LineNo = 2, Date = "2026-11-23", Type = "transfer", Amount = "100", ToAccountKey = counterKey },
                 new() { LineNo = 2, Date = "2026-11-23", Type = "transfer", Amount = "200", ToAccountKey = counterKey }
             ]
-        });
+        };
+        var result = await controller.CommitImport(model);
 
         Assert.Equal("ImportPreview", Assert.IsType<Microsoft.AspNetCore.Mvc.ViewResult>(result).ViewName);
         Assert.StartsWith("CSV import edilmedi. Import kaydedilemedi:", (string?)controller.TempData["ActionError"]);
-        Assert.Empty(await db.LedgerTransactions.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.LedgerTransactions.IgnoreQueryFilters().AsNoTracking().ToListAsync());
         Assert.Empty(await db.ImportBatchRows.AsNoTracking().ToListAsync());
         var batch = await db.ImportBatches.AsNoTracking().SingleAsync();
         Assert.Equal(ImportBatchStatus.Failed, batch.Status);
         Assert.Null(batch.CommittedAt);
+        var audit = await db.AuditLogs.SingleAsync(x => x.EntityName == nameof(ImportBatch) && x.Action == AuditAction.Update);
+        Assert.Contains($"\"Status\":{(int)ImportBatchStatus.Draft}", audit.OldValuesJson);
+        Assert.Contains($"\"Status\":{(int)ImportBatchStatus.Failed}", audit.NewValuesJson);
+
+        model.Rows[1].LineNo = 3;
+        var retryController = CreateController(db, []);
+        var retry = await retryController.CommitImport(model);
+
+        Assert.Equal(nameof(CashBankController.BankDetail),
+            Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(retry).ActionName);
+        Assert.Null(retryController.TempData["ActionError"]);
+        Assert.Equal(1, await db.ImportBatches.CountAsync(x => x.Status == ImportBatchStatus.Failed));
+        Assert.Equal(1, await db.ImportBatches.CountAsync(x => x.Status == ImportBatchStatus.Committed));
+        Assert.Equal(2, await db.ImportBatchRows.CountAsync());
+        Assert.Equal(4, await db.LedgerTransactions.CountAsync());
     }
 
     [Theory]
@@ -939,6 +1016,39 @@ public class CashBankControllerTests
             }
 
             return result;
+        }
+    }
+
+    private sealed class ThrowAfterImportCommit(bool throwOnDisposal) : DbTransactionInterceptor
+    {
+        private Guid? importTransactionId;
+
+        public bool Threw { get; private set; }
+
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<ImportBatch>().Any(x => x.Entity.Status == ImportBatchStatus.Committed))
+            {
+                importTransactionId = eventData.TransactionId;
+                if (!throwOnDisposal) Throw();
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public void OnTransactionDisposed(EventData eventData)
+        {
+            if (throwOnDisposal && eventData is TransactionEventData transaction && transaction.TransactionId == importTransactionId)
+            {
+                Throw();
+            }
+        }
+
+        private void Throw()
+        {
+            Threw = true;
+            throw new InvalidOperationException("Injected after the import transaction committed.");
         }
     }
 

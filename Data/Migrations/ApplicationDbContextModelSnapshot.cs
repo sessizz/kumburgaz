@@ -1124,6 +1124,7 @@ namespace Kumburgaz.Web.Data.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.Property<string>("Type")

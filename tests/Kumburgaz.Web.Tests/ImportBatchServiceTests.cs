@@ -2,7 +2,9 @@ using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 
 namespace Kumburgaz.Web.Tests;
@@ -22,6 +24,30 @@ public class ImportBatchServiceTests
 
         Assert.True(await service.HasCommittedDuplicateAsync(key));
         Assert.False(await service.HasCommittedDuplicateAsync(ImportBatchService.BuildNormalizedKey("other")));
+    }
+
+    [Fact]
+    public async Task Failure_cleanup_preserves_a_commit_that_wins_after_the_draft_read()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+        await using var commitDb = new ApplicationDbContext(options);
+        await commitDb.Database.EnsureCreatedAsync();
+        var committingService = CreateService(commitDb);
+        var batch = await committingService.CreateAsync("cashbank", null, null, null);
+        var commitBeforeUpdate = new CommitBeforeFailureUpdate(() => committingService.CommitAsync(batch));
+        await using var cleanupDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>(options)
+            .AddInterceptors(commitBeforeUpdate).Options);
+
+        var status = await CreateService(cleanupDb).ResolveFailedCommitAsync(batch.Id);
+
+        Assert.Equal(ImportBatchStatus.Committed, status);
+        var persisted = await commitDb.ImportBatches.AsNoTracking().SingleAsync();
+        Assert.Equal(ImportBatchStatus.Committed, persisted.Status);
+        Assert.NotNull(persisted.CommittedAt);
+        var audit = await commitDb.AuditLogs.SingleAsync(x => x.EntityName == nameof(ImportBatch) && x.Action == AuditAction.Update);
+        Assert.Contains($"\"Status\":{(int)ImportBatchStatus.Committed}", audit.NewValuesJson);
     }
 
     [Fact]
@@ -88,5 +114,15 @@ public class ImportBatchServiceTests
     private static DateTime Utc(int year, int month, int day)
     {
         return new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+    }
+
+    private sealed class CommitBeforeFailureUpdate(Func<Task> commit) : SaveChangesInterceptor
+    {
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            await commit();
+            return result;
+        }
     }
 }

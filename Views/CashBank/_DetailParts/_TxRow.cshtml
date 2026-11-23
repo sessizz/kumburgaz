@@ -31,18 +31,27 @@
     var ledgerCategoryOptions = isIncomeLedger ? Model.IncomeCategoryOptions : Model.ExpenseCategoryOptions;
     var ledgerCategoryLabel = isIncomeLedger ? "Gelir kategorisi" : "Gider kategorisi";
     var ledgerEditTitle = isIncomeLedger ? "Geliri Düzenle" : "Ödemeyi Düzenle";
+    var isMovable = Model.Source is "collection" or "ledger";
+    var showReorderHandle = isMovable && ViewData["ShowReorderHandle"] is true;
 }
-<li class="tx-row grid grid-cols-1 md:grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5">
-    <div class="bulk-select-cell invisible">
-        @if (Model.Source != "opening")
+<li class="tx-row grid grid-cols-1 md:grid-cols-[44px_100px_140px_minmax(0,1fr)_160px_160px_40px] gap-1 md:gap-3 items-center px-5 py-3.5"
+    data-tx="@(isMovable ? $"{Model.Source}:{Model.Id}" : null)">
+    <div class="flex items-center gap-0.5">
+        @if (showReorderHandle)
         {
-            <input type="checkbox"
-                   class="checkbox checkbox-sm"
-                   name="selectedTransactions"
-                   value="@($"{Model.Source}:{Model.Id}")"
-                   form="bulkDeleteForm"
-                   data-bulk-checkbox />
+            <span class="material-symbols-outlined text-gray-300 hover:text-gray-500 cursor-grab select-none" style="font-size:18px;" title="Sıralamak için sürükleyin" data-reorder-handle>drag_indicator</span>
         }
+        <div class="bulk-select-cell invisible">
+            @if (Model.Source != "opening")
+            {
+                <input type="checkbox"
+                       class="checkbox checkbox-sm"
+                       name="selectedTransactions"
+                       value="@($"{Model.Source}:{Model.Id}")"
+                       form="bulkDeleteForm"
+                       data-bulk-checkbox />
+            }
+        </div>
     </div>
     <div class="text-sm text-gray-600 tabular-nums">@Model.Date.ToString("dd.MM.yyyy")</div>
     <div class="ttype @kindClass"><span class="dot"></span>@kindLabel</div>

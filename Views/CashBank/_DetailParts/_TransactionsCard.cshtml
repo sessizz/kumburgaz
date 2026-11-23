@@ -1,7 +1,10 @@
 @model Kumburgaz.Web.Models.CashBankDetailViewModel
 @using System.Globalization
 @using System.Net
+@inject Kumburgaz.Web.Services.PermissionService Perm
 @{
+    // Sürükleme: yazma yetkisi + arama/tür filtresi yok (CanReorder) + günün tamamı bu sayfada.
+    var canReorder = Model.CanReorder && Perm.CanWrite(User, Kumburgaz.Web.Models.AppModules.KasaBanka);
     var q = Model.Query;
     var totalPages = (int)Math.Ceiling((double)Model.TotalCount / q.PageSize);
     var currentPage = Math.Min(Math.Max(q.Page, 1), Math.Max(totalPages, 1));
@@ -28,7 +31,7 @@
     }
 }
 
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions>
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm" data-bulk-transactions data-reorder-kind="@Model.Kind" data-reorder-account="@Model.Id">
     <form method="get" id="filterForm">
         <div class="flex flex-col lg:flex-row lg:items-center gap-3 px-5 py-3 border-b border-gray-200">
             <div class="flex items-center gap-1 flex-wrap">
@@ -120,12 +123,18 @@
             <div></div>
         </div>
 
-        <ul class="divide-y divide-gray-100">
-            @foreach (var row in rows)
+        <div class="divide-y divide-gray-100">
+            @foreach (var group in Model.Groups)
             {
-                <partial name="_DetailParts/_TxRow" model="row" />
+                var showHandle = canReorder && group.IsCompleteOnPage;
+                <ul class="divide-y divide-gray-100" data-reorder-day="@group.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)">
+                    @foreach (var row in group.Items)
+                    {
+                        <partial name="_DetailParts/_TxRow" model="row" view-data='new ViewDataDictionary(ViewData) { { "ShowReorderHandle", showHandle } }' />
+                    }
+                </ul>
             }
-        </ul>
+        </div>
     }
 
     <div class="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50/50">

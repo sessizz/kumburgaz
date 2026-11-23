@@ -205,6 +205,10 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
         var paged = filteredList.Skip((page - 1) * q.PageSize).Take(q.PageSize).ToList();
 
         // 9. Gün grupları
+        var dayTotals = allRows
+            .Where(r => r.Source != "opening")
+            .GroupBy(r => DateOnly.FromDateTime(r.Date))
+            .ToDictionary(g => g.Key, g => g.Count());
         var groups = paged
             .GroupBy(r => DateOnly.FromDateTime(r.Date))
             .OrderByDescending(g => g.Key)
@@ -212,7 +216,8 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
             {
                 Date = g.Key,
                 Net = g.Sum(r => r.Amount),
-                Items = g.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList()
+                Items = g.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList(),
+                IsCompleteOnPage = g.Count(r => r.Source != "opening") == dayTotals.GetValueOrDefault(g.Key)
             })
             .ToList();
 
@@ -246,6 +251,7 @@ public class CashBankDetailService(ApplicationDbContext db, IDuesLedgerRowServic
             CikisCount = cikisCount,
             TransferCount = transferCount,
             Groups = groups,
+            CanReorder = string.IsNullOrWhiteSpace(q.Q) && (q.Type ?? "all") == "all",
             History = history,
             PendingCount = 0
         };

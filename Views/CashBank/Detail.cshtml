@@ -21,13 +21,13 @@
                     <span>@actionSuccess</span>
                 </div>
             }
-            @if (TempData["ActionError"] is string actionError)
-            {
-                <div class="alert alert-error">
-                    <span class="material-symbols-outlined">error</span>
-                    <span>@actionError</span>
-                </div>
+            @{
+                var actionErrorText = TempData["ActionError"] as string;
             }
+            <div class="alert alert-error @(string.IsNullOrEmpty(actionErrorText) ? "hidden" : "")" data-action-error>
+                <span class="material-symbols-outlined">error</span>
+                <span data-action-error-text>@actionErrorText</span>
+            </div>
             <partial name="_DetailParts/_Header" model="Model" />
             <partial name="_DetailParts/_TransactionsCard" model="Model" />
         </div>
@@ -36,3 +36,8 @@
         </aside>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/lib/sortablejs/Sortable.min.js"></script>
+    <script src="~/js/cashbank-reorder.js" asp-append-version="true"></script>
+}

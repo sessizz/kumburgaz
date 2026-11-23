@@ -991,6 +991,8 @@ public class TxDayGroup
     public DateOnly Date { get; set; }
     public decimal Net { get; set; }
     public IReadOnlyList<TxRow> Items { get; set; } = Array.Empty<TxRow>();
+    // Günün bütün hareketleri bu sayfada mı (sürükle-bırak yalnız tam günlerde çalışır).
+    public bool IsCompleteOnPage { get; set; }
 }
 
 public class AuditEntry
@@ -1024,6 +1026,8 @@ public class CashBankDetailViewModel
     public int CikisCount { get; set; }
     public int TransferCount { get; set; }
     public IReadOnlyList<TxDayGroup> Groups { get; set; } = Array.Empty<TxDayGroup>();
+    // Arama boş ve tür filtresi "all" iken true; kullanıcının yazma yetkisi görünümde ayrıca denetlenir.
+    public bool CanReorder { get; set; }
     public IReadOnlyList<AuditEntry> History { get; set; } = Array.Empty<AuditEntry>();
     public int PendingCount { get; set; }
     public string? Note { get; set; }

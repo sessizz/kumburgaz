@@ -202,9 +202,12 @@
     }
 
     // Listedeki ataş önizlemesi için: ilk ek PDF ise aynı küçük resim hedef canvas'a çizilir.
-    window.renderPdfPreview = async (url, canvas, size) => {
+    // isCurrent: render bitince hâlâ geçerli istek mi? Değilse paylaşılan canvas'a dokunulmaz.
+    window.renderPdfPreview = async (url, canvas, size, isCurrent) => {
         try {
-            paintCanvas(canvas, await renderFirstPage(url, size, size));
+            const source = await renderFirstPage(url, size, size);
+            if (isCurrent && !isCurrent()) return false;
+            paintCanvas(canvas, source);
             return true;
         } catch {
             return false;

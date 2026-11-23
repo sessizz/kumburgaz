@@ -277,7 +277,9 @@
         <canvas id="giderAttPreviewPdf" style="display:none;border-radius:7px;"></canvas>
     </div>
     <script>
+        var attPreviewToken = 0;
         function showAttPreview(el, url) {
+            attPreviewToken++;
             var img = document.getElementById('giderAttPreviewImg');
             document.getElementById('giderAttPreviewPdf').style.display = 'none';
             img.style.display = 'block';
@@ -288,8 +290,12 @@
         function showPdfAttPreview(el, url) {
             var canvas = document.getElementById('giderAttPreviewPdf');
             if (typeof window.renderPdfPreview !== 'function') return;
-            window.renderPdfPreview(url, canvas, 170).then(function (ok) {
-                if (!ok || !el.matches(':hover')) return;
+            // Yalnız son üzerine gelme isteği ortak canvas'a çizebilir; eski/yavaş sonuçlar atılır.
+            var token = ++attPreviewToken;
+            window.renderPdfPreview(url, canvas, 170, function () {
+                return token === attPreviewToken && el.matches(':hover');
+            }).then(function (ok) {
+                if (!ok) return;
                 document.getElementById('giderAttPreviewImg').style.display = 'none';
                 canvas.style.display = 'block';
                 placeAttPreview(el);
@@ -312,6 +318,7 @@
             preview.style.top = top + 'px';
         }
         function hideAttPreview() {
+            attPreviewToken++;
             document.getElementById('giderAttPreview').style.display = 'none';
         }
     </script>

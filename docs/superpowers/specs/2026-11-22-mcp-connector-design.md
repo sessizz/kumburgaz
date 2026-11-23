@@ -194,7 +194,10 @@ avans, mahsup, kasa/banka anahtarları.
 
 ### Bağlanma
 claude.ai → Ayarlar → Bağlayıcılar → Özel bağlayıcı ekle → `https://kumburgaz.bahceliler.net/mcp`.
-Kumburgaz hesabıyla giriş yapılır ve onay verilir. Bağlantılar "Bağlı uygulamalar" ekranından
+Kumburgaz hesabıyla giriş yapılır ve onay verilir. Masaüstü/CLI istemcileri de bağlanabilir (ör. Hermes:
+`hermes mcp add kumburgaz --url https://kumburgaz.bahceliler.net/mcp --auth oauth`). Dinamik kayıt,
+Claude adreslerine ek olarak RFC 8252 yerel dönüş adreslerini (`http://127.0.0.1:<port>/...`,
+`http://localhost:<port>/...`, `http://[::1]:<port>/...`) kabul eder. Bağlantılar "Bağlı uygulamalar" ekranından
 (Ayarlar'ın yanında) görülür ve iptal edilir; iptal anında etkilidir.
 
 ### Tasarımdan farklar ve eklenen kurallar

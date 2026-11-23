@@ -9,7 +9,7 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 namespace Kumburgaz.Web.Auth;
 
 // RFC 7591 dinamik istemci kaydı: claude.ai bağlayıcısı kendini burada kaydeder.
-// Yalnız OAuthConstants.AllowedRedirectUris içindeki dönüş adresleri kabul edilir.
+// Yalnız OAuthConstants.IsAllowedRedirectUri'nin kabul ettiği dönüş adresleri (Claude ve yerel/loopback) kaydedilir.
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting(OAuthRateLimits.RegisterPolicy)]
@@ -37,7 +37,7 @@ public class ClientRegistrationController(
         var uris = new List<Uri>();
         foreach (var raw in redirectUris)
         {
-            if (raw is null || !OAuthConstants.AllowedRedirectUris.Contains(raw))
+            if (!OAuthConstants.IsAllowedRedirectUri(raw))
                 return Error("invalid_redirect_uri", "Dönüş adresi izinli adresler arasında değil.");
             uris.Add(new Uri(raw, UriKind.Absolute));
         }

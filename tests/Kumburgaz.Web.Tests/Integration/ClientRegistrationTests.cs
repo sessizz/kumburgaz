@@ -60,6 +60,41 @@ public class ClientRegistrationTests(KumburgazAppFactory factory)
         Assert.Equal(ClaudeCallback, root.GetProperty("redirect_uris")[0].GetString());
     }
 
+    // Hermes gibi CLI istemcileri boş bir yerel portta dinleyip onu kaydeder (RFC 8252 §7.3).
+    [Fact]
+    public async Task Registers_public_client_for_loopback_callback()
+    {
+        const string loopback = "http://127.0.0.1:53682/callback";
+        var response = await RegisterAsync(CreateClient(), new
+        {
+            client_name = "Hermes Agent",
+            redirect_uris = new[] { loopback },
+            grant_types = new[] { "authorization_code", "refresh_token" },
+            response_types = new[] { "code" },
+            token_endpoint_auth_method = "none"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var root = await ReadJsonAsync(response);
+        Assert.Equal(loopback, root.GetProperty("redirect_uris")[0].GetString());
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1.evil.example:53682/callback")]
+    [InlineData("http://192.168.1.10:53682/callback")]
+    public async Task Rejects_non_loopback_http_callback(string redirectUri)
+    {
+        var response = await RegisterAsync(CreateClient(), new
+        {
+            client_name = "Hermes Agent",
+            redirect_uris = new[] { redirectUri },
+            token_endpoint_auth_method = "none"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_redirect_uri", (await ReadJsonAsync(response)).GetProperty("error").GetString());
+    }
+
     [Fact]
     public async Task Registers_confidential_client_when_secret_auth_requested()
     {

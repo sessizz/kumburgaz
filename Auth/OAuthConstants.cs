@@ -12,12 +12,43 @@ public static class OAuthConstants
     // Token'daki Identity güvenlik damgası; şifre değişince ya da sıfırlanınca yenilenir ve eski token'lar reddedilir.
     public const string SecurityStampClaim = "kumburgaz_security_stamp";
 
-    // Dinamik istemci kaydında kabul edilen dönüş adresleri (birebir eşleşme).
-    public static readonly IReadOnlySet<string> AllowedRedirectUris = new HashSet<string>(StringComparer.Ordinal)
+    // claude.ai / claude.com bağlayıcılarının dönüş adresleri (birebir eşleşme).
+    public static readonly IReadOnlySet<string> ClaudeRedirectUris = new HashSet<string>(StringComparer.Ordinal)
     {
         "https://claude.ai/api/mcp/auth_callback",
         "https://claude.com/api/mcp/auth_callback"
     };
+
+    // Masaüstü/CLI istemcilerinin (ör. Hermes) yerel geri dönüş sunucusu (RFC 8252 §7.3).
+    private static readonly IReadOnlySet<string> LoopbackHosts = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "127.0.0.1",
+        "[::1]",
+        "localhost"
+    };
+
+    // Dinamik istemci kaydında kabul edilen dönüş adresi: Claude adreslerinden biri ya da bu
+    // bilgisayarın kendisine (loopback) giden düz http adres. Yetki kodu yerel adrese gittiği için
+    // başka bir makine ele geçiremez; PKCE zaten zorunlu. Kayıttan sonra authorize/token isteğindeki
+    // adres OpenIddict tarafından kayıtlı adresle birebir karşılaştırılır (port dahil).
+    public static bool IsAllowedRedirectUri(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        if (ClaudeRedirectUris.Contains(value))
+        {
+            return true;
+        }
+
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttp
+            && uri.UserInfo.Length == 0
+            && uri.Fragment.Length == 0
+            && LoopbackHosts.Contains(uri.Host);
+    }
 
     // Bağlayıcıyı kullanabilen roller; Sakin ve rolsüz kullanıcılar reddedilir.
     public static readonly IReadOnlySet<string> EligibleRoles = new HashSet<string>(StringComparer.Ordinal)

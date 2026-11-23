@@ -40,6 +40,45 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         Assert.InRange(tokens.ExpiresIn, 3599, 3600);
     }
 
+    // Masaüstü/CLI MCP istemcileri (ör. Hermes) kendi makinelerinde 127.0.0.1 üzerinde dinler.
+    [Theory]
+    [InlineData("http://127.0.0.1:53682/callback")]
+    [InlineData("http://localhost:8765/callback")]
+    public async Task Loopback_client_completes_code_flow(string redirectUri)
+    {
+        var userName = NewUserName("hermes");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.SiteYonetici);
+        var (clientId, _) = await _oauth.RegisterClientAsync("Hermes Agent", "none", redirectUri);
+
+        var authorization = await _oauth.AuthorizeAsync(
+            _oauth.CreateBrowser(), clientId, userName, Password, redirectUri: redirectUri);
+        Assert.True(authorization.Code is not null, $"Yetki kodu dönmedi: {authorization.Callback}");
+        Assert.Equal(redirectUri, authorization.Callback.GetLeftPart(UriPartial.Path));
+
+        var response = await _oauth.ExchangeCodeAsync(
+            clientId, authorization.Code!, authorization.CodeVerifier, redirectUri: redirectUri);
+        var tokens = await OAuthTestClient.ReadTokensAsync(clientId, response);
+        Assert.False(string.IsNullOrWhiteSpace(tokens.AccessToken));
+        Assert.False(string.IsNullOrWhiteSpace(tokens.RefreshToken));
+    }
+
+    // Kayıtlı yerel adresten başka bir porta yönlendirme kabul edilmez (birebir eşleşme).
+    [Fact]
+    public async Task Loopback_client_cannot_redirect_to_another_port()
+    {
+        var userName = NewUserName("hermes");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.SiteYonetici);
+        var (clientId, _) = await _oauth.RegisterClientAsync("Hermes Agent", "none", "http://127.0.0.1:53682/callback");
+
+        var (url, _) = OAuthTestClient.CreateAuthorizeRequest(clientId, customize: p => p["redirect_uri"] = "http://127.0.0.1:9999/callback");
+        var browser = _oauth.CreateBrowser();
+        await OAuthTestClient.LoginAsync(browser, userName, Password);
+        var response = await browser.GetAsync(url);
+
+        Assert.NotEqual(System.Net.HttpStatusCode.Redirect, response.StatusCode);
+        Assert.DoesNotContain("name=\"submit\"", await response.Content.ReadAsStringAsync());
+    }
+
     // Token'daki kimlik: AuditLog görünen adı "(Claude)" ekiyle okur, uygulama kodu NameIdentifier'ı.
     [Fact]
     public async Task Access_token_carries_user_identity_roles_and_claude_display_name()

@@ -130,7 +130,8 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         => (await RegisterClientAsync(clientName, "none")).ClientId;
 
     // Hız sınırı CF-Connecting-IP başına tutulur; her kayıt ayrı bir IP'den gelir.
-    public async Task<(string ClientId, string? ClientSecret)> RegisterClientAsync(string clientName, string authMethod)
+    public async Task<(string ClientId, string? ClientSecret)> RegisterClientAsync(
+        string clientName, string authMethod, string redirectUri = RedirectUri)
     {
         var n = Interlocked.Increment(ref _ipCounter);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/connect/register")
@@ -138,7 +139,7 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
             Content = JsonContent.Create(new
             {
                 client_name = clientName,
-                redirect_uris = new[] { RedirectUri },
+                redirect_uris = new[] { redirectUri },
                 token_endpoint_auth_method = authMethod
             })
         };
@@ -180,9 +181,14 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
     public async Task<AuthorizationResult> AuthorizeAsync(
         HttpClient browser, string clientId, string userName, string password, string? resource = null, bool deny = false,
         Action<Dictionary<string, string?>>? customize = null,
-        IEnumerable<KeyValuePair<string, string>>? extraConsentFields = null)
+        IEnumerable<KeyValuePair<string, string>>? extraConsentFields = null,
+        string redirectUri = RedirectUri)
     {
-        var (url, verifier) = CreateAuthorizeRequest(clientId, resource, customize);
+        var (url, verifier) = CreateAuthorizeRequest(clientId, resource, parameters =>
+        {
+            parameters["redirect_uri"] = redirectUri;
+            customize?.Invoke(parameters);
+        });
         string? consentHtml = null;
         var response = await browser.GetAsync(url);
 
@@ -206,7 +212,7 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
             Assert.True(response.StatusCode == HttpStatusCode.Redirect,
                 $"Beklenmeyen yanıt {(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
             var location = response.Headers.Location!;
-            if (location.IsAbsoluteUri && location.GetLeftPart(UriPartial.Path) == RedirectUri)
+            if (location.IsAbsoluteUri && location.GetLeftPart(UriPartial.Path) == redirectUri)
             {
                 return new AuthorizationResult(location, verifier, consentHtml);
             }
@@ -221,14 +227,15 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
     }
 
     public async Task<HttpResponseMessage> ExchangeCodeAsync(
-        string clientId, string code, string? codeVerifier, string? resource = null, string? clientSecret = null)
+        string clientId, string code, string? codeVerifier, string? resource = null, string? clientSecret = null,
+        string redirectUri = RedirectUri)
     {
         var form = new Dictionary<string, string>
         {
             ["grant_type"] = "authorization_code",
             ["client_id"] = clientId,
             ["code"] = code,
-            ["redirect_uri"] = RedirectUri
+            ["redirect_uri"] = redirectUri
         };
         if (codeVerifier is not null) form["code_verifier"] = codeVerifier;
         if (resource is not null) form["resource"] = resource;

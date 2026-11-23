@@ -1,7 +1,7 @@
 # Kumburgaz MCP Bağlayıcısı — Tasarım
 
 **Tarih:** 2026-11-22
-**Durum:** Taslak, onay bekliyor
+**Durum:** Uygulandı (2026-11-23, plan: `docs/superpowers/plans/2026-11-22-mcp-connector.md`). Uygulamadaki farklar için sondaki "Uygulama notları"na bakın.
 
 ## Amaç ve neden
 
@@ -189,3 +189,38 @@ avans, mahsup, kasa/banka anahtarları.
 - Sakin rolü bağlayıcıyı kullanamaz.
 - Token süreleri: 1 saat / 30 gün.
 - DCR yalnız Claude dönüş adreslerine açık; elle kayıtlı istemci de desteklenir.
+
+## Uygulama notları (2026-11-23)
+
+### Bağlanma
+claude.ai → Ayarlar → Bağlayıcılar → Özel bağlayıcı ekle → `https://kumburgaz.bahceliler.net/mcp`.
+Kumburgaz hesabıyla giriş yapılır ve onay verilir. Bağlantılar "Bağlı uygulamalar" ekranından
+(Ayarlar'ın yanında) görülür ve iptal edilir; iptal anında etkilidir.
+
+### Tasarımdan farklar ve eklenen kurallar
+- Bağlayıcıyı Sakin rolü taşıyan hiçbir kullanıcı kullanamaz (personel rolü olsa bile).
+- Kullanıcının uygunluğu (var, kilitli değil, uygun rol, Sakin değil, güvenlik damgası aynı)
+  her `/mcp` isteğinde veritabanından kontrol edilir. Şifre değişince (ve kullanıcı adı, e-posta
+  ya da telefonunu kendisi değiştirince) Claude bağlantısı kopar ve yeniden bağlanmak gerekir.
+- Kayıt araçlarında önizleme zorunludur: `confirm: false` bir `previewToken` döner (30 dakika,
+  tek kullanımlık). `confirm: true` bu token ve bir `idempotency_key` ister. Bir önizleme en fazla
+  bir kayıt açar. Aynı anahtarla tekrar gelen istek ilk sonucu döner; anahtarın farklı bir işlemle
+  kullanılması reddedilir.
+- Tahsilat yazılırken dairenin aidat grubu satırları kilitlenir. Bu, aynı anda gelen iki Claude
+  kaydının borcu iki kez kapatmasını önler.
+- Liste araçlarında `total` TL toplamı, `count` satır sayısıdır (limit uygulanmadan önce).
+- `site_summary` Panel ekranıyla aynı formülleri kullanır (UTC takvim ayı).
+  `accounts` yalnız Kasa/Banka, `duesDebtTotal` yalnız Raporlar yetkisiyle döner.
+- Telefon numarası yalnız Daireler veya Hesaplar, `unit_statement` yalnız Daireler yetkisiyle
+  görünür. Daire linkleri Daireler yetkisi olmayana boş döner.
+- Gelir/gider kaydı `LedgerEntryService`'e, tahsilat dağıtım planı
+  `ICollectionService.PlanAllocationAsync`'e, Panel hesapları `DashboardFiguresService`'e taşındı.
+  Ekranlar da bu servisleri kullanır.
+- OAuth anahtarları, token'lar ve tekrar koruma kayıtları denetim kaydına yazılmaz.
+
+### Bilinen ve bırakılan konular
+- Eski OpenIddict token ve istemci kayıtlarını temizleyen zamanlanmış iş yok.
+- Açılışta geçici bir Data Protection hatası, OAuth imza anahtarının bir kez değişmesine
+  yol açabilir. Etkisi bir kerelik yeniden giriştir; olay Critical olarak loglanır.
+- `get_unit` açık taksit kalanı dağıtılmamış avansı hesaba katmaz (tahsilat formuyla aynı,
+  Aidatlar ekranından farklı). `overdue_dues.oldestPeriod` devir alacağını hesaba katmaz.

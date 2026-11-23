@@ -49,6 +49,8 @@ public static class OAuthServerSetup
                 options.AddEventHandler<HandleConfigurationRequestContext>(builder => builder.UseInlineHandler(context =>
                 {
                     context.Metadata["registration_endpoint"] = new Uri(issuer, "connect/register").AbsoluteUri;
+                    // DCR secret'sız (PKCE'li) istemci de açar; OpenIddict bu yöntemi kendiliğinden ilan etmez.
+                    context.TokenEndpointAuthenticationMethods.Add(ClientAuthenticationMethods.None);
                     return default;
                 }));
             })

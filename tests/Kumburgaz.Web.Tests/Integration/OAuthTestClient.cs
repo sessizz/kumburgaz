@@ -109,16 +109,24 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         return await ReadTokensAsync(clientId, response);
     }
 
-    public async Task<HttpResponseMessage> RefreshAsync(string clientId, string refreshToken)
-        => await CreateBrowser().PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+    public async Task<HttpResponseMessage> RefreshAsync(string clientId, string refreshToken, string? clientSecret = null)
+    {
+        var form = new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
             ["client_id"] = clientId,
             ["refresh_token"] = refreshToken
-        }));
+        };
+        if (clientSecret is not null) form["client_secret"] = clientSecret;
+
+        return await CreateBrowser().PostAsync("/connect/token", new FormUrlEncodedContent(form));
+    }
+
+    public async Task<string> RegisterClientAsync(string clientName = "Claude")
+        => (await RegisterClientAsync(clientName, "none")).ClientId;
 
     // Hız sınırı CF-Connecting-IP başına tutulur; her kayıt ayrı bir IP'den gelir.
-    public async Task<string> RegisterClientAsync(string clientName = "Claude")
+    public async Task<(string ClientId, string? ClientSecret)> RegisterClientAsync(string clientName, string authMethod)
     {
         var n = Interlocked.Increment(ref _ipCounter);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/connect/register")
@@ -127,7 +135,7 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
             {
                 client_name = clientName,
                 redirect_uris = new[] { RedirectUri },
-                token_endpoint_auth_method = "none"
+                token_endpoint_auth_method = authMethod
             })
         };
         request.Headers.Add("CF-Connecting-IP", $"172.16.{(n >> 8) & 0xFF}.{n & 0xFF}");
@@ -135,7 +143,9 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         var response = await CreateBrowser().SendAsync(request);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return json.RootElement.GetProperty("client_id").GetString()!;
+        var root = json.RootElement;
+        return (root.GetProperty("client_id").GetString()!,
+            root.TryGetProperty("client_secret", out var secret) ? secret.GetString() : null);
     }
 
     public static (string Url, string CodeVerifier) CreateAuthorizeRequest(
@@ -206,7 +216,8 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         throw new InvalidOperationException("Yetkilendirme akışı dönüş adresine ulaşmadı.");
     }
 
-    public async Task<HttpResponseMessage> ExchangeCodeAsync(string clientId, string code, string? codeVerifier, string? resource = null)
+    public async Task<HttpResponseMessage> ExchangeCodeAsync(
+        string clientId, string code, string? codeVerifier, string? resource = null, string? clientSecret = null)
     {
         var form = new Dictionary<string, string>
         {
@@ -217,6 +228,7 @@ public sealed class OAuthTestClient(KumburgazAppFactory factory)
         };
         if (codeVerifier is not null) form["code_verifier"] = codeVerifier;
         if (resource is not null) form["resource"] = resource;
+        if (clientSecret is not null) form["client_secret"] = clientSecret;
 
         return await CreateBrowser().PostAsync("/connect/token", new FormUrlEncodedContent(form));
     }

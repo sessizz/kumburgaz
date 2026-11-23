@@ -1,4 +1,5 @@
 using System.Globalization;
+using Kumburgaz.Web.Auth;
 using Kumburgaz.Web.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -39,7 +40,11 @@ public sealed class KumburgazAppFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Production");
         builder.ConfigureTestServices(services =>
-            services.ConfigureDbContext<ApplicationDbContext>(options => options.AddInterceptors(OpenReaderGuard)));
+        {
+            services.ConfigureDbContext<ApplicationDbContext>(options => options.AddInterceptors(OpenReaderGuard));
+            // Bütün testler tek uygulamada yüzlerce istemci kaydeder; toplam kotayı kendi testi sınar.
+            services.AddSingleton(new ClientRegistrationQuota(int.MaxValue));
+        });
     }
 
     protected override void Dispose(bool disposing)

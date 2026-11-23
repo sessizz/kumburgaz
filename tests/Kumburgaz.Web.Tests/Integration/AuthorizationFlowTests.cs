@@ -335,6 +335,34 @@ public class AuthorizationFlowTests(KumburgazAppFactory factory)
         Assert.NotNull(second.Code);
     }
 
+    // Secret'lı istemci (client_secret_post): secret olmadan ya da yanlış secret'la token yok; doğrusuyla /mcp ve yenileme çalışır.
+    [Fact]
+    public async Task Confidential_client_completes_the_flow_only_with_its_secret()
+    {
+        var userName = NewUserName("muhasebe");
+        await _oauth.CreateUserAsync(userName, Password, AppRoles.MuhasebeGorevli);
+        var (clientId, secret) = await _oauth.RegisterClientAsync("Claude", "client_secret_post");
+        Assert.False(string.IsNullOrEmpty(secret));
+        var authorization = await _oauth.AuthorizeAsync(_oauth.CreateBrowser(), clientId, userName, Password);
+        Assert.NotNull(authorization.Code);
+
+        foreach (var wrong in new[] { null, "yanlis-secret" })
+        {
+            var refused = await _oauth.ExchangeCodeAsync(clientId, authorization.Code!, authorization.CodeVerifier, clientSecret: wrong);
+            Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+            Assert.Equal(Errors.InvalidClient, await ReadErrorAsync(refused));
+        }
+
+        var tokens = await OAuthTestClient.ReadTokensAsync(clientId, await _oauth.ExchangeCodeAsync(
+            clientId, authorization.Code!, authorization.CodeVerifier, clientSecret: secret));
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(tokens.AccessToken)).StatusCode);
+
+        Assert.False((await _oauth.RefreshAsync(clientId, tokens.RefreshToken)).IsSuccessStatusCode);
+        var refreshed = await OAuthTestClient.ReadTokensAsync(
+            clientId, await _oauth.RefreshAsync(clientId, tokens.RefreshToken, secret));
+        Assert.Equal(HttpStatusCode.OK, (await _oauth.InitializeMcpAsync(refreshed.AccessToken)).StatusCode);
+    }
+
     private async Task<ClaimsPrincipal> ValidateAccessTokenAsync(string accessToken)
     {
         using var scope = factory.Services.CreateScope();

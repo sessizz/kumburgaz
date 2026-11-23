@@ -31,6 +31,11 @@ public class OAuthMetadataTests(KumburgazAppFactory factory)
         // PKCE yalnız S256: "plain" doğrulayıcıyı korumaz.
         Assert.Equal(["S256"], Strings(root.GetProperty("code_challenge_methods_supported")));
         Assert.Contains("mcp", Strings(root.GetProperty("scopes_supported")));
+        // DCR'nin kabul ettiği yöntemler; claude.ai secret'sız ("none") istemci olarak kaydolur.
+        var authMethods = Strings(root.GetProperty("token_endpoint_auth_methods_supported")).ToList();
+        Assert.Contains("none", authMethods);
+        Assert.Contains("client_secret_post", authMethods);
+        Assert.Contains("client_secret_basic", authMethods);
     }
 
     private static IEnumerable<string?> Strings(JsonElement array)

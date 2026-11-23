@@ -13,17 +13,26 @@ namespace Kumburgaz.Web.Auth;
 [AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [EnableRateLimiting(OAuthRateLimits.RegisterPolicy)]
-public class ClientRegistrationController(IOpenIddictApplicationManager applications, IConfiguration config) : Controller
+public class ClientRegistrationController(
+    IOpenIddictApplicationManager applications, ClientRegistrationQuota quota, IConfiguration config) : Controller
 {
+    // Uç anonimdir: gövde ve alan sınırları tek kaydın büyüklüğünü, hız sınırları (OAuthRateLimits) sayısını bağlar.
+    private const int MaxBodyBytes = 16384;
+    private const int MaxRedirectUris = 5;
+    private const int MaxClientNameLength = 200;
+
     private const string AuthMethodNone = "none";
     private const string AuthMethodPost = "client_secret_post";
     private const string AuthMethodBasic = "client_secret_basic";
 
     [HttpPost("/connect/register")]
+    [RequestSizeLimit(MaxBodyBytes)]
     public async Task<IActionResult> Register([FromBody] ClientRegistrationRequest? request, CancellationToken ct)
     {
         if (request?.RedirectUris is not { Count: > 0 } redirectUris)
             return Error("invalid_client_metadata", "redirect_uris zorunludur.");
+        if (redirectUris.Count > MaxRedirectUris)
+            return Error("invalid_client_metadata", $"redirect_uris en fazla {MaxRedirectUris} adres içerebilir.");
 
         var uris = new List<Uri>();
         foreach (var raw in redirectUris)
@@ -41,7 +50,12 @@ public class ClientRegistrationController(IOpenIddictApplicationManager applicat
 
         var confidential = authMethod != AuthMethodNone;
         var clientName = string.IsNullOrWhiteSpace(request.ClientName) ? "Claude" : request.ClientName.Trim();
-        if (clientName.Length > 100) clientName = clientName[..100];
+        if (clientName.Length > MaxClientNameLength)
+            return Error("invalid_client_metadata", $"client_name en fazla {MaxClientNameLength} karakter olabilir.");
+
+        if (!quota.TryTake())
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                new { error = "temporarily_unavailable", error_description = "Kayıt sınırına ulaşıldı; daha sonra yeniden deneyin." });
 
         var clientId = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
         var secret = confidential ? System.Buffers.Text.Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)) : null;
@@ -76,6 +90,7 @@ public class ClientRegistrationController(IOpenIddictApplicationManager applicat
             ClientId = clientId,
             ClientIdIssuedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             ClientSecret = secret,
+            ClientSecretExpiresAt = secret is null ? null : 0,
             ClientName = clientName,
             RedirectUris = redirectUris,
             TokenEndpointAuthMethod = authMethod
@@ -101,6 +116,9 @@ public class ClientRegistrationResponse
     [JsonPropertyName("client_id_issued_at")] public long ClientIdIssuedAt { get; set; }
     [JsonPropertyName("client_secret"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ClientSecret { get; set; }
+    // RFC 7591: secret verildiyse zorunlu; 0 = süresi dolmaz.
+    [JsonPropertyName("client_secret_expires_at"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? ClientSecretExpiresAt { get; set; }
     [JsonPropertyName("client_name")] public string ClientName { get; set; } = "";
     [JsonPropertyName("redirect_uris")] public IReadOnlyList<string?> RedirectUris { get; set; } = [];
     [JsonPropertyName("grant_types")] public string[] GrantTypes { get; set; } = ["authorization_code", "refresh_token"];

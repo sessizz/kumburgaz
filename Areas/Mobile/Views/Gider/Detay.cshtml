@@ -63,8 +63,13 @@
                 <button type="button"
                         style="width:100%;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:12px;border:1px solid var(--m-border);background:#f8fafc;cursor:pointer;padding:8px;"
                         data-attachment-url="@attUrl" data-attachment-type="@att.ContentType" data-attachment-name="@att.FileName"
+                        @(AttachmentKindHelper.IsPdf(att.ContentType) ? "data-pdf-thumb" : null)
                         onclick="openAttachmentFrom(this)">
-                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--m-debt)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                    @if (AttachmentKindHelper.IsPdf(att.ContentType))
+                    {
+                        <canvas data-pdf-canvas style="display:none;max-width:100%;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2);"></canvas>
+                    }
+                    <svg data-pdf-fallback width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--m-debt)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                     <span style="font-size:12px;font-weight:600;color:var(--m-text,#334155);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@att.FileName</span>
                 </button>
             }

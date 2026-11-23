@@ -65,6 +65,57 @@ public class ExpenseAttachmentViewTests(KumburgazAppFactory factory)
         Assert.Contains("/js/attachment-viewer.js", await browser.GetStringAsync("/m/Gider"));
     }
 
+    [Fact]
+    public async Task Desktop_pdf_tile_has_thumbnail_canvas_and_fallback()
+    {
+        var (_, pdfId, _) = await SeedExpenseWithAttachmentsAsync();
+        var browser = await LoginAsAdminAsync();
+
+        var html = await browser.GetStringAsync("/Ledger");
+
+        AssertPdfTileHasThumbnail(html, $"/Ledger/Ek/{pdfId}");
+    }
+
+    [Fact]
+    public async Task Mobile_pdf_tile_has_thumbnail_canvas_and_fallback()
+    {
+        var (ledgerId, pdfId, _) = await SeedExpenseWithAttachmentsAsync();
+        var browser = await LoginAsAdminAsync();
+
+        var html = await browser.GetStringAsync($"/m/Gider/Detay/{ledgerId}");
+
+        AssertPdfTileHasThumbnail(html, $"/m/Gider/Ek/{pdfId}");
+    }
+
+    [Theory]
+    [InlineData("/lib/pdfjs/pdf.min.mjs")]
+    [InlineData("/lib/pdfjs/pdf.worker.min.mjs")]
+    public async Task Pdfjs_files_are_served_locally(string path)
+    {
+        var browser = await LoginAsAdminAsync();
+
+        var response = await browser.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        Assert.Contains(contentType, new[] { "text/javascript", "application/javascript" });
+    }
+
+    // PDF kutucuğu: data-pdf-thumb işaretli düğme, içinde canvas + yedek ikon + dosya adı.
+    private static void AssertPdfTileHasThumbnail(string html, string url)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(html,
+            "<button[^>]*data-attachment-url=\"" + System.Text.RegularExpressions.Regex.Escape(url) + "\"[^>]*>.*?</button>",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        Assert.True(match.Success, "PDF kutucuğu bir düğme olarak bulunamadı.");
+        var tile = match.Value;
+
+        Assert.Contains("data-pdf-thumb", tile);
+        Assert.Contains("<canvas", tile);
+        Assert.Contains("data-pdf-fallback", tile);
+        Assert.Contains("Enpara işlem dekontunuz.pdf", System.Net.WebUtility.HtmlDecode(tile));
+    }
+
     private async Task<HttpClient> LoginAsAdminAsync()
     {
         var userName = $"gider-{Guid.NewGuid():N}";

@@ -10,6 +10,9 @@ public static class AttachmentKindHelper
     public static bool IsImage(string? contentType)
         => contentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true;
 
+    public static bool IsPdf(string? contentType)
+        => string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
+
     // Material Symbols ikon adı.
     public static string Icon(string? contentType) => contentType?.ToLowerInvariant() switch
     {

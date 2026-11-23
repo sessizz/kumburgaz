@@ -152,6 +152,8 @@
                                 {
                                     <span class="material-symbols-outlined align-middle text-primary" style="font-size:19px;cursor:pointer;"
                                           title="@firstAttachment!.FileName - açmak için tıklayın"
+                                          onmouseenter="@(AttachmentKindHelper.IsPdf(firstAttachment.ContentType) ? $"showPdfAttPreview(this, '{firstAttachmentUrl}')" : null)"
+                                          onmouseleave="@(AttachmentKindHelper.IsPdf(firstAttachment.ContentType) ? "hideAttPreview()" : null)"
                                           data-attachment-url="@firstAttachmentUrl" data-attachment-type="@firstAttachment.ContentType" data-attachment-name="@firstAttachment.FileName"
                                           onclick="event.stopPropagation(); openAttachmentFrom(this)">attachment</span>
                                 }
@@ -241,8 +243,13 @@
                                     <button type="button" title="@att.FileName"
                                             class="w-full h-32 flex flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 text-center cursor-pointer"
                                             data-attachment-url="@attUrl" data-attachment-type="@att.ContentType" data-attachment-name="@att.FileName"
+                                            @(AttachmentKindHelper.IsPdf(att.ContentType) ? "data-pdf-thumb" : null)
                                             onclick="event.stopPropagation(); openAttachmentFrom(this)">
-                                        <span class="material-symbols-outlined text-error" style="font-size:40px;">@AttachmentKindHelper.Icon(att.ContentType)</span>
+                                        @if (AttachmentKindHelper.IsPdf(att.ContentType))
+                                        {
+                                            <canvas data-pdf-canvas style="display:none;max-width:100%;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.2);"></canvas>
+                                        }
+                                        <span data-pdf-fallback class="material-symbols-outlined text-error" style="font-size:40px;">@AttachmentKindHelper.Icon(att.ContentType)</span>
                                         <span class="text-xs font-medium text-gray-700 w-full truncate">@att.FileName</span>
                                     </button>
                                 }
@@ -267,12 +274,29 @@
        tablonun overflow-x-auto sarmalayicisi tarafindan kirpilmaz. *@
     <div id="giderAttPreview" style="display:none;position:fixed;z-index:60;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 10px 25px -5px rgba(0,0,0,.25),0 8px 10px -6px rgba(0,0,0,.1);padding:5px;">
         <img id="giderAttPreviewImg" src="" alt="Fiş önizleme" style="width:170px;height:170px;object-fit:cover;border-radius:7px;display:block;" />
+        <canvas id="giderAttPreviewPdf" style="display:none;border-radius:7px;"></canvas>
     </div>
     <script>
         function showAttPreview(el, url) {
-            var preview = document.getElementById('giderAttPreview');
             var img = document.getElementById('giderAttPreviewImg');
+            document.getElementById('giderAttPreviewPdf').style.display = 'none';
+            img.style.display = 'block';
             img.src = url;
+            placeAttPreview(el);
+        }
+        // İlk ek PDF ise ataş önizlemesinde ilk sayfa küçük resmi gösterilir (pdf.js hazır olunca).
+        function showPdfAttPreview(el, url) {
+            var canvas = document.getElementById('giderAttPreviewPdf');
+            if (typeof window.renderPdfPreview !== 'function') return;
+            window.renderPdfPreview(url, canvas, 170).then(function (ok) {
+                if (!ok || !el.matches(':hover')) return;
+                document.getElementById('giderAttPreviewImg').style.display = 'none';
+                canvas.style.display = 'block';
+                placeAttPreview(el);
+            });
+        }
+        function placeAttPreview(el) {
+            var preview = document.getElementById('giderAttPreview');
             preview.style.display = 'block';
             var rect = el.getBoundingClientRect();
             var previewWidth = 182;

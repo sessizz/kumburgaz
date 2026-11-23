@@ -173,6 +173,7 @@ public class UnitTools(
     [McpServerTool(Name = "get_unit", Title = "Daire detayı", ReadOnly = true)]
     [Description("Bir dairenin malik/kiracısını, aidat grubunu, bakiyesini, devir borcunu, açık taksitlerini ve son 5 tahsilatını getirir. "
         + "balance: pozitif = daire borçlu, negatif = daire alacaklı (avans). devirRemaining: devir borcundan henüz ödenmemiş kısım. "
+        + "openInstallments.remaining: devir alacağı düşülmüş kalan (tahsilat ekranıyla aynı); kalanı kalmayan taksit listelenmez. "
         + "Telefon yalnız Daireler ya da Hesaplar yetkisi olana gelir. unitId için önce search kullanın.")]
     public async Task<UnitDetail> GetUnitAsync(
         ClaimsPrincipal user,
@@ -207,16 +208,20 @@ public class UnitTools(
             .Select(x => x.BillingGroup!.Name)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // UnitsController.BuildCollectionPeriodOptionsAsync ile aynı taksit kümesi.
+        // UnitsController.BuildCollectionPeriodOptionsAsync ile aynı taksit kümesi; kalanlar tahsilat formundaki
+        // (CollectionsController.BuildFormAsync) gibi devir alacağı düşülmüş halidir.
         var installments = await db.DuesInstallments.AsNoTracking()
+            .Include(x => x.Unit)
             .Where(x => (x.UnitId == unitId || (x.UnitId == null && x.BillingGroup!.Units.Any(u => u.UnitId == unitId)))
                         && x.RemainingAmount > 0)
             .ToListAsync(cancellationToken);
+        var effectiveRemaining = OpeningBalanceCreditHelper.BuildEffectiveRemainingMap(installments);
         var openInstallments = installments
+            .Where(x => effectiveRemaining[x.Id] > 0m)
             .OrderBy(x => PeriodHelper.ToKey(x.Period))
             .ThenBy(x => x.DueDate)
             .ThenBy(x => x.Id)
-            .Select(x => new OpenInstallment(x.Id, x.Period, FormatDate(x.DueDate), x.Amount, x.RemainingAmount))
+            .Select(x => new OpenInstallment(x.Id, x.Period, FormatDate(x.DueDate), x.Amount, effectiveRemaining[x.Id]))
             .ToList();
 
         var recent = await RecentCollectionsAsync(ledger, cancellationToken);
@@ -238,13 +243,14 @@ public class UnitTools(
     [McpServerTool(Name = "unit_statement", Title = "Daire ekstresi", ReadOnly = true)]
     [Description("Dairenin devir, tahakkuk ve tahsilat hareketlerini yürüyen bakiyeyle listeler; from/to ile tarih aralığına daraltılır. "
         + "amount: pozitif = borç artışı (tahakkuk, devir borcu), negatif = ödeme/alacak. runningBalance: o harekete kadarki toplam bakiye "
-        + "(pozitif = borçlu), aralıktan bağımsızdır. closingBalance: seçilen bitiş tarihindeki (verilmezse güncel) bakiye. "
+        + "(pozitif = borçlu), aralıktan bağımsızdır. closingBalance: seçilen bitiş tarihindeki bakiye; to verilmezse ileri tarihliler dahil "
+        + "son hareketteki bakiye. "
         + "kind: opening (devir), debt (tahakkuk), collection (tahsilat).")]
     public async Task<UnitStatementResult> UnitStatementAsync(
         ClaimsPrincipal user,
         [Description("Dairenin id'si (search sonucundan).")] int unitId,
         [Description("Başlangıç tarihi, YYYY-AA-GG (dahil). Verilmezse en baştan.")] string? from = null,
-        [Description("Bitiş tarihi, YYYY-AA-GG (dahil). Verilmezse bugüne kadar.")] string? to = null,
+        [Description("Bitiş tarihi, YYYY-AA-GG (dahil). Verilmezse sonuna kadar.")] string? to = null,
         CancellationToken cancellationToken = default)
     {
         McpAccess.RequireAny(user, permissions, UnitModules, write: false);
@@ -269,12 +275,16 @@ public class UnitTools(
     }
 
     [McpServerTool(Name = "overdue_dues", Title = "Borçlu daireler", ReadOnly = true)]
-    [Description("Kalan borcu sıfırdan büyük daireleri, en çok borçlu önce listeler (Daire Borç/Alacak raporuyla aynı hesap; devir borcu dahil). "
-        + "remaining: toplam kalan borç; oldestPeriod: kalanı olan en eski dönem (yalnız devir borcu varsa \"Devir\"). "
-        + "total: eşleşen tüm dairelerin toplam borcu (TL, limit'ten bağımsız); count: eşleşen daire sayısı.")]
+    [Description("Kalan borcu sıfırdan büyük daireleri, en çok borçlu önce listeler (Daire Borç/Alacak raporuyla aynı hesap). "
+        + "Vadesi henüz gelmemiş borç da dahildir. remaining: toplam kalan borç; devir borcu eklenmiş, devir alacağı düşülmüştür. "
+        + "period verilince de devir girer: o dönemin aidatını tamamen ödemiş daire, devir borcu varsa yine listelenir. "
+        + "oldestPeriod: kalanı olan en eski dönem; period verilince yalnız o döneme bakılır. "
+        + "oldestPeriod \"Devir\" ise (seçilen dönemin) aidatında açık taksit yoktur, borç yalnız devirdendir: \"bu dönemi ödemedi\" demeyin. "
+        + "unitId ve link'i boş satır, birleştirilmiş aidat grubunun ortak taksitidir (tek daireye bağlı değil). "
+        + "total: eşleşen tüm satırların toplam borcu (TL, limit'ten bağımsız); count: eşleşen satır sayısı.")]
     public async Task<OverdueDuesResult> OverdueDuesAsync(
         ClaimsPrincipal user,
-        [Description("Dönem, YYYY-YYYY (ör. 2026-2027). Verilmezse tüm dönemler.")] string? period = null,
+        [Description("Dönem, YYYY-YYYY (ör. 2026-2027): o dönemin taksitleri + devir. Verilmezse tüm dönemler.")] string? period = null,
         [Description("Yalnız bu blokta (blok id'si).")] int? blockId = null,
         [Description("En fazla kaç satır (varsayılan 100, en çok 500).")] int? limit = null,
         CancellationToken cancellationToken = default)

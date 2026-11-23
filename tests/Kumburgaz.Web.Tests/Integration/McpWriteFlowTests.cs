@@ -86,6 +86,7 @@ public class McpWriteFlowTests(KumburgazAppFactory factory)
         Assert.Contains(seed.UnitNo, preview.GetProperty("unit").GetString());
         Assert.Equal("2026-03-05", preview.GetProperty("date").GetString());
         Assert.Equal(500m, preview.GetProperty("advance").GetDecimal());
+        Assert.Equal(-500m, preview.GetProperty("balanceAfter").GetDecimal());
         Assert.False(preview.TryGetProperty("category", out _));
         Assert.Equal(1_500m, preview.GetProperty("lines").EnumerateArray().Sum(x => x.GetProperty("applied").GetDecimal()));
         Assert.Equal(0, await CountCollectionsAsync(seed));
@@ -98,6 +99,7 @@ public class McpWriteFlowTests(KumburgazAppFactory factory)
         Assert.Equal($"https://localhost/Collections/Edit/{id}", created.GetProperty("link").GetString());
         Assert.Equal(Lines(preview), Lines(created));
         Assert.Equal(500m, created.GetProperty("advance").GetDecimal());
+        Assert.Equal(-500m, created.GetProperty("balanceAfter").GetDecimal());
         Assert.Equal(created.GetRawText(), retry.GetRawText());
         Assert.Equal(1, await CountCollectionsAsync(seed));
         Assert.Equal(1_500m, (await AllocationsAsync(seed)).Sum(x => x.AppliedAmount));

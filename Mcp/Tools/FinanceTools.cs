@@ -32,7 +32,14 @@ public sealed record CashBankAccountRow(string Key, string Type, string Name, de
 public sealed record CashBankTransactionRow(string Date, string Description, decimal Inflow, decimal Outflow, decimal Balance);
 
 public sealed record CashBankTransactionsResult(
-    string Account, decimal Opening, decimal Closing, int Count, List<CashBankTransactionRow> Rows, string Link);
+    string Account,
+    decimal Opening,
+    decimal TotalInflow,
+    decimal TotalOutflow,
+    decimal Closing,
+    int Count,
+    List<CashBankTransactionRow> Rows,
+    string Link);
 
 public sealed record LedgerRow(
     int Id, string Date, string Kind, string Category, decimal Amount, string Account, string? Description, string Link);
@@ -165,8 +172,8 @@ public class FinanceTools(
     [Description("Bir kasa/banka hesabının hareketlerini en yeni önce, yürüyen bakiyeyle listeler (tahsilat, gelir/gider ve transferler). "
         + "from/to dahil takvim günleridir (YYYY-AA-GG). inflow/outflow: giriş/çıkış (TL); balance: o harekete kadarki hesap bakiyesi (tüm geçmişi kapsar). "
         + "opening: aralığın ilk hareketinden hemen önceki bakiye (from verilmezse hesabın açılış bakiyesi). closing: seçilen bitiş gününün sonundaki bakiye (to verilmezse güncel bakiye); "
-        + "opening + girişler - çıkışlar = closing. "
-        + "count: eşleşen hareket sayısı (limit'ten bağımsız).")]
+        + "totalInflow/totalOutflow: eşleşen tüm hareketlerin giriş/çıkış toplamı; opening + totalInflow - totalOutflow = closing. "
+        + "count: eşleşen hareket sayısı. Toplamlar ve count limit'ten bağımsızdır; rows limit'le kesilebilir, toplamı satırlardan çıkarmayın.")]
     public async Task<CashBankTransactionsResult> CashBankTransactionsAsync(
         ClaimsPrincipal user,
         [Description("Hesap anahtarı: cash:{id} ya da bank:{id} (cash_bank_accounts sonucundan).")] string accountKey,
@@ -213,6 +220,8 @@ public class FinanceTools(
         return new CashBankTransactionsResult(
             string.IsNullOrWhiteSpace(detail.Branch) || detail.Kind != "bank" ? detail.Name : $"{detail.Name} - {detail.Branch}",
             opening,
+            matching.Sum(x => Math.Max(x.Amount, 0m)),
+            matching.Sum(x => Math.Max(-x.Amount, 0m)),
             closing,
             matching.Count,
             matching.Take(McpInput.ClampLimit(limit))

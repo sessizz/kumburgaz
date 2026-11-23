@@ -276,7 +276,9 @@ public class McpFinanceToolsTests
         Assert.Equal(100m, toFirstDay.Opening);
         foreach (var r in new[] { mid, toFirstDay, emptyRange })
         {
-            Assert.Equal(r.Closing, r.Opening + r.Rows.Sum(x => x.Inflow) - r.Rows.Sum(x => x.Outflow));
+            Assert.Equal(r.Rows.Sum(x => x.Inflow), r.TotalInflow);
+            Assert.Equal(r.Rows.Sum(x => x.Outflow), r.TotalOutflow);
+            Assert.Equal(r.Closing, r.Opening + r.TotalInflow - r.TotalOutflow);
         }
     }
 
@@ -290,6 +292,10 @@ public class McpFinanceToolsTests
         var limited = await tools.CashBankTransactionsAsync(Admin(), $"cash:{seed.CashId}", limit: 2);
         Assert.Equal(2, limited.Rows.Count);
         Assert.Equal(5, limited.Count);
+        // Satırlar limit'le kesilse de toplamlar eşleşen bütün hareketlerindir: eşitlik bunlarla kurulur.
+        Assert.Equal(850m, limited.TotalInflow);
+        Assert.Equal(500m, limited.TotalOutflow);
+        Assert.Equal(limited.Closing, limited.Opening + limited.TotalInflow - limited.TotalOutflow);
 
         foreach (var key in new[] { "cash:999", "bank:abc", "kasa", "cash:0" })
         {

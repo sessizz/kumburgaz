@@ -25,11 +25,13 @@ public sealed record WritePreview(
     string Date,
     List<AllocatedLine>? Lines,
     decimal? Advance,
+    decimal? BalanceAfter,
     string? Category,
     string PreviewToken) : WriteResult;
 
 public sealed record WriteReceipt(
-    bool Created, int Id, string Link, List<AllocatedLine>? Lines = null, decimal? Advance = null) : WriteResult;
+    bool Created, int Id, string Link, List<AllocatedLine>? Lines = null, decimal? Advance = null, decimal? BalanceAfter = null)
+    : WriteResult;
 
 /// <summary>
 /// MCP'nin yazabildiği tek şeyler: tahsilat, gider, gelir. confirm: false yalnız önizler; confirm: true aynı girdilerle
@@ -42,6 +44,7 @@ public class WriteTools(
     ICollectionService collections,
     LedgerEntryService ledgerEntries,
     IDuesLedgerRowService duesRows,
+    UnitLedgerService unitLedger,
     McpIdempotencyStore idempotency,
     McpPreviewTokens previewTokens,
     McpLinks links)
@@ -84,8 +87,10 @@ public class WriteTools(
 
     [McpServerTool(Name = RecordCollection, Title = "Tahsilat kaydet", ReadOnly = false, Destructive = false, Idempotent = false)]
     [Description("Daireden alınan ödemeyi (aidat ya da devir borcu tahsilatı) kaydeder. unitId için önce search kullanın. "
-        + "lines: tahsilatın dağıldığı borçlar (applied: uygulanan, remainingAfter: kalan); advance: hiçbir borca dağıtılmayan kısım (avans)."
-        + ConfirmFlow + " Kayıtta lines, gerçekten yazılan dağıtımdır.")]
+        + "lines: tahsilatın dağıldığı borçlar (applied: uygulanan; remainingAfter: o taksitin ham kalanı, devir alacağı düşülmemiştir, "
+        + "kalan borç diye söylemeyin). advance: hiçbir borca dağıtılmayan kısım (avans). "
+        + "balanceAfter: kayıttan sonra dairenin bakiyesi, devir dahil (pozitif = kalan borç, negatif = daire alacaklı); kalan borcu bundan söyleyin."
+        + ConfirmFlow + " Kayıtta lines ve balanceAfter, gerçekten yazılandır.")]
     public async Task<WriteResult> RecordCollectionAsync(
         ClaimsPrincipal user,
         [Description("Dairenin id'si (search sonucundan).")] int unitId,
@@ -93,7 +98,8 @@ public class WriteTools(
         [Description(AccountHelp)] string accountKey,
         [Description(DateHelp)] string? date = null,
         [Description("Hangi borca: \"devir\" (önce devir borcu, kalanı açık taksitlere eskiden yeniye), bir dönem (YYYY-YYYY; yalnız o dönemin açık taksiti, "
-            + "fazlası avans) ya da boş (dairenin en eski açık taksiti, fazlası avans).")] string? period = null,
+            + "fazlası avans) ya da boş (dairenin kendi en eski açık taksiti; kendi açık taksiti yoksa önce devir borcu, sonra aidat grubunun "
+            + "ortak taksitleri; fazlası avans).")] string? period = null,
         [Description("true: makbuzlu tahsilat; referenceNo (makbuz no) zorunlu olur.")] bool isReceipt = false,
         [Description("Dekont ya da makbuz no.")] string? referenceNo = null,
         [Description("Not.")] string? note = null,
@@ -216,18 +222,22 @@ public class WriteTools(
         var prepared = await PrepareCollectionAsync(input);
         var plan = await collections.PlanAllocationAsync(prepared.Model);
         var lines = plan.Lines.Select(x => new AllocatedLine(x.Label, x.Applied, x.RemainingAfter)).ToList();
+        var balanceAfter = await GetBalanceAsync(input.UnitId) - input.Amount;
 
         var summary = new List<string>
         {
             $"{prepared.Unit} dairesinden {Money(input.Amount)} tahsilat, {DisplayDate(input.Date)}, {prepared.Account} hesabına.",
             lines.Count == 0
                 ? "Dağıtılacak açık borç yok."
-                : $"Dağıtım: {string.Join("; ", lines.Select(x => $"{x.Label} {Money(x.Applied)} (kalan {Money(x.RemainingAfter)})"))}."
+                : $"Dağıtım: {string.Join("; ", lines.Select(x => $"{x.Label} {Money(x.Applied)}"))}."
         };
         if (plan.Advance > 0m)
         {
             summary.Add($"Avans: {Money(plan.Advance)}.");
         }
+
+        summary.Add($"Kayıttan sonra kalan borç: {Money(Math.Max(0m, balanceAfter))}"
+            + (balanceAfter < 0m ? $" (daire {Money(-balanceAfter)} alacaklı)." : "."));
 
         if (input.ReferenceNo is not null)
         {
@@ -241,7 +251,7 @@ public class WriteTools(
 
         return new WritePreview(
             false, string.Join(' ', summary), prepared.Unit, prepared.Account, input.Amount, FormatDate(input.Date),
-            lines, plan.Advance, null, previewToken);
+            lines, plan.Advance, balanceAfter, null, previewToken);
     }
 
     private async Task<WriteReceipt> WriteCollectionAsync(CollectionInput input)
@@ -252,8 +262,12 @@ public class WriteTools(
         var prepared = await PrepareCollectionAsync(input);
         var id = await collections.CreateAsync(prepared.Model);
         var (lines, advance) = await ReadWrittenAllocationsAsync(id);
-        return new WriteReceipt(true, id, links.Collection(id), lines, advance);
+        return new WriteReceipt(true, id, links.Collection(id), lines, advance, await GetBalanceAsync(input.UnitId));
     }
+
+    // Daire ekranındaki bakiye: pozitif = borçlu, negatif = alacaklı. Taksit kalanları devir alacağını saymaz, bu sayar.
+    private async Task<decimal> GetBalanceAsync(int unitId)
+        => (await unitLedger.BuildAsync(unitId) ?? throw new McpException(UnitNotFound)).Summary.NetBalance;
 
     // Claude araçları paralel çağırabilir: aynı borca eşzamanlı iki tahsilat (farklı anahtarlarla) PostgreSQL'de aynı
     // kalanı okuyup borcu iki kez kapatırdı. Dairenin aidat grupları işlem bitene kadar kilitlenir (değer değiştirmeyen
@@ -318,7 +332,7 @@ public class WriteTools(
         }
 
         return new WritePreview(
-            false, summary, null, entry.AccountName, entry.Amount, FormatDate(entry.Date), null, null, entry.CategoryName, previewToken);
+            false, summary, null, entry.AccountName, entry.Amount, FormatDate(entry.Date), null, null, null, entry.CategoryName, previewToken);
     }
 
     // "CASH:1" ile "cash:1" aynı girdidir; hesabın varlığı ayrıca doğrulanır.

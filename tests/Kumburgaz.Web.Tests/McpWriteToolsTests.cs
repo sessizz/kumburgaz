@@ -99,6 +99,64 @@ public class McpWriteToolsTests
         Assert.Equal(3, await db.Collections.CountAsync());
     }
 
+    // Devir alacağı 5.000, taksit 12.000, ödeme 7.000: taksitin ham kalanı 5.000 görünse de dairenin borcu biter.
+    [Fact]
+    public async Task Record_collection_balance_after_counts_carried_credit()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var unit = await db.Units.SingleAsync(x => x.Id == seed.OtherUnitId);
+        unit.OpeningBalance = 5_000m;
+        unit.OpeningBalanceDate = Utc(2025, 5, 26);
+        db.DuesInstallments.Add(new DuesInstallment
+        {
+            UnitId = unit.Id, BillingGroupId = (await db.BillingGroups.SingleAsync()).Id, Period = "2026-2027",
+            AccrualDate = Utc(2026, 8, 1), DueDate = Utc(2026, 8, 1), Amount = 12_000m, RemainingAmount = 12_000m,
+            Status = InstallmentStatus.Open
+        });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var tools = Tools(db);
+
+        var preview = (WritePreview)await tools.RecordCollectionAsync(
+            Admin(), unit.Id, Json("7000"), $"cash:{seed.CashId}", "2026-08-05", "2026-2027");
+        var receipt = (WriteReceipt)await tools.RecordCollectionAsync(
+            Admin(), unit.Id, Json("7000"), $"cash:{seed.CashId}", "2026-08-05", "2026-2027",
+            confirm: true, idempotency_key: Key, preview_token: preview.PreviewToken);
+        var retry = (WriteReceipt)await tools.RecordCollectionAsync(
+            Admin(), unit.Id, Json("7000"), $"cash:{seed.CashId}", "2026-08-05", "2026-2027",
+            confirm: true, idempotency_key: Key);
+
+        Assert.Equal([new AllocatedLine("2026-2027 Aidat Tipi", 7_000m, 5_000m)], preview.Lines);
+        Assert.Equal(0m, preview.BalanceAfter);
+        Assert.Contains("kalan borç: ₺0,00", preview.Summary);
+        Assert.DoesNotContain("₺5.000,00", preview.Summary);
+        Assert.Equal(preview.Lines, receipt.Lines);
+        Assert.Equal(0m, receipt.BalanceAfter);
+        Assert.Equal((await LedgerOf(db).BuildAsync(unit.Id))!.Summary.NetBalance, receipt.BalanceAfter);
+        Assert.Equal(0m, retry.BalanceAfter);
+    }
+
+    // balanceAfter: pozitif borç, negatif alacak (avans); ekrandaki daire bakiyesiyle aynı hesap.
+    [Theory]
+    [InlineData("1000", "kalan borç: ₺300,00.", 300)]
+    [InlineData("1300", "kalan borç: ₺0,00.", 0)]
+    [InlineData("1500", "kalan borç: ₺0,00 (daire ₺200,00 alacaklı).", -200)]
+    public async Task Record_collection_reports_unit_balance_after_the_payment(string amount, string summary, int balanceAfter)
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        var tools = Tools(db);
+
+        var preview = await PreviewAsync(tools, seed, amount, "devir");
+        var receipt = await ConfirmAsync(tools, seed, preview.PreviewToken, Key, amount, "devir");
+
+        Assert.Equal(balanceAfter, preview.BalanceAfter);
+        Assert.Contains(summary, preview.Summary);
+        Assert.Equal(balanceAfter, receipt.BalanceAfter);
+        Assert.Equal((await LedgerOf(db).BuildAsync(seed.UnitId))!.Summary.NetBalance, receipt.BalanceAfter);
+    }
+
     // Önizlemeden sonra başka tahsilat girilirse kayıt güncel planla yazılır, sonuç gerçekten yazılanı gösterir.
     [Fact]
     public async Task Record_collection_confirm_uses_current_state_not_stale_preview()
@@ -242,6 +300,8 @@ public class McpWriteToolsTests
         Assert.Null(preview.Unit);
         Assert.Null(preview.Lines);
         Assert.Null(preview.Advance);
+        Assert.Null(preview.BalanceAfter);
+        Assert.Null(first.BalanceAfter);
         foreach (var part in new[] { "Elektrik", "₺1.250,50", "05.03.2026", "İş Bankası - Merkez", "Mart faturası" })
         {
             Assert.Contains(part, preview.Summary);
@@ -869,10 +929,13 @@ public class McpWriteToolsTests
             collections ?? new CollectionService(db),
             new LedgerEntryService(db),
             new DuesLedgerRowService(db),
+            LedgerOf(db),
             new McpIdempotencyStore(db),
             new McpPreviewTokens(DataProtection),
             new McpLinks(config));
     }
+
+    private static UnitLedgerService LedgerOf(ApplicationDbContext db) => new(db, new DuesLedgerRowService(db));
 
     private static ApplicationDbContext CreateDb()
         => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

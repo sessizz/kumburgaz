@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using Kumburgaz.Web.Controllers;
 using Kumburgaz.Web.Data;
 using Kumburgaz.Web.Mcp;
 using Kumburgaz.Web.Mcp.Tools;
 using Kumburgaz.Web.Models;
 using Kumburgaz.Web.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -279,6 +281,69 @@ public class McpUnitToolsTests
         Assert.Equal("Ana Kasa", detail.RecentCollections[0].Account);
     }
 
+    // Devir alacağı taksitlerden düşülür: kalanlar tahsilat formu ve Aidatlar ekranıyla aynı.
+    [Fact]
+    public async Task Get_unit_open_installments_match_the_screens_for_carried_credit()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        seed.A15.OpeningBalance = 5_000m;
+        seed.A15.OpeningBalanceDate = Utc(2025, 7, 1);
+        var installment = AddInstallment(db, seed, "2026-2027", 12_000m, remaining: 12_000m, Utc(2026, 7, 1), seed.A15);
+        await db.SaveChangesAsync();
+        var tools = Tools(db);
+
+        var before = await tools.GetUnitAsync(Admin(), seed.A15.Id);
+
+        var open = Assert.Single(before.OpenInstallments);
+        Assert.Equal(installment.Id, open.Id);
+        Assert.Equal(12_000m, open.Amount);
+        Assert.Equal(7_000m, open.Remaining);
+        Assert.Equal(7_000m, before.Balance);
+        Assert.Equal(open.Remaining, (await CollectionFormAsync(db, installment.Id)).AllocationPreviewDebt);
+        Assert.Equal(open.Remaining, (await DuesScreenRowAsync(db, installment.Id)).RemainingAmount);
+
+        await new CollectionService(db).CreateAsync(new CollectionCreateViewModel
+        {
+            BillingGroupId = seed.GroupId,
+            PreferredUnitId = seed.A15.Id,
+            DuesInstallmentId = installment.Id,
+            Date = Utc(2026, 8, 1),
+            Amount = 7_000m,
+            PaymentChannel = PaymentChannel.Cash,
+            AccountKey = FinancialAccountHelper.CashKey(seed.CashBoxId)
+        });
+        var after = await tools.GetUnitAsync(Admin(), seed.A15.Id);
+
+        // Ham kalan 5.000 olsa da devir alacağı karşılar: ekranlar da borç göstermez.
+        Assert.Empty(after.OpenInstallments);
+        Assert.Equal(0m, after.Balance);
+        Assert.DoesNotContain((await CollectionFormAsync(db)).DuesInstallmentOptions, x => x.Value == installment.Id.ToString());
+        var paid = await DuesScreenRowAsync(db, installment.Id);
+        Assert.True(paid.IsPaid);
+        Assert.Equal(0m, paid.RemainingAmount);
+    }
+
+    // Alacak en eski tahakkuktan başlar; artan kısmı sonrakine geçer.
+    [Fact]
+    public async Task Get_unit_applies_carried_credit_to_the_oldest_installments_first()
+    {
+        await using var db = CreateDb();
+        var seed = await SeedAsync(db);
+        seed.A15.OpeningBalance = 1_500m;
+        seed.A15.OpeningBalanceDate = Utc(2025, 7, 1);
+        AddInstallment(db, seed, "2025-2026", 1_000m, remaining: 1_000m, Utc(2025, 9, 1), seed.A15);
+        var newer = AddInstallment(db, seed, "2026-2027", 2_000m, remaining: 2_000m, Utc(2026, 9, 1), seed.A15);
+        await db.SaveChangesAsync();
+
+        var detail = await Tools(db).GetUnitAsync(Admin(), seed.A15.Id);
+
+        var open = Assert.Single(detail.OpenInstallments);
+        Assert.Equal(newer.Id, open.Id);
+        Assert.Equal(1_500m, open.Remaining);
+        Assert.Equal((await DuesScreenRowAsync(db, newer.Id)).RemainingAmount, open.Remaining);
+    }
+
     [Fact]
     public async Task Get_unit_rejects_unknown_and_deleted_unit()
     {
@@ -354,9 +419,10 @@ public class McpUnitToolsTests
         Assert.Equal(3, limited.Count);
         Assert.Equal(9_000m + 4_000m + 300m, limited.Total);
 
+        // Dönem verilse de devir borcu kalana girer: o dönemde taksiti olmayan A-5 "Devir" diye gelir.
         var period = await tools.OverdueDuesAsync(user, period: "2026-2027");
-        Assert.Equal(seed.A15.Id, period.Rows[0].UnitId);
-        Assert.Equal("2026-2027", period.Rows[0].OldestPeriod);
+        Assert.Equal([(seed.A15.Id, "2026-2027"), (seed.A5.Id, "Devir")], period.Rows.Select(x => (x.UnitId!.Value, x.OldestPeriod!)));
+        Assert.Equal(300m, period.Rows[1].Remaining);
 
         await Assert.ThrowsAsync<McpException>(() => tools.OverdueDuesAsync(user, period: "2026"));
     }
@@ -436,6 +502,17 @@ public class McpUnitToolsTests
         db.DuesInstallments.Add(installment);
         return installment;
     }
+
+    // Tahsilat ekranı; taksit seçiliyse AllocationPreviewDebt onun kalanıdır.
+    private static async Task<CollectionCreateViewModel> CollectionFormAsync(ApplicationDbContext db, int? installmentId = null)
+    {
+        var controller = new CollectionsController(db, new CollectionService(db), null!, new DuesLedgerRowService(db));
+        return (CollectionCreateViewModel)((ViewResult)await controller.Create(installmentId)).Model!;
+    }
+
+    // Aidatlar ekranındaki satır.
+    private static async Task<DuesListItemViewModel> DuesScreenRowAsync(ApplicationDbContext db, int installmentId)
+        => Assert.Single(await new DuesLedgerRowService(db).GetInstallmentRowsAsync(), x => x.Id == installmentId);
 
     private static DateTime Utc(int y, int m, int d) => new(y, m, d, 0, 0, 0, DateTimeKind.Utc);
 

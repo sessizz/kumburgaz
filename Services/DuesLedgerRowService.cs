@@ -31,46 +31,59 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
 {
     public async Task<List<DuesListItemViewModel>> GetInstallmentRowsAsync()
     {
+        // Taksitler tek sorguda aidat grubunun bütün daireleri ve tahsis kayıtlarıyla birlikte
+        // çekilirse her taksit satırı (grup dairesi × birleşik daire üyesi × tahsis) kadar çoğalır.
+        // Bu yüzden grup daireleri bir kez, son tahsilat tarihleri de toplu sorguyla ayrıca alınır.
         var installments = await db.DuesInstallments
             .AsNoTracking()
             .Include(x => x.BillingGroup)
             .ThenInclude(x => x!.DuesType)
-            .Include(x => x.BillingGroup)
-            .ThenInclude(x => x!.Units)
-            .ThenInclude(x => x.Unit)
-            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
             .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
             .ThenInclude(x => x!.CombinedUnitMembers)
             .ThenInclude(x => x.ComponentUnit)
             .ThenInclude(x => x!.Block)
-            .Include(x => x.Allocations)
-            .ThenInclude(x => x.Collection)
             .Include(x => x.ResponsibleAccount)
+            .AsSplitQuery()
             .ToListAsync();
+
+        var groupIds = installments.Select(x => x.BillingGroupId).Distinct().ToList();
+        var groups = await db.BillingGroups
+            .AsNoTracking()
+            .Where(x => groupIds.Contains(x.Id))
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .AsSplitQuery()
+            .ToDictionaryAsync(x => x.Id);
+
+        var lastPaidDates = await db.CollectionAllocations
+            .AsNoTracking()
+            .Where(a => a.DuesInstallmentId != null && a.Collection != null)
+            .GroupBy(a => a.DuesInstallmentId!.Value)
+            .Select(g => new { InstallmentId = g.Key, LastDate = g.Max(a => a.Collection!.Date) })
+            .ToDictionaryAsync(x => x.InstallmentId, x => x.LastDate);
 
         var rows = installments
             .Select(x =>
             {
                 var unit = x.Unit;
-                var paidDate = x.Allocations
-                    .Where(a => a.Collection is not null)
-                    .OrderByDescending(a => a.Collection!.Date)
-                    .Select(a => (DateTime?)a.Collection!.Date)
-                    .FirstOrDefault();
+                var group = x.BillingGroup is null ? null : groups.GetValueOrDefault(x.BillingGroupId);
+                var groupUnit = unit is null ? FirstActiveGroupUnit(group) : null;
+                DateTime? paidDate = lastPaidDates.TryGetValue(x.Id, out var lastDate) ? lastDate : null;
                 var isPaid = x.RemainingAmount <= 0;
 
                 return new DuesListItemViewModel
                 {
                     Id = x.Id,
-                    UnitId = x.UnitId ?? FirstActiveGroupUnit(x.BillingGroup)?.Id,
+                    UnitId = x.UnitId ?? FirstActiveGroupUnit(group)?.Id,
                     Period = x.Period,
-                    BlockName = unit?.Block?.Name ?? FirstActiveGroupUnit(x.BillingGroup)?.Block?.Name ?? "-",
-                    UnitNo = unit?.UnitNo ?? FirstActiveGroupUnit(x.BillingGroup)?.UnitNo ?? "-",
-                    OwnerName = unit?.OwnerName ?? FirstActiveGroupUnit(x.BillingGroup)?.OwnerName ?? string.Empty,
+                    BlockName = unit?.Block?.Name ?? groupUnit?.Block?.Name ?? "-",
+                    UnitNo = unit?.UnitNo ?? groupUnit?.UnitNo ?? "-",
+                    OwnerName = unit?.OwnerName ?? groupUnit?.OwnerName ?? string.Empty,
                     ResponsibleAccountName = x.ResponsibleAccount?.Name ?? string.Empty,
-                    UnitDisplay = unit is not null ? UnitDisplayHelper.Display(unit) : BillingGroupDisplayHelper.UnitDisplay(x.BillingGroup),
+                    UnitDisplay = unit is not null ? UnitDisplayHelper.Display(unit) : BillingGroupDisplayHelper.UnitDisplay(group),
                     DuesTypeName = x.BillingGroup?.DuesType?.Name ?? "Aidat",
                     AccrualDate = x.AccrualDate,
                     PaymentOrDueDate = isPaid && paidDate.HasValue ? paidDate.Value : x.DueDate,
@@ -176,9 +189,10 @@ public class DuesLedgerRowService(ApplicationDbContext db) : IDuesLedgerRowServi
             .ToListAsync();
         if (units.Count == 0) return;
 
+        var rowsByUnit = rows.Where(r => r.UnitId.HasValue).ToLookup(r => r.UnitId!.Value);
         foreach (var unit in units)
         {
-            var unitRows = rows.Where(r => r.UnitId == unit.Id).ToList();
+            var unitRows = rowsByUnit[unit.Id].ToList();
             var collectionCredit = collectionCredits.GetValueOrDefault(unit.Id);
             var collectionCreditRemaining = collectionCredit?.Amount ?? 0m;
             if (collectionCreditRemaining > 0)

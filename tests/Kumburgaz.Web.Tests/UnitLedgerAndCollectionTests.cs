@@ -393,6 +393,68 @@ public class UnitLedgerAndCollectionTests
         Assert.Equal(3_000m, allocation.AppliedAmount);
     }
 
+    [Fact]
+    public async Task Batch_summaries_match_single_unit_ledgers()
+    {
+        await using var db = CreateDb();
+        var credit = await SeedUnitAsync(db, openingBalance: 4_000m, openingDate: Utc(2025, 5, 26));
+        var debt = await SeedUnitAsync(db, openingBalance: -750m, openingDate: Utc(2025, 6, 1));
+        var plain = await SeedUnitAsync(db);
+        var noDate = await SeedUnitAsync(db, openingBalance: 300m);
+
+        await AddInstallmentAsync(db, credit, Utc(2025, 7, 20), Utc(2026, 5, 31), 12_000m);
+        var debtInstallment = await AddInstallmentAsync(db, debt, Utc(2025, 7, 20), Utc(2026, 5, 31), 9_000m);
+        await AddInstallmentAsync(db, plain, Utc(2026, 7, 20), Utc(2026, 9, 30), 5_000m, period: "2026-2027");
+        await AddInstallmentAsync(db, noDate, Utc(2025, 7, 20), Utc(2026, 5, 31), 1_000m);
+
+        // Grup düzeyinde (UnitId boş) taksit: grubun her dairesinin defterine girer.
+        db.BillingGroupUnits.Add(new BillingGroupUnit { BillingGroupId = plain.BillingGroupId, UnitId = debt.UnitId, StartPeriod = "2025-2026" });
+        db.DuesInstallments.Add(new DuesInstallment
+        {
+            BillingGroupId = plain.BillingGroupId,
+            Period = "2025-2026",
+            AccrualDate = Utc(2025, 8, 1),
+            DueDate = Utc(2025, 8, 31),
+            Amount = 2_500m,
+            RemainingAmount = 2_500m
+        });
+        // Silinmiş taksit hiçbir özete girmemeli.
+        db.DuesInstallments.Add(new DuesInstallment
+        {
+            UnitId = plain.UnitId,
+            BillingGroupId = plain.BillingGroupId,
+            Period = "2025-2026",
+            AccrualDate = Utc(2025, 9, 1),
+            DueDate = Utc(2025, 9, 30),
+            Amount = 99_999m,
+            RemainingAmount = 99_999m,
+            IsDeleted = true
+        });
+        await db.SaveChangesAsync();
+
+        await AddCollectionAsync(db, credit, Utc(2025, 9, 24), 6_000m);
+        await AddCollectionAsync(db, debt, Utc(2025, 9, 24), 2_000m, debtInstallment.Id);
+        await AddCollectionAsync(db, plain, Utc(2026, 8, 1), 1_200m);
+
+        var service = new UnitLedgerService(db, new DuesLedgerRowService(db));
+        var unitIds = new[] { credit.UnitId, debt.UnitId, plain.UnitId, noDate.UnitId, -1 };
+
+        var batch = await service.BuildSummariesAsync(unitIds);
+
+        Assert.Equal(4, batch.Count);
+        foreach (var unitId in unitIds.Where(x => x > 0))
+        {
+            var single = (await service.BuildAsync(unitId))!.Summary;
+            var summary = batch[unitId];
+            Assert.Equal(single.TotalAccrual, summary.TotalAccrual);
+            Assert.Equal(single.TotalCollections, summary.TotalCollections);
+            Assert.Equal(single.OpeningCredit, summary.OpeningCredit);
+            Assert.Equal(single.OpeningDebt, summary.OpeningDebt);
+            Assert.Equal(single.NetBalance, summary.NetBalance);
+        }
+        Assert.Equal(11_500m, batch[debt.UnitId].TotalAccrual);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

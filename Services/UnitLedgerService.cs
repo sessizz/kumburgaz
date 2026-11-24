@@ -118,16 +118,103 @@ public class UnitLedgerService(ApplicationDbContext db, IDuesLedgerRowService le
         };
     }
 
+    /// <summary>
+    /// <see cref="BuildAsync"/> ile aynı özetleri, daire başına ayrı sorgu çalıştırmadan toplu hesaplar
+    /// (Daireler listesi gibi ekranlar yüzlerce daire için çağırır).
+    /// </summary>
     public async Task<Dictionary<int, UnitLedgerSummary>> BuildSummariesAsync(IEnumerable<int> unitIds)
     {
-        var result = new Dictionary<int, UnitLedgerSummary>();
-        foreach (var unitId in unitIds.Distinct())
+        var ids = unitIds.Distinct().ToList();
+        if (ids.Count == 0)
         {
-            var ledger = await BuildAsync(unitId);
-            if (ledger is not null)
+            return new Dictionary<int, UnitLedgerSummary>();
+        }
+
+        var units = await db.Units
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .Select(x => new { x.Id, x.OpeningBalance, x.OpeningBalanceDate })
+            .ToListAsync();
+        if (units.Count == 0)
+        {
+            return new Dictionary<int, UnitLedgerSummary>();
+        }
+
+        var foundIds = units.Select(x => x.Id).ToList();
+
+        // BuildAsync taksit ve tahsilatları BillingGroup ile birlikte (Include) okur; silinmiş grubun
+        // kayıtları orada düşer. Aynı sonuç için yalnız görünen grupların kayıtları sayılır.
+        var visibleGroupIds = (await db.BillingGroups.AsNoTracking().Select(x => x.Id).ToListAsync()).ToHashSet();
+
+        var memberships = await db.BillingGroupUnits
+            .AsNoTracking()
+            .Where(x => foundIds.Contains(x.UnitId))
+            .Select(x => new { x.BillingGroupId, x.UnitId })
+            .ToListAsync();
+        var membershipGroupIds = memberships.Select(x => x.BillingGroupId).Distinct().ToList();
+
+        var installments = (await db.DuesInstallments
+                .AsNoTracking()
+                .Where(x => (x.UnitId != null && foundIds.Contains(x.UnitId.Value))
+                            || (x.UnitId == null && membershipGroupIds.Contains(x.BillingGroupId)))
+                .Select(x => new { x.Id, x.UnitId, x.BillingGroupId, x.Amount })
+                .ToListAsync())
+            .Where(x => visibleGroupIds.Contains(x.BillingGroupId))
+            .ToList();
+
+        var installmentIds = installments.Select(x => x.Id).ToList();
+        var allocations = await db.CollectionAllocations
+            .AsNoTracking()
+            .Where(x => x.DuesInstallmentId.HasValue && installmentIds.Contains(x.DuesInstallmentId.Value))
+            .Select(x => new { InstallmentId = x.DuesInstallmentId!.Value, x.CollectionId })
+            .ToListAsync();
+        var allocatedCollectionIds = allocations.Select(x => x.CollectionId).Distinct().ToList();
+
+        var collections = (await db.Collections
+                .AsNoTracking()
+                .Where(x => foundIds.Contains(x.UnitId) || allocatedCollectionIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.UnitId, x.BillingGroupId, x.Amount })
+                .ToListAsync())
+            .Where(x => visibleGroupIds.Contains(x.BillingGroupId))
+            .ToDictionary(x => x.Id);
+
+        var groupsByUnit = memberships.ToLookup(x => x.UnitId, x => x.BillingGroupId);
+        var directInstallmentsByUnit = installments.Where(x => x.UnitId.HasValue).ToLookup(x => x.UnitId!.Value);
+        var groupInstallmentsByGroup = installments.Where(x => !x.UnitId.HasValue).ToLookup(x => x.BillingGroupId);
+        var collectionIdsByInstallment = allocations.ToLookup(x => x.InstallmentId, x => x.CollectionId);
+        var collectionsByUnit = collections.Values.ToLookup(x => x.UnitId);
+
+        var openingDebtRemaining = await ledgerService.GetOpeningDebtRemainingByUnitAsync(
+            units.Where(x => x.OpeningBalance < 0m).Select(x => x.Id));
+
+        var result = new Dictionary<int, UnitLedgerSummary>();
+        foreach (var unit in units)
+        {
+            var unitInstallments = directInstallmentsByUnit[unit.Id]
+                .Concat(groupsByUnit[unit.Id].Distinct().SelectMany(groupId => groupInstallmentsByGroup[groupId]))
+                .DistinctBy(x => x.Id)
+                .ToList();
+
+            var unitCollectionIds = collectionsByUnit[unit.Id].Select(x => x.Id)
+                .Concat(unitInstallments.SelectMany(x => collectionIdsByInstallment[x.Id]))
+                .Distinct();
+            var totalCollections = unitCollectionIds
+                .Where(collections.ContainsKey)
+                .Sum(id => collections[id].Amount);
+
+            var totalAccrual = unitInstallments.Sum(x => x.Amount);
+            var opening = unit.OpeningBalance != 0m && unit.OpeningBalanceDate.HasValue ? -unit.OpeningBalance : 0m;
+
+            result[unit.Id] = new UnitLedgerSummary
             {
-                result[unitId] = ledger.Summary;
-            }
+                TotalAccrual = totalAccrual,
+                TotalCollections = totalCollections,
+                OpeningCredit = unit.OpeningBalance > 0m ? unit.OpeningBalance : 0m,
+                OpeningDebt = unit.OpeningBalance < 0m
+                    ? openingDebtRemaining.GetValueOrDefault(unit.Id, Math.Abs(unit.OpeningBalance))
+                    : 0m,
+                NetBalance = opening + totalAccrual - totalCollections
+            };
         }
 
         return result;

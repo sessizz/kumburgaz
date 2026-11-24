@@ -6,20 +6,13 @@ namespace Kumburgaz.Web.Services;
 
 public class CollectionService(ApplicationDbContext db) : ICollectionService
 {
-    public Task<List<Collection>> GetAllAsync()
+    public async Task<List<Collection>> GetAllAsync()
     {
-        return db.Collections
+        // Grup daireleri her tahsilatla birlikte çekilirse satırlar (tahsilat × grup dairesi ×
+        // birleşik üye) kadar çoğalır. Gruplar bir kez okunup tahsilatlara bağlanır.
+        var collections = await db.Collections
             .AsNoTracking()
             .Include(x => x.BillingGroup)
-            .ThenInclude(x => x!.Units)
-            .ThenInclude(x => x.Unit)
-            .ThenInclude(x => x!.Block)
-            .Include(x => x.BillingGroup)
-            .ThenInclude(x => x!.Units)
-            .ThenInclude(x => x.Unit)
-            .ThenInclude(x => x!.CombinedUnitMembers)
-            .ThenInclude(x => x.ComponentUnit)
-            .ThenInclude(x => x!.Block)
             .Include(x => x.Unit)
             .ThenInclude(x => x!.Block)
             .Include(x => x.CashBox)
@@ -27,6 +20,28 @@ public class CollectionService(ApplicationDbContext db) : ICollectionService
             .OrderByDescending(x => x.Date)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
+
+        var groupIds = collections.Where(x => x.BillingGroup is not null).Select(x => x.BillingGroupId).Distinct().ToList();
+        var groups = await db.BillingGroups
+            .AsNoTracking()
+            .Where(x => groupIds.Contains(x.Id))
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.Block)
+            .Include(x => x.Units)
+            .ThenInclude(x => x.Unit)
+            .ThenInclude(x => x!.CombinedUnitMembers)
+            .ThenInclude(x => x.ComponentUnit)
+            .ThenInclude(x => x!.Block)
+            .AsSplitQuery()
+            .ToDictionaryAsync(x => x.Id);
+
+        foreach (var collection in collections.Where(x => x.BillingGroup is not null))
+        {
+            collection.BillingGroup = groups.GetValueOrDefault(collection.BillingGroupId) ?? collection.BillingGroup;
+        }
+
+        return collections;
     }
 
     public Task<Collection?> GetByIdAsync(int id)

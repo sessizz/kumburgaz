@@ -4,3 +4,5 @@
 .vs
 .vscode
 tests/
+node_modules/
+wwwroot/css/app.css

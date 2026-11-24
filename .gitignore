@@ -9,3 +9,6 @@ appsettings.Development.json
 *.db
 *.db-shm
 *.db-wal
+
+node_modules/
+wwwroot/css/app.css

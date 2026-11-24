@@ -1,3 +1,17 @@
+# Styles: Tailwind + daisyUI -> wwwroot/css/app.css
+FROM node:22-bookworm-slim AS styles
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY Styles ./Styles
+COPY Views ./Views
+COPY Areas ./Areas
+COPY Controllers ./Controllers
+COPY Services ./Services
+COPY Models ./Models
+COPY wwwroot/js ./wwwroot/js
+RUN npm run build:css
+
 # Build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -6,6 +20,7 @@ COPY Kumburgaz.Web.csproj ./
 RUN dotnet restore Kumburgaz.Web.csproj
 
 COPY . .
+COPY --from=styles /src/wwwroot/css/app.css ./wwwroot/css/app.css
 RUN dotnet publish Kumburgaz.Web.csproj -c Release -o /app/out --no-restore
 
 # Runtime

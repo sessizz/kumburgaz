@@ -1,0 +1,14 @@
+{
+  "name": "kumburgaz-web-styles",
+  "private": true,
+  "description": "Tailwind + daisyUI derlemesi (wwwroot/css/app.css)",
+  "scripts": {
+    "build:css": "tailwindcss -i Styles/app.css -o wwwroot/css/app.css --minify",
+    "watch:css": "tailwindcss -i Styles/app.css -o wwwroot/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.5",
+    "daisyui": "5.8.2",
+    "tailwindcss": "4.3.5"
+  }
+}

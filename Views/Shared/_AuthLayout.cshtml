@@ -6,40 +6,11 @@
     <title>@ViewData["Title"] - Kumburgaz Yönetim</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link rel="preload" href="/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="~/css/material-symbols.css" asp-append-version="true" />
 
-    <script src="https://cdn.jsdelivr.net/npm/@@tailwindcss/browser@4"></script>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
 
-    <style type="text/tailwindcss">
-        @@theme {
-            --font-sans: "Inter", system-ui, sans-serif;
-            --color-primary: #0e7c86;
-            --color-primary-content: #ffffff;
-            --color-blue-50: #eef6f7;
-            --color-blue-100: #dbeef0;
-            --color-blue-200: #bfe0e2;
-            --color-blue-300: #94cbcf;
-            --color-blue-400: #57adb3;
-            --color-blue-500: #1f8f97;
-            --color-blue-600: #0e7c86;
-            --color-blue-700: #0a5c64;
-            --color-blue-800: #0a4a51;
-            --color-blue-900: #0b3d43;
-            --color-blue-950: #062327;
-            --color-sky-50: #eef6f7;
-            --color-sky-100: #dbeef0;
-            --color-sky-200: #bfe0e2;
-            --color-sky-300: #94cbcf;
-            --color-sky-400: #57adb3;
-            --color-sky-500: #1f8f97;
-            --color-sky-600: #0e7c86;
-            --color-sky-700: #0a5c64;
-            --color-sky-800: #0a4a51;
-            --color-sky-900: #0b3d43;
-            --color-sky-950: #062327;
-        }
-    </style>
     <style>
         :root, html[data-theme="light"] {
             --color-primary: #0e7c86 !important;

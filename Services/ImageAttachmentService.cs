@@ -1,17 +1,11 @@
 using Microsoft.AspNetCore.Http;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace Kumburgaz.Web.Services;
 
 /// <summary>
 /// Fis/fatura fotograflarini sunucuda kucultup JPEG'e sikistirir.
-/// Uzun kenar 1600px'i, cikti boyutu ~500KB'i asmaz.
+/// Uzun kenar en fazla 1600 piksel, JPEG boyut hedefi 500 KB.
 /// </summary>
 public sealed class ImageAttachmentService
 {
@@ -29,19 +23,8 @@ public sealed class ImageAttachmentService
 
     public sealed record CompressedImage(byte[] Content, string ContentType, string FileName);
 
-    // Yalnız kabul ettiğimiz biçimlerin çözücüleri yüklenir. Varsayılan yapılandırma
-    // içeriğe bakıp TIFF/BMP/TGA vb. çözücüleri de çalıştırır; ImageSharp 3.1.x'in TIFF
-    // çözücüsünde bilinen bellek taşması açıkları var (GHSA-v76p-62qx-wwq2,
-    // GHSA-wmxv-xphr-5c9g); düzeltilmiş 3.2+ sürümleri Release derlemede Six Labors
-    // lisans anahtarı istiyor.
-    private static readonly DecoderOptions DecoderOptions = new()
-    {
-        Configuration = new Configuration(
-            new JpegConfigurationModule(),
-            new PngConfigurationModule(),
-            new WebpConfigurationModule(),
-            new GifConfigurationModule())
-    };
+    private const string InvalidImageMessage =
+        "Desteklenmeyen veya bozuk resim dosyası (JPEG, PNG, WebP veya GIF olmalı).";
 
     public async Task<CompressedImage> CompressAsync(IFormFile file, CancellationToken ct = default)
     {
@@ -55,39 +38,63 @@ public sealed class ImageAttachmentService
             throw new InvalidOperationException("Dosya cok buyuk (en fazla 15MB olabilir).");
         }
 
+        ct.ThrowIfCancellationRequested();
         await using var input = file.OpenReadStream();
-        Image image;
-        try
+        using var codec = SKCodec.Create(input);
+        if (codec is null || codec.EncodedFormat is not
+            (SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp or SKEncodedImageFormat.Gif))
         {
-            image = await Image.LoadAsync(DecoderOptions, input, ct);
-        }
-        catch (ImageFormatException)
-        {
-            throw new InvalidOperationException("Desteklenmeyen veya bozuk resim dosyası (JPEG, PNG, WebP veya GIF olmalı).");
+            throw new InvalidOperationException(InvalidImageMessage);
         }
 
-        using var _ = image;
+        var source = codec.Info;
+        var scale = Math.Min(1f, (float)MaxDimension / Math.Max(source.Width, source.Height));
+        var decodeSize = codec.GetScaledDimensions(scale);
+        using var colorSpace = SKColorSpace.CreateSrgb();
+        var decodeInfo = new SKImageInfo(decodeSize.Width, decodeSize.Height, SKColorType.Rgba8888,
+            SKAlphaType.Premul, colorSpace);
 
-        image.Mutate(x => x.AutoOrient().Resize(new ResizeOptions
+        using var bitmap = new SKBitmap();
+        // Varsayılan codec seçenekleri animasyonun ilk karesini okur.
+        if (!bitmap.TryAllocPixels(decodeInfo) ||
+            codec.GetPixels(decodeInfo, bitmap.GetPixels(), bitmap.RowBytes, SKCodecOptions.Default) != SKCodecResult.Success)
         {
-            Size = new Size(MaxDimension, MaxDimension),
-            Mode = ResizeMode.Max
-        }));
+            throw new InvalidOperationException(InvalidImageMessage);
+        }
 
+        ct.ThrowIfCancellationRequested();
+        var origin = codec.EncodedOrigin;
+        var swapAxes = origin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop
+            or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
+        var sourceWidth = swapAxes ? source.Height : source.Width;
+        var sourceHeight = swapAxes ? source.Width : source.Height;
+        var width = Math.Max(1, (int)Math.Round(sourceWidth * (double)scale));
+        var height = Math.Max(1, (int)Math.Round(sourceHeight * (double)scale));
+        var orientedWidth = swapAxes ? bitmap.Height : bitmap.Width;
+        var orientedHeight = swapAxes ? bitmap.Width : bitmap.Height;
+
+        using var surface = SKSurface.Create(new SKImageInfo(width, height, SKColorType.Rgba8888,
+            SKAlphaType.Opaque, colorSpace));
+        var canvas = surface.Canvas;
+        canvas.Clear(SKColors.Black);
+        canvas.Scale((float)width / orientedWidth, (float)height / orientedHeight);
+        canvas.Concat(OrientationMatrix(origin, bitmap.Width, bitmap.Height));
+        bitmap.SetImmutable();
+        using var decoded = SKImage.FromBitmap(bitmap);
+        canvas.DrawImage(decoded, 0, 0, new SKSamplingOptions(SKFilterMode.Linear));
+
+        using var image = surface.Snapshot();
         byte[] bytes;
-        var quality = 75;
-        while (true)
+        for (var quality = 75; ; quality -= 10)
         {
-            using var ms = new MemoryStream();
-            await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = quality }, ct);
-            bytes = ms.ToArray();
-
-            if (bytes.Length <= TargetMaxBytes || quality <= 35)
+            ct.ThrowIfCancellationRequested();
+            using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, quality)
+                ?? throw new InvalidOperationException("Görsel JPEG olarak kaydedilemedi.");
+            if (encoded.Size <= TargetMaxBytes || quality <= 35)
             {
+                bytes = encoded.ToArray();
                 break;
             }
-
-            quality -= 10;
         }
 
         var baseName = Path.GetFileNameWithoutExtension(file.FileName);
@@ -95,4 +102,16 @@ public sealed class ImageAttachmentService
 
         return new CompressedImage(bytes, "image/jpeg", fileName);
     }
+
+    private static SKMatrix OrientationMatrix(SKEncodedOrigin origin, int width, int height) => origin switch
+    {
+        SKEncodedOrigin.TopRight => new(-1, 0, width, 0, 1, 0, 0, 0, 1),
+        SKEncodedOrigin.BottomRight => new(-1, 0, width, 0, -1, height, 0, 0, 1),
+        SKEncodedOrigin.BottomLeft => new(1, 0, 0, 0, -1, height, 0, 0, 1),
+        SKEncodedOrigin.LeftTop => new(0, 1, 0, 1, 0, 0, 0, 0, 1),
+        SKEncodedOrigin.RightTop => new(0, -1, height, 1, 0, 0, 0, 0, 1),
+        SKEncodedOrigin.RightBottom => new(0, -1, height, -1, 0, width, 0, 0, 1),
+        SKEncodedOrigin.LeftBottom => new(0, 1, 0, -1, 0, width, 0, 0, 1),
+        _ => SKMatrix.Identity
+    };
 }
